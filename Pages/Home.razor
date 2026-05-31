@@ -1,0 +1,184 @@
+@page "/"
+@inject LedgerService Svc
+@inject IJSRuntime JS
+
+<div class="wrap">
+    <header class="top">
+        <div class="title">生計 <small>口座別 引き落とし管理</small></div>
+        <div class="monthnav">
+            <button @onclick="Prev" aria-label="前の月">‹</button>
+            <div class="m">@LedgerService.Label(Svc.CurrentMonth)</div>
+            <button @onclick="Next" aria-label="次の月">›</button>
+        </div>
+    </header>
+
+    <div class="summary">
+        <div class="stat"><div class="lab">月末残高 合計</div><div class="val">@Yen(Total)</div></div>
+        <div class="stat @(Short > 0 ? "warn" : "")"><div class="lab">不足している口座</div><div class="val">@Short 件</div></div>
+        <div class="stat"><div class="lab">口座数</div><div class="val">@Svc.State.Accounts.Count</div></div>
+    </div>
+
+    <div class="grid">
+        @foreach (var a in Svc.State.Accounts)
+        {
+            var l = Mo.Ledgers[a.Id];
+            var close = Svc.CloseOf(Svc.CurrentMonth, a.Id);
+            var bad = close < 0;
+            var outgoing = Mo.Transfers.Where(t => t.From == a.Id).ToList();
+            var incoming = Mo.Transfers.Where(t => t.To == a.Id).ToList();
+            var others = Svc.State.Accounts.Where(x => x.Id != a.Id).ToList();
+            decimal? prevClose = HasPrev ? Svc.CloseOf(PrevMonth, a.Id) : (decimal?)null;
+
+            <div class="acct @(bad ? "bad" : "")">
+                <div class="ahead">
+                    <span class="aname">@a.Name</span>
+                    <button class="del-acct" @onclick="() => DeleteAccount(a.Id)">削除</button>
+                </div>
+
+                <div class="field">
+                    <label>確認時点 @if (prevClose is not null) { <span class="hint">前月末 @Yen(prevClose.Value)</span> }</label>
+                    <input class="num" inputmode="numeric" value="@NumStr(l.Confirmed)"
+                           @oninput="e => SetDecimal(v => l.Confirmed = v, e.Value)" />
+                </div>
+                <div class="field">
+                    <label>給料</label>
+                    <input class="num" inputmode="numeric" value="@NumStr(l.Salary)"
+                           @oninput="e => SetDecimal(v => l.Salary = v, e.Value)" />
+                </div>
+
+                <div class="sec">
+                    <h4>引き落とし <button class="add-line" @onclick="() => AddDebit(a.Id)">＋追加</button></h4>
+                    @foreach (var d in l.Debits)
+                    {
+                        <div class="row">
+                            <input class="name" value="@d.Name" placeholder="項目"
+                                   @oninput="e => SetText(s => d.Name = s, e.Value)" />
+                            <input class="amt" inputmode="numeric" value="@NumStr(d.Amount)"
+                                   @oninput="e => SetDecimal(v => d.Amount = v, e.Value)" />
+                            <button class="x" @onclick="() => RemoveDebit(a.Id, d.Id)">✕</button>
+                        </div>
+                    }
+                </div>
+
+                <div class="sec">
+                    <h4>口座間振込（送金） <button class="add-line" @onclick="() => AddTransfer(a.Id)">＋追加</button></h4>
+                    @if (outgoing.Count == 0) { <div class="none">なし</div> }
+                    @foreach (var t in outgoing)
+                    {
+                        <div class="row">
+                            <select class="name" @bind="t.To" @bind:after="Save">
+                                @foreach (var o in others)
+                                {
+                                    <option value="@o.Id">@o.Name へ</option>
+                                }
+                            </select>
+                            <input class="amt" inputmode="numeric" value="@NumStr(t.Amount)"
+                                   @oninput="e => SetDecimal(v => t.Amount = v, e.Value)" />
+                            <button class="x" @onclick="() => RemoveTransfer(t.Id)">✕</button>
+                        </div>
+                    }
+                </div>
+
+                @if (incoming.Count > 0)
+                {
+                    <div class="sec">
+                        <h4>受取（他口座より）</h4>
+                        @foreach (var t in incoming)
+                        {
+                            <div class="xfer-line"><span>@Svc.AccountName(t.From) より</span><span class="in">+@Yen(t.Amount)</span></div>
+                        }
+                    </div>
+                }
+
+                <div class="close">
+                    <div><div class="lab">月末残高</div></div>
+                    <div style="text-align:right">
+                        <div class="badge">@(bad ? "不足" : "OK")</div>
+                        <div class="amt">@Yen(close)</div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="addacct">
+        <input @bind="NewName" placeholder="口座名を入力" />
+        <button class="btn" @onclick="AddAccount">＋ 口座を追加</button>
+    </div>
+
+    <div class="foot">
+        「確認時点」は給料日前の実際の口座残高を手入力します（新しい月は前月末残高が初期値、横の「前月末」は参考表示）。<br />
+        口座間振込は送金元で設定し、振込先に「受取」として自動反映されます。<br />
+        月末残高 ＝ 確認時点 ＋ 給料 ＋ 受取振込 − 引き落とし − 送金振込。マイナスの口座は赤で警告します。
+    </div>
+</div>
+
+@code {
+    private MonthData Mo = new();
+    private string NewName = "";
+
+    private string PrevMonth => LedgerService.PrevYm(Svc.CurrentMonth);
+    private bool HasPrev => Svc.State.Months.ContainsKey(PrevMonth);
+    private decimal Total => Svc.State.Accounts.Sum(a => Svc.CloseOf(Svc.CurrentMonth, a.Id));
+    private int Short => Svc.State.Accounts.Count(a => Svc.CloseOf(Svc.CurrentMonth, a.Id) < 0);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Svc.LoadAsync();
+        Mo = Svc.EnsureMonth(Svc.CurrentMonth);
+    }
+
+    private static string Yen(decimal v) => "¥" + v.ToString("#,0");
+    private static string NumStr(decimal v) => v == 0 ? "" : v.ToString("0");
+
+    private void SetDecimal(Action<decimal> set, object? value)
+    {
+        decimal.TryParse(value?.ToString(), out var v);
+        set(v);
+        Save();
+    }
+
+    private void SetText(Action<string> set, object? value)
+    {
+        set(value?.ToString() ?? string.Empty);
+        Save();
+    }
+
+    private void Save() => _ = Svc.SaveAsync();
+
+    private void Prev() { Svc.CurrentMonth = LedgerService.PrevYm(Svc.CurrentMonth); Mo = Svc.EnsureMonth(Svc.CurrentMonth); Save(); }
+    private void Next() { Svc.CurrentMonth = LedgerService.NextYm(Svc.CurrentMonth); Mo = Svc.EnsureMonth(Svc.CurrentMonth); Save(); }
+
+    private void AddDebit(string aid) { Mo.Ledgers[aid].Debits.Add(new Debit()); Save(); }
+    private void RemoveDebit(string aid, string did) { Mo.Ledgers[aid].Debits.RemoveAll(d => d.Id == did); Save(); }
+
+    private void AddTransfer(string aid)
+    {
+        var others = Svc.State.Accounts.Where(x => x.Id != aid).ToList();
+        if (others.Count == 0) return;
+        Mo.Transfers.Add(new Transfer { From = aid, To = others[0].Id });
+        Save();
+    }
+    private void RemoveTransfer(string tid) { Mo.Transfers.RemoveAll(t => t.Id == tid); Save(); }
+
+    private void AddAccount()
+    {
+        if (string.IsNullOrWhiteSpace(NewName)) return;
+        Svc.State.Accounts.Add(new Account { Name = NewName.Trim() });
+        NewName = "";
+        Mo = Svc.EnsureMonth(Svc.CurrentMonth);
+        Save();
+    }
+
+    private async Task DeleteAccount(string aid)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "この口座を削除しますか？")) return;
+        Svc.State.Accounts.RemoveAll(a => a.Id == aid);
+        foreach (var m in Svc.State.Months.Values)
+        {
+            m.Ledgers.Remove(aid);
+            m.Transfers.RemoveAll(t => t.From == aid || t.To == aid);
+        }
+        Save();
+    }
+}
