@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
-namespace SeikeiApi;
+namespace MoneyBoardApi;
 
 public class DataApi
 {
@@ -21,3 +21,4 @@ public class DataApi
         return new OkObjectResult("Welcome to Azure Functions!");
     }
 }
+

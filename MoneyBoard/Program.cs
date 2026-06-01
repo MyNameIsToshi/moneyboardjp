@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
-using Seikei;
-using Seikei.Services;
+using MoneyBoard;
+using MoneyBoard.Services;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
@@ -11,3 +11,4 @@ builder.Services.AddScoped<StorageService>();
 builder.Services.AddScoped<LedgerService>();
 
 await builder.Build().RunAsync();
+

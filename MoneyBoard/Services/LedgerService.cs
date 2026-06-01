@@ -1,7 +1,7 @@
 using System.Text.Json;
-using SeikeiShared;
+using MoneyBoardShared;
 
-namespace Seikei.Services;
+namespace MoneyBoard.Services;
 
 public class LedgerService(StorageService storage)
 {

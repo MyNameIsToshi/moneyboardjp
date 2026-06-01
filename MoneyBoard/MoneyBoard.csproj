@@ -9,6 +9,7 @@
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.*" PrivateAssets="all" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\SeikeiShared\SeikeiShared.csproj" />
+    <ProjectReference Include="..\MoneyBoardShared\MoneyBoardShared.csproj" />
   </ItemGroup>
 </Project>
+

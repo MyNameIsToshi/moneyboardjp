@@ -1,6 +1,6 @@
 using Microsoft.JSInterop;
 
-namespace Seikei.Services;
+namespace MoneyBoard.Services;
 
 // IndexedDB への薄いラッパー（wwwroot/js/storage.js を呼ぶ）
 public class StorageService(IJSRuntime js)

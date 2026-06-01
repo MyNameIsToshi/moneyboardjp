@@ -1,4 +1,4 @@
-namespace SeikeiShared;
+namespace MoneyBoardShared;
 
 public static class Util
 {
@@ -77,3 +77,4 @@ public class Transfer
     public string To { get; set; } = "";
     public decimal Amount { get; set; }
 }
+

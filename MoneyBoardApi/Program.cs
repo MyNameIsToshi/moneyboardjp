@@ -15,3 +15,4 @@ builder.Services.AddOpenTelemetry()
     .UseAzureMonitorExporter();
 
 builder.Build().Run();
+
