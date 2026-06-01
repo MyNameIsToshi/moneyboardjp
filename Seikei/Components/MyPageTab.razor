@@ -1,0 +1,36 @@
+@inject LedgerService Svc
+
+<div class="mypage-section">
+    <h3>アカウント</h3>
+    <div style="font-size:13px;color:var(--sub)">
+        Google認証は今後実装予定です。
+    </div>
+</div>
+
+<div class="mypage-section">
+    <h3>データ管理</h3>
+    <div class="mypage-row">
+        <span>CSVエクスポート</span>
+        <button class="btn" style="padding:5px 12px;font-size:13px" @onclick="ExportCsv">ダウンロード</button>
+    </div>
+</div>
+
+<div class="mypage-section">
+    <h3>メニュー</h3>
+    <div class="mypage-link">
+        <span>統計を見る</span><span>→</span>
+    </div>
+    <div class="mypage-link">
+        <span>カテゴリ設定</span><span>→</span>
+    </div>
+    <div class="mypage-link">
+        <span>カード設定</span><span>→</span>
+    </div>
+</div>
+
+@code {
+    private void ExportCsv()
+    {
+        // Phase 1 では未実装（後で実装）
+    }
+}

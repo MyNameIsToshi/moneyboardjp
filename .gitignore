@@ -1,4 +1,10 @@
-bin/
-obj/
+# .NET
+**/bin/
+**/obj/
+
+# Secrets
+**/local.settings.json
+**/*.user
+
+# VS Code
 .vs/
-publish/

@@ -1,0 +1,116 @@
+@inject LedgerService Svc
+@inject IJSRuntime JS
+
+<div class="panel">
+    <div class="panel-head">
+        <h3>口座設定</h3>
+    </div>
+
+    @if (Svc.ActiveAccounts.Count == 0)
+    {
+        <div class="none">口座が登録されていません。下から追加してください。</div>
+    }
+    else
+    {
+        <table class="acct-table">
+            <thead>
+                <tr>
+                    <th>口座名</th>
+                    <th>金融機関コード</th>
+                    <th>口座番号</th>
+                    <th style="text-align:center">ボーナス受取</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var a in Svc.ActiveAccounts)
+                {
+                    <tr>
+                        <td><input class="tinput" value="@a.Name" placeholder="口座名"
+                               @onchange="e => OnNameChange(a, e.Value)" /></td>
+                        <td><input class="tinput" value="@a.BankCode" placeholder="例: 0157"
+                               @onchange="e => OnBankCodeChange(a, e.Value)" /></td>
+                        <td><input class="tinput" value="@a.AccountNumber" placeholder="口座番号"
+                               @onchange="e => OnAccountNumberChange(a, e.Value)" /></td>
+                        <td style="text-align:center">
+                            <input type="radio" name="bonusAcct" class="radio-bonus"
+                                   checked="@a.IsBonusAccount"
+                                   @onchange="() => SetBonusAccount(a.Id)" />
+                        </td>
+                        <td><button class="del-btn" @onclick="() => DeleteAccount(a.Id)">削除</button></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    @if (WarnMessages.Count > 0)
+    {
+        <div class="warn-box">
+            @foreach (var msg in WarnMessages)
+            {
+                <div>⚠ @msg</div>
+            }
+        </div>
+    }
+
+    <div class="add-row">
+        <input @bind="NewName" placeholder="口座名" @bind:event="oninput" />
+        <button class="btn" @onclick="AddAccount">＋ 口座を追加</button>
+    </div>
+</div>
+
+<div class="foot">
+    ボーナス受取口座は1つだけ選択できます。<br />
+    固定費設定に使用中の口座、または現在月以降の月次データに記録がある口座は削除できません。
+</div>
+
+@code {
+    private string NewName = "";
+    private List<string> WarnMessages = new();
+
+    private void Save() => _ = Svc.SaveAsync();
+
+    private void OnNameChange(Account a, object? v) { a.Name = v?.ToString() ?? ""; Save(); }
+    private void OnBankCodeChange(Account a, object? v) { a.BankCode = v?.ToString() ?? ""; Save(); }
+    private void OnAccountNumberChange(Account a, object? v) { a.AccountNumber = v?.ToString() ?? ""; Save(); }
+
+    private void SetBonusAccount(string id)
+    {
+        foreach (var a in Svc.State.Accounts)
+            a.IsBonusAccount = a.Id == id;
+        Save();
+    }
+
+    private void AddAccount()
+    {
+        if (string.IsNullOrWhiteSpace(NewName)) return;
+        Svc.State.Accounts.Add(new Account
+        {
+            Name = NewName.Trim(),
+            SortOrder = Svc.State.Accounts.Count
+        });
+        NewName = "";
+        Save();
+    }
+
+    private async Task DeleteAccount(string id)
+    {
+        WarnMessages.Clear();
+        var fcNames = Svc.GetFixedCostsUsingAccount(id);
+        if (fcNames.Count > 0)
+        {
+            WarnMessages.Add($"以下の固定費で使用されています：{string.Join("、", fcNames)}");
+            return;
+        }
+        var months = Svc.GetFutureMonthsUsingAccount(id);
+        if (months.Count > 0)
+        {
+            WarnMessages.Add($"以下の年月にデータが存在します：{string.Join("、", months)}");
+            return;
+        }
+        if (!await JS.InvokeAsync<bool>("confirm", "この口座を削除しますか？")) return;
+        Svc.DeleteAccount(id);
+        Save();
+    }
+}

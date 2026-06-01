@@ -1,0 +1,38 @@
+@page "/"
+@inject LedgerService Svc
+
+<div class="wrap">
+    <div class="app-title">生計 <small>口座別 引き落とし管理</small></div>
+
+    <div class="tabs">
+        <button class="tab @(ActiveTab == "monthly" ? "active" : "")" @onclick='() => SetTab("monthly")'>月次管理</button>
+        <button class="tab @(ActiveTab == "fixed" ? "active" : "")" @onclick='() => SetTab("fixed")'>固定費設定</button>
+        <button class="tab @(ActiveTab == "accounts" ? "active" : "")" @onclick='() => SetTab("accounts")'>口座設定</button>
+        <button class="tab @(ActiveTab == "mypage" ? "active" : "")" @onclick='() => SetTab("mypage")'>マイページ</button>
+    </div>
+
+    @if (!Loaded)
+    {
+        <div class="loading">読み込み中…</div>
+    }
+    else
+    {
+        @if (ActiveTab == "monthly")  { <MonthlyTab /> }
+        @if (ActiveTab == "fixed")    { <FixedCostTab /> }
+        @if (ActiveTab == "accounts") { <AccountsTab /> }
+        @if (ActiveTab == "mypage")   { <MyPageTab /> }
+    }
+</div>
+
+@code {
+    private string ActiveTab = "monthly";
+    private bool Loaded = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Svc.LoadAsync();
+        Loaded = true;
+    }
+
+    private void SetTab(string tab) => ActiveTab = tab;
+}

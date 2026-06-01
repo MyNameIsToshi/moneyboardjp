@@ -1,0 +1,26 @@
+@* 金額入力の共通コンポーネント
+   使い方: <AmountInput Value="@amount" ValueChanged="v => amount = v" />
+*@
+
+<input class="@CssClass"
+       inputmode="numeric"
+       placeholder="@Placeholder"
+       value="@DisplayValue"
+       @oninput="OnInput" />
+
+@code {
+    [Parameter] public decimal Value { get; set; }
+    [Parameter] public EventCallback<decimal> ValueChanged { get; set; }
+    [Parameter] public string CssClass { get; set; } = "num";
+    [Parameter] public string Placeholder { get; set; } = "0";
+
+    private string DisplayValue => Value.ToString("#,0");
+
+    private async Task OnInput(ChangeEventArgs e)
+    {
+        var raw = e.Value?.ToString()?.Replace(",", "") ?? "";
+        decimal.TryParse(raw, out var v);
+        Value = v;
+        await ValueChanged.InvokeAsync(v);
+    }
+}
