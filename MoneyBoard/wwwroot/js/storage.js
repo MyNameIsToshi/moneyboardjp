@@ -1,6 +1,5 @@
-// 単一キーに JSON を保存する最小の IndexedDB ラッパー
-window.seikeiStorage = (function () {
-    const DB = 'seikei', STORE = 'kv', VER = 1;
+window.moneyboardStorage = (function () {
+    const DB = 'moneyboard', STORE = 'kv', VER = 1;
     function open() {
         return new Promise((res, rej) => {
             const r = indexedDB.open(DB, VER);

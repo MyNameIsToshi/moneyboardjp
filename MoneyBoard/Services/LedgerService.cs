@@ -5,7 +5,7 @@ namespace MoneyBoard.Services;
 
 public class LedgerService(StorageService storage)
 {
-    private const string Key = "seikei:data";
+    private const string Key = "moneyboard:data";
 
     public AppState State { get; private set; } = new();
     public string CurrentMonth { get; set; } = CurrentCycleStartYm();
@@ -45,8 +45,6 @@ public class LedgerService(StorageService storage)
 
     public static string NowYm() => DateTime.Today.ToString("yyyyMM");
 
-    // 15日〆の「当月サイクル開始年月」を返す
-    // 15日以降 → 当月、14日以前 → 先月
     public static string CurrentCycleStartYm()
     {
         var today = DateTime.Today;
@@ -56,11 +54,9 @@ public class LedgerService(StorageService storage)
         return prev.ToString("yyyyMM");
     }
 
-    // 対象年月が「当月サイクル以降」かどうか
     public static bool IsCurrentOrFutureCycle(string ym)
         => string.Compare(ym, CurrentCycleStartYm()) >= 0;
 
-    // 月を開いた時点で台帳を用意。新規ならその月の確認時点に前月末残高を初期値として入れる（以後は手動）。
     public MonthData EnsureMonth(string ym)
     {
         if (!State.Months.TryGetValue(ym, out var mo))
@@ -80,7 +76,6 @@ public class LedgerService(StorageService storage)
         return mo;
     }
 
-    // 固定費マスタを月次台帳に展開（未登録分のみ）
     private void ExpandFixedCosts(string ym, MonthData mo)
     {
         var month = int.Parse(ym[4..]);
@@ -98,12 +93,9 @@ public class LedgerService(StorageService storage)
         }
     }
 
-    // 固定費マスタが変更されたとき、当月サイクル以降の作成済み月次を自動再展開する
     public void OnFixedCostChanged()
     {
-        var targets = State.Months.Keys
-            .Where(IsCurrentOrFutureCycle)
-            .ToList();
+        var targets = State.Months.Keys.Where(IsCurrentOrFutureCycle).ToList();
         foreach (var ym in targets)
         {
             var mo = State.Months[ym];
@@ -113,28 +105,21 @@ public class LedgerService(StorageService storage)
         }
     }
 
-    // 固定費が対象年月に有効かどうか
-    // StartYm/EndYm は年だけ保存（4文字）の場合もあるため、年月比較は先頭4文字（年）で行う
     public static bool IsFixedCostActive(FixedCost fc, string ym)
     {
-        // 年月の先頭4文字（年）と5文字目以降（月、なければ空）で比較
-        // ym は必ず6文字（yyyyMM）
         if (fc.StartYm != null)
         {
-            // 年だけの場合は "yyyyMM" → "yyyy01" として比較（その年の1月以降が有効）
             var startFull = fc.StartYm.Length == 6 ? fc.StartYm : fc.StartYm + "01";
             if (string.Compare(ym, startFull) < 0) return false;
         }
         if (fc.EndYm != null)
         {
-            // 年だけの場合は "yyyy12" として比較（その年の12月まで有効）
             var endFull = fc.EndYm.Length == 6 ? fc.EndYm : fc.EndYm + "12";
             if (string.Compare(ym, endFull) > 0) return false;
         }
         return true;
     }
 
-    // 月に応じた金額を返す（ボーナス設定を考慮）
     public static decimal GetFixedCostAmount(FixedCost fc, int month)
     {
         var bonus = fc.BonusSettings.FirstOrDefault(b => b.Month == month);
@@ -146,7 +131,6 @@ public class LedgerService(StorageService storage)
         };
     }
 
-    // 月末残高 = 確認時点 + 給料 + ボーナス（受取口座のみ）+ 受取振込 - 引き落とし - 送金振込
     public decimal CloseOf(string ym, string accountId)
     {
         if (!State.Months.TryGetValue(ym, out var mo)) return 0;

@@ -1,8 +1,8 @@
 {
   "profiles": {
-    "SeikeiApi": {
+    "MoneyBoardApi": {
       "commandName": "Project",
-      "commandLineArgs": "--port 7231",
+      "commandLineArgs": "start --port 7071",
       "launchBrowser": false
     }
   }
