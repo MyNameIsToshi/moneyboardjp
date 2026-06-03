@@ -6,8 +6,10 @@ using Microsoft.Extensions.Hosting;
 var builder = FunctionsApplication.CreateBuilder(args);
 builder.ConfigureFunctionsWebApplication();
 
+// Application Insights
+builder.Services.AddApplicationInsightsTelemetryWorkerService();
+
 // Cosmos DB クライアントを DI に登録
-// Azure Functions Isolated では環境変数から直接読む
 builder.Services.AddSingleton(_ =>
 {
     var connStr = Environment.GetEnvironmentVariable("CosmosDb__ConnectionString")
