@@ -1,0 +1,229 @@
+@page "/graph"
+@inject LedgerService Svc
+@using ApexCharts
+
+<div class="wrap">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+        <button class="btn" @onclick="GoBack">← 戻る</button>
+        <div class="app-title">統計</div>
+    </div>
+
+    <!-- 期間選択 -->
+    <div class="period-select">
+        @foreach (var p in Periods)
+        {
+            <button class="period-btn @(SelectedPeriod == p.Key ? "active" : "")"
+                    @onclick="() => SetPeriod(p.Key)">@p.Value</button>
+        }
+    </div>
+
+    <div class="graph-grid">
+
+        <!-- ① 月別引き落とし合計推移 -->
+        <div class="graph-card">
+            <h4>月別 引き落とし合計推移</h4>
+            @if (MonthlyDebitData.Any())
+            {
+                <ApexChart TItem="ChartPoint" Options="LineOptions">
+                    <ApexPointSeries TItem="ChartPoint"
+                                     Items="MonthlyDebitData"
+                                     SeriesType="SeriesType.Line"
+                                     Name="引き落とし合計"
+                                     XValue="@(e => e.Label)"
+                                     YValue="@(e => e.Value)" />
+                </ApexChart>
+            }
+            else { <div class="graph-placeholder">データなし</div> }
+        </div>
+
+        <!-- ② 口座別月末残高推移 -->
+        <div class="graph-card">
+            <h4>口座別 月末残高推移</h4>
+            @if (BalanceSeriesData.Any())
+            {
+                <ApexChart TItem="ChartPoint" Options="LineOptions">
+                    @foreach (var series in BalanceSeriesData)
+                    {
+                        <ApexPointSeries TItem="ChartPoint"
+                                         Items="series.Value"
+                                         SeriesType="SeriesType.Line"
+                                         Name="@series.Key"
+                                         XValue="@(e => e.Label)"
+                                         YValue="@(e => e.Value)" />
+                    }
+                </ApexChart>
+            }
+            else { <div class="graph-placeholder">データなし</div> }
+        </div>
+
+        <!-- ③ 給料・ボーナス推移 -->
+        <div class="graph-card">
+            <h4>給料・ボーナス推移</h4>
+            @if (SalaryData.Any())
+            {
+                <ApexChart TItem="ChartPoint" Options="BarOptions">
+                    <ApexPointSeries TItem="ChartPoint"
+                                     Items="SalaryData"
+                                     SeriesType="SeriesType.Bar"
+                                     Name="給料"
+                                     XValue="@(e => e.Label)"
+                                     YValue="@(e => e.Value)" />
+                    <ApexPointSeries TItem="ChartPoint"
+                                     Items="BonusData"
+                                     SeriesType="SeriesType.Bar"
+                                     Name="ボーナス"
+                                     XValue="@(e => e.Label)"
+                                     YValue="@(e => e.Value)" />
+                </ApexChart>
+            }
+            else { <div class="graph-placeholder">データなし</div> }
+        </div>
+
+        <!-- ④ 収入 vs 引き落とし -->
+        <div class="graph-card">
+            <h4>収入 vs 引き落とし比較</h4>
+            @if (IncomeData.Any())
+            {
+                <ApexChart TItem="ChartPoint" Options="BarOptions">
+                    <ApexPointSeries TItem="ChartPoint"
+                                     Items="IncomeData"
+                                     SeriesType="SeriesType.Bar"
+                                     Name="収入"
+                                     XValue="@(e => e.Label)"
+                                     YValue="@(e => e.Value)" />
+                    <ApexPointSeries TItem="ChartPoint"
+                                     Items="MonthlyDebitData"
+                                     SeriesType="SeriesType.Bar"
+                                     Name="引き落とし"
+                                     XValue="@(e => e.Label)"
+                                     YValue="@(e => e.Value)" />
+                </ApexChart>
+            }
+            else { <div class="graph-placeholder">データなし</div> }
+        </div>
+
+        <!-- ⑤ 固定費年間合計 -->
+        <div class="graph-card">
+            <h4>固定費 年間合計</h4>
+            @if (FixedCostData.Any())
+            {
+                <ApexChart TItem="ChartPoint" Options="BarOptions">
+                    <ApexPointSeries TItem="ChartPoint"
+                                     Items="FixedCostData"
+                                     SeriesType="SeriesType.Bar"
+                                     Name="固定費合計"
+                                     XValue="@(e => e.Label)"
+                                     YValue="@(e => e.Value)" />
+                </ApexChart>
+            }
+            else { <div class="graph-placeholder">データなし</div> }
+        </div>
+
+    </div>
+</div>
+
+@code {
+    [Inject] NavigationManager Nav { get; set; } = default!;
+
+    private string SelectedPeriod = "3";
+    private Dictionary<string, string> Periods = new()
+    {
+        { "3", "3ヶ月" }, { "6", "6ヶ月" }, { "12", "12ヶ月" }, { "all", "全期間" }
+    };
+
+    private List<ChartPoint> MonthlyDebitData = new();
+    private Dictionary<string, List<ChartPoint>> BalanceSeriesData = new();
+    private List<ChartPoint> SalaryData = new();
+    private List<ChartPoint> BonusData = new();
+    private List<ChartPoint> IncomeData = new();
+    private List<ChartPoint> FixedCostData = new();
+
+    private ApexChartOptions<ChartPoint> LineOptions = new()
+    {
+        Chart = new Chart { Height = 200, Toolbar = new Toolbar { Show = false } },
+        Stroke = new Stroke { Curve = Curve.Smooth },
+        Yaxis = new List<YAxis> { new YAxis { Labels = new YAxisLabels { Formatter = "function(v){return '¥'+v.toLocaleString()}" } } }
+    };
+
+    private ApexChartOptions<ChartPoint> BarOptions = new()
+    {
+        Chart = new Chart { Height = 200, Toolbar = new Toolbar { Show = false } },
+        Yaxis = new List<YAxis> { new YAxis { Labels = new YAxisLabels { Formatter = "function(v){return '¥'+v.toLocaleString()}" } } }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Svc.LoadAsync();
+        BuildChartData();
+    }
+
+    private void SetPeriod(string p) { SelectedPeriod = p; BuildChartData(); }
+    private void GoBack() => Nav.NavigateTo("/");
+
+    private List<string> GetTargetYms()
+    {
+        var allYms = Svc.State.Months.Keys.OrderBy(x => x).ToList();
+        if (SelectedPeriod == "all") return allYms;
+        int count = int.Parse(SelectedPeriod);
+        return allYms.TakeLast(count).ToList();
+    }
+
+    private void BuildChartData()
+    {
+        var yms = GetTargetYms();
+        var accounts = Svc.ActiveAccounts;
+
+        MonthlyDebitData = yms.Select(ym =>
+        {
+            var mo = Svc.State.Months.GetValueOrDefault(ym);
+            var total = mo?.Ledgers.Values.Sum(l => l.Debits.Sum(d => d.Amount)) ?? 0;
+            return new ChartPoint { Label = LedgerService.Label(ym), Value = (decimal)total };
+        }).ToList();
+
+        BalanceSeriesData = accounts.ToDictionary(
+            a => a.Name,
+            a => yms.Select(ym => new ChartPoint
+            {
+                Label = LedgerService.Label(ym),
+                Value = (decimal)Svc.CloseOf(ym, a.Id)
+            }).ToList()
+        );
+
+        SalaryData = yms.Select(ym =>
+        {
+            var mo = Svc.State.Months.GetValueOrDefault(ym);
+            var total = mo?.Ledgers.Values.Sum(l => l.Salary) ?? 0;
+            return new ChartPoint { Label = LedgerService.Label(ym), Value = (decimal)total };
+        }).ToList();
+
+        BonusData = yms.Select(ym =>
+        {
+            var mo = Svc.State.Months.GetValueOrDefault(ym);
+            var total = mo?.Ledgers.Values.Sum(l => l.Bonus) ?? 0;
+            return new ChartPoint { Label = LedgerService.Label(ym), Value = (decimal)total };
+        }).ToList();
+
+        IncomeData = yms.Select(ym =>
+        {
+            var mo = Svc.State.Months.GetValueOrDefault(ym);
+            var salary = mo?.Ledgers.Values.Sum(l => l.Salary) ?? 0;
+            var bonus = mo?.Ledgers.Values.Sum(l => l.Bonus) ?? 0;
+            return new ChartPoint { Label = LedgerService.Label(ym), Value = (decimal)(salary + bonus) };
+        }).ToList();
+
+        FixedCostData = yms.Select(ym =>
+        {
+            var month = int.Parse(ym[4..]);
+            var total = Svc.State.FixedCosts
+                .Where(fc => LedgerService.IsFixedCostActive(fc, ym))
+                .Sum(fc => LedgerService.GetFixedCostAmount(fc, month));
+            return new ChartPoint { Label = LedgerService.Label(ym), Value = (decimal)total };
+        }).ToList();
+    }
+
+    public class ChartPoint
+    {
+        public string Label { get; set; } = "";
+        public decimal Value { get; set; }
+    }
+}
