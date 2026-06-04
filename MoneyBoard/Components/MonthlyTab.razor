@@ -5,6 +5,7 @@
     <div class="top">
         <div></div>
         <div class="topright">
+            <button class="stat-btn" @onclick="GoToGraph" title="統計">📊</button>
             <div class="monthnav">
                 <button @onclick="Prev" disabled="@IsPrevDisabled">‹</button>
                 <div class="m">@LedgerService.Label(Svc.CurrentMonth)</div>
@@ -159,6 +160,8 @@
     private bool IsPrevDisabled => IsNewUser &&
         string.Compare(Svc.CurrentMonth, LedgerService.CurrentCycleStartYm()) <= 0;
 
+    [Inject] NavigationManager Nav { get; set; } = default!;
+    private void GoToGraph() => Nav.NavigateTo("/graph");
     private void Prev() { Svc.CurrentMonth = LedgerService.PrevYm(Svc.CurrentMonth); Mo = Svc.EnsureMonth(Svc.CurrentMonth); }
     private void Next() { Svc.CurrentMonth = LedgerService.NextYm(Svc.CurrentMonth); Mo = Svc.EnsureMonth(Svc.CurrentMonth); }
 
