@@ -129,6 +129,13 @@
     マスタの変更は未作成の月を開いたときから反映されます。作成済みの月は月次管理の「↺ 再読み込み」で手動反映できます。
 </div>
 
+<ConfirmDialog IsVisible="@ShowConfirm"
+               Title="固定費を削除しますか？"
+               Message="@("この操作は取り消せません。\n当月以降の月次からは自動的に削除されます。\n過去月の明細はそのまま残ります。")"
+               ConfirmText="削除する"
+               OnConfirm="ExecuteDelete"
+               OnCancel="CancelDelete" />
+
 @code {
     private HashSet<string> ExpandedIds = new();
     private void Save() => _ = Svc.SaveAsync();
@@ -141,7 +148,31 @@
     private void OnBonusTypeChange(BonusSetting b, object? v) { b.Type = v?.ToString() == "Add" ? BonusType.Add : BonusType.Separate; SaveWithReload(); }
 
     private void AddFixedCost() { Svc.State.FixedCosts.Add(new FixedCost()); SaveWithReload(); }
-    private void RemoveFixedCost(string id) { Svc.State.FixedCosts.RemoveAll(f => f.Id == id); SaveWithReload(); }
+    private string? PendingDeleteId = null;
+    private bool ShowConfirm = false;
+
+    private void RemoveFixedCost(string id)
+    {
+        PendingDeleteId = id;
+        ShowConfirm = true;
+    }
+
+    private void ExecuteDelete()
+    {
+        if (PendingDeleteId != null)
+        {
+            Svc.State.FixedCosts.RemoveAll(f => f.Id == PendingDeleteId);
+            SaveWithReload();
+        }
+        PendingDeleteId = null;
+        ShowConfirm = false;
+    }
+
+    private void CancelDelete()
+    {
+        PendingDeleteId = null;
+        ShowConfirm = false;
+    }
     private void AddBonus(FixedCost fc) { fc.BonusSettings.Add(new BonusSetting { Month = 6 }); SaveWithReload(); }
     private void RemoveBonus(FixedCost fc, string bid) { fc.BonusSettings.RemoveAll(b => b.Id == bid); SaveWithReload(); }
 

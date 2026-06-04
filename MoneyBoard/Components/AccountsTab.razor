@@ -1,5 +1,4 @@
 @inject LedgerService Svc
-@inject IJSRuntime JS
 
 <div class="panel">
     <div class="panel-head">
@@ -37,21 +36,11 @@
                                    checked="@a.IsBonusAccount"
                                    @onchange="() => SetBonusAccount(a.Id)" />
                         </td>
-                        <td><button class="del-btn" @onclick="() => DeleteAccount(a.Id)">削除</button></td>
+                        <td><button class="x" @onclick="() => RequestDelete(a.Id)">✕</button></td>
                     </tr>
                 }
             </tbody>
         </table>
-    }
-
-    @if (WarnMessages.Count > 0)
-    {
-        <div class="warn-box">
-            @foreach (var msg in WarnMessages)
-            {
-                <div>⚠ @msg</div>
-            }
-        </div>
     }
 
     <div class="add-row">
@@ -65,9 +54,28 @@
     固定費設定に使用中の口座、または現在月以降の月次データに記録がある口座は削除できません。
 </div>
 
+<!-- 削除確認ダイアログ -->
+<ConfirmDialog IsVisible="@ShowConfirm"
+               Title="口座を削除しますか？"
+               Message="この操作は取り消せません。"
+               ConfirmText="削除する"
+               OnConfirm="ExecuteDelete"
+               OnCancel="CancelDelete" />
+
+<!-- 削除不可警告ダイアログ -->
+<WarnDialog IsVisible="@ShowWarn"
+            Title="口座を削除できません"
+            Messages="@WarnMessages"
+            SubMessage="@WarnSubMessage"
+            OnClose="() => ShowWarn = false" />
+
 @code {
     private string NewName = "";
+    private string? PendingDeleteId = null;
+    private bool ShowConfirm = false;
+    private bool ShowWarn = false;
     private List<string> WarnMessages = new();
+    private string WarnSubMessage = "";
 
     private void Save() => _ = Svc.SaveAsync();
 
@@ -94,23 +102,49 @@
         Save();
     }
 
-    private async Task DeleteAccount(string id)
+    private void RequestDelete(string id)
     {
         WarnMessages.Clear();
+        WarnSubMessage = "";
+
+        // チェック①：固定費マスタに使用中か
         var fcNames = Svc.GetFixedCostsUsingAccount(id);
         if (fcNames.Count > 0)
         {
             WarnMessages.Add($"以下の固定費で使用されています：{string.Join("、", fcNames)}");
+            WarnSubMessage = "固定費設定から該当の固定費を変更または削除してください。";
+            ShowWarn = true;
             return;
         }
+
+        // チェック②：現在月以降の月次データにあるか
         var months = Svc.GetFutureMonthsUsingAccount(id);
         if (months.Count > 0)
         {
             WarnMessages.Add($"以下の年月にデータが存在します：{string.Join("、", months)}");
+            WarnSubMessage = "該当月のデータを削除してから再度お試しください。";
+            ShowWarn = true;
             return;
         }
-        if (!await JS.InvokeAsync<bool>("confirm", "この口座を削除しますか？")) return;
-        Svc.DeleteAccount(id);
-        Save();
+
+        PendingDeleteId = id;
+        ShowConfirm = true;
+    }
+
+    private void ExecuteDelete()
+    {
+        if (PendingDeleteId != null)
+        {
+            Svc.DeleteAccount(PendingDeleteId);
+            Save();
+        }
+        PendingDeleteId = null;
+        ShowConfirm = false;
+    }
+
+    private void CancelDelete()
+    {
+        PendingDeleteId = null;
+        ShowConfirm = false;
     }
 }

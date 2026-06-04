@@ -42,6 +42,8 @@ input.num:focus,.row input:focus,.row select:focus{outline:none;border-color:var
 .row input.amt{width:96px;text-align:right;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font:inherit;font-variant-numeric:tabular-nums;background:#fff}
 .row .x{border:none;background:none;color:var(--sub);cursor:pointer;font-size:14px;opacity:.5;padding:2px 4px}
 .row .x:hover{opacity:1;color:var(--bad)}
+.fc-row .x, .acct-table .x{border:none;background:none;color:var(--sub);cursor:pointer;font-size:14px;opacity:.5;padding:2px 4px}
+.fc-row .x:hover, .acct-table .x:hover{opacity:1;color:var(--bad)}
 .none{font-size:12px;color:#9aa0a6;padding:2px 0}
 .xfer-line{display:flex;justify-content:space-between;font-size:12.5px;color:var(--sub);padding:2px 0}
 .xfer-line .in{color:var(--ok)}
@@ -135,3 +137,15 @@ input.num:focus,.row input:focus,.row select:focus{outline:none;border-color:var
 .graph-card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px}
 .graph-card h4{margin:0 0 10px;font-size:13px;font-weight:600;color:var(--sub)}
 .graph-placeholder{background:#f6f4ee;border-radius:8px;height:120px;display:flex;align-items:center;justify-content:center;color:#bbb;font-size:13px}
+
+/* ===== ダイアログ ===== */
+.dialog-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:300;
+  display:flex;align-items:center;justify-content:center;padding:16px}
+.dialog-box{background:var(--card);border-radius:var(--r);padding:20px;
+  width:100%;max-width:420px;box-shadow:0 8px 32px rgba(0,0,0,.18)}
+.dialog-box h4{margin:0 0 12px;font-size:15px;font-weight:600}
+.dialog-message{font-size:13px;color:var(--sub);margin-bottom:12px}
+.dialog-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+.btn.danger{background:var(--bad);color:#fff;border-color:var(--bad)}
+.warn-inline{font-size:13px;color:var(--bad);background:var(--badbg);
+  border-radius:6px;padding:8px 10px;margin-bottom:8px}
