@@ -2,21 +2,31 @@
    CSS変数・リセット
    ===================================================== */
 :root {
-  --paper:   #f6f4ee;
-  --ink:     #21262e;
-  --sub:     #6b7280;
-  --line:    #e3ded2;
-  --card:    #ffffff;
-  --ok:      #0f6e56;
-  --okbg:    #e6f1ec;
-  --bad:     #a3261f;
-  --badbg:   #f7e9e7;
-  --accent:  #1f3a5f;
-  --r:       12px;
+  --paper: #f6f4ee;
+  --ink: #21262e;
+  --sub: #6b7280;
+  --line: #e3ded2;
+  --card: #ffffff;
+  --ok: #0f6e56;
+  --okbg: #e6f1ec;
+  --bad: #a3261f;
+  --badbg: #f7e9e7;
+  --accent: #1f3a5f;
+  --r: 12px;
 }
 
-* { box-sizing: border-box }
-html, body { margin: 0 }
+* {
+  box-sizing: border-box
+}
+
+html,
+body {
+  margin: 0
+}
+
+html {
+  overflow-y: scroll
+}
 
 body {
   background: var(--paper);
@@ -136,7 +146,9 @@ body {
   cursor: pointer;
 }
 
-.btn:hover { background: #f3f5f8 }
+.btn:hover {
+  background: #f3f5f8
+}
 
 .btn.danger {
   background: var(--bad);
@@ -150,7 +162,9 @@ body {
   border-color: var(--accent);
 }
 
-.btn.primary:hover { opacity: 0.88 }
+.btn.primary:hover {
+  opacity: 0.88
+}
 
 .add-line {
   border: none;
@@ -219,9 +233,21 @@ body {
   flex: 1;
 }
 
-.stat .lab { font-size: 11.5px; color: var(--sub); letter-spacing: .04em }
-.stat .val { font-size: 20px; font-weight: 600; margin-top: 2px }
-.stat.warn .val { color: var(--bad) }
+.stat .lab {
+  font-size: 11.5px;
+  color: var(--sub);
+  letter-spacing: .04em
+}
+
+.stat .val {
+  font-size: 20px;
+  font-weight: 600;
+  margin-top: 2px
+}
+
+.stat.warn .val {
+  color: var(--bad)
+}
 
 .stat-btn {
   border: 1px solid var(--line);
@@ -252,7 +278,9 @@ body {
   flex-direction: column;
 }
 
-.acct.bad { border-color: #e7c4bf }
+.acct.bad {
+  border-color: #e7c4bf
+}
 
 .ahead {
   display: flex;
@@ -261,7 +289,10 @@ body {
   margin-bottom: 10px;
 }
 
-.aname { font-weight: 600; font-size: 16px }
+.aname {
+  font-weight: 600;
+  font-size: 16px
+}
 
 .field {
   display: flex;
@@ -271,7 +302,10 @@ body {
   padding: 5px 0;
 }
 
-.field label { font-size: 13px; color: var(--sub) }
+.field label {
+  font-size: 13px;
+  color: var(--sub)
+}
 
 input.num {
   width: 128px;
@@ -366,7 +400,9 @@ input.num:focus,
   padding: 2px 0;
 }
 
-.xfer-line .in { color: var(--ok) }
+.xfer-line .in {
+  color: var(--ok)
+}
 
 .close {
   margin-top: auto;
@@ -376,7 +412,10 @@ input.num:focus,
   justify-content: space-between;
 }
 
-.close .lab { font-size: 12px; color: var(--sub) }
+.close .lab {
+  font-size: 12px;
+  color: var(--sub)
+}
 
 .close .amt {
   font-size: 24px;
@@ -384,7 +423,9 @@ input.num:focus,
   color: var(--ok);
 }
 
-.acct.bad .close .amt { color: var(--bad) }
+.acct.bad .close .amt {
+  color: var(--bad)
+}
 
 .badge {
   font-size: 11px;
@@ -397,7 +438,10 @@ input.num:focus,
   margin-bottom: 2px;
 }
 
-.acct.bad .badge { background: var(--badbg); color: var(--bad) }
+.acct.bad .badge {
+  background: var(--badbg);
+  color: var(--bad)
+}
 
 .bonus-tag {
   font-size: 10px;
@@ -420,14 +464,17 @@ input.num:focus,
   margin-top: 4px;
 }
 
-.lock { font-size: 12px; opacity: .4 }
+.lock {
+  font-size: 12px;
+  opacity: .4
+}
 
 /* =====================================================
    固定費設定タブ (FixedCostTab.razor)
    ===================================================== */
 .fc-head {
   display: grid;
-  grid-template-columns: 24px 1fr 130px 110px 32px;
+  grid-template-columns: 24px 1fr 140px 100px 32px;
   gap: 8px;
   padding: 4px 0 8px;
   border-bottom: 1px solid var(--line);
@@ -438,6 +485,9 @@ input.num:focus,
   font-size: 11px;
   color: var(--sub);
   font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .fc-item {
@@ -446,7 +496,9 @@ input.num:focus,
   transition: opacity 0.15s;
 }
 
-.fc-item:last-child { border-bottom: none }
+.fc-item:last-child {
+  border-bottom: none
+}
 
 .fc-item.drag-over {
   outline: 2px solid var(--accent);
@@ -456,7 +508,7 @@ input.num:focus,
 
 .fc-row {
   display: grid;
-  grid-template-columns: 24px 1fr 130px 110px 32px;
+  grid-template-columns: 24px 1fr 140px 100px 32px;
   gap: 8px;
   align-items: center;
 }
@@ -471,7 +523,9 @@ input.num:focus,
   width: 100%;
 }
 
-.fc-row input.ra { text-align: right }
+.fc-row input.ra {
+  text-align: right
+}
 
 .drag-handle {
   cursor: grab;
@@ -483,7 +537,9 @@ input.num:focus,
   text-align: center;
 }
 
-.drag-handle:active { cursor: grabbing }
+.drag-handle:active {
+  cursor: grabbing
+}
 
 .fc-expand {
   background: none;
@@ -569,7 +625,9 @@ input.num:focus,
   width: 100%;
 }
 
-.bonus-row input.ra { text-align: right }
+.bonus-row input.ra {
+  text-align: right
+}
 
 /* =====================================================
    口座設定タブ (AccountsTab.razor)
@@ -586,6 +644,7 @@ input.num:focus,
   padding: 6px 10px;
   border-bottom: 2px solid var(--line);
   text-align: left;
+  white-space: nowrap;
 }
 
 .acct-table td {
@@ -765,7 +824,9 @@ input.num:focus,
   font-size: 14px;
 }
 
-.mypage-row:last-child { border-bottom: none }
+.mypage-row:last-child {
+  border-bottom: none
+}
 
 .mypage-link {
   display: flex;
@@ -779,7 +840,9 @@ input.num:focus,
   font-weight: 600;
 }
 
-.mypage-link:last-child { border-bottom: none }
+.mypage-link:last-child {
+  border-bottom: none
+}
 
 /* =====================================================
    Blazorエラー表示
@@ -796,12 +859,20 @@ input.num:focus,
   font-size: 13px;
 }
 
-#blazor-error-ui .dismiss { cursor: pointer; float: right }
-#blazor-error-ui a { color: #fff }
+#blazor-error-ui .dismiss {
+  cursor: pointer;
+  float: right
+}
+
+#blazor-error-ui a {
+  color: #fff
+}
 
 /* =====================================================
    レスポンシブ
    ===================================================== */
 @media (max-width: 520px) {
-  .summary .stat { min-width: 120px }
+  .summary .stat {
+    min-width: 120px
+  }
 }

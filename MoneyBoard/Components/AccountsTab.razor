@@ -16,7 +16,6 @@
             <thead>
                 <tr>
                     <th>口座名</th>
-                    <th>金融機関コード</th>
                     <th>口座番号</th>
                     <th style="text-align:center">ボーナス受取</th>
                     <th></th>
@@ -28,8 +27,6 @@
                     <tr>
                         <td><input class="tinput" value="@a.Name" placeholder="口座名"
                                @onchange="e => OnNameChange(a, e.Value)" /></td>
-                        <td><input class="tinput" value="@a.BankCode" placeholder="例: 0157"
-                               @onchange="e => OnBankCodeChange(a, e.Value)" /></td>
                         <td><input class="tinput" value="@a.AccountNumber" placeholder="口座番号"
                                @onchange="e => OnAccountNumberChange(a, e.Value)" /></td>
                         <td style="text-align:center">
@@ -100,7 +97,6 @@
     private void Save() => _ = Svc.SaveAsync();
 
     private void OnNameChange(Account a, object? v)          { a.Name          = v?.ToString() ?? ""; Save(); }
-    private void OnBankCodeChange(Account a, object? v)      { a.BankCode      = v?.ToString() ?? ""; Save(); }
     private void OnAccountNumberChange(Account a, object? v) { a.AccountNumber = v?.ToString() ?? ""; Save(); }
 
     private void SetBonusAccount(string id)
