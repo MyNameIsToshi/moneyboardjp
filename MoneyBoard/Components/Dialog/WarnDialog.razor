@@ -1,0 +1,30 @@
+@if (IsVisible)
+{
+    <div class="dialog-overlay" @onclick="OnOverlayClick">
+        <div class="dialog-box" @onclick:stopPropagation="true">
+            <h4>@Title</h4>
+            @foreach (var msg in Messages)
+            {
+                <div class="warn-inline">⚠ @msg</div>
+            }
+            @if (!string.IsNullOrEmpty(SubMessage))
+            {
+                <div class="dialog-message">@SubMessage</div>
+            }
+            <div class="dialog-btns">
+                <button class="btn" @onclick="Close">閉じる</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public string Title { get; set; } = "削除できません";
+    [Parameter] public List<string> Messages { get; set; } = new();
+    [Parameter] public string SubMessage { get; set; } = "";
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private async Task Close() => await OnClose.InvokeAsync();
+    private async Task OnOverlayClick() => await OnClose.InvokeAsync();
+}

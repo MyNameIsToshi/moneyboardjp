@@ -1,0 +1,29 @@
+@if (IsVisible)
+{
+    <div class="dialog-overlay" @onclick="OnOverlayClick">
+        <div class="dialog-box" @onclick:stopPropagation="true">
+            <h4>@Title</h4>
+            @if (!string.IsNullOrEmpty(Message))
+            {
+                <div class="dialog-message">@((MarkupString)Message.Replace("\n", "<br />"))</div>
+            }
+            <div class="dialog-btns">
+                <button class="btn" @onclick="Cancel">キャンセル</button>
+                <button class="btn danger" @onclick="Confirm">@ConfirmText</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public string Title { get; set; } = "確認";
+    [Parameter] public string Message { get; set; } = "";
+    [Parameter] public string ConfirmText { get; set; } = "削除する";
+    [Parameter] public EventCallback OnConfirm { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private async Task Confirm() => await OnConfirm.InvokeAsync();
+    private async Task Cancel() => await OnCancel.InvokeAsync();
+    private async Task OnOverlayClick() => await OnCancel.InvokeAsync();
+}

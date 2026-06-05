@@ -3,7 +3,7 @@
 <div class="panel">
     <div class="panel-head">
         <h3>固定費設定</h3>
-        <button class="btn" @onclick="AddFixedCost">＋ 追加</button>
+        <button class="btn" @onclick="OpenAddDialog">＋ 追加</button>
     </div>
 
     @if (Svc.State.FixedCosts.Count == 0)
@@ -13,14 +13,21 @@
     else
     {
         <div class="fc-head">
-            <span>項目名</span><span>口座</span><span>通常月金額</span><span></span>
+            <span></span><span>項目名</span><span>口座</span><span>通常月金額</span><span></span>
         </div>
 
         @foreach (var fc in Svc.State.FixedCosts)
         {
             var expanded = ExpandedIds.Contains(fc.Id);
-            <div class="fc-item">
+            <div class="fc-item @(DragOverId == fc.Id ? "drag-over" : "")"
+                 draggable="true"
+                 @ondragstart="() => OnDragStart(fc.Id)"
+                 @ondragover:preventDefault="true"
+                 @ondragover="() => OnDragOver(fc.Id)"
+                 @ondrop="() => OnDrop(fc.Id)"
+                 @ondragend="OnDragEnd">
                 <div class="fc-row">
+                    <span class="drag-handle">⠿</span>
                     <input value="@fc.Name" placeholder="項目名"
                            @onchange="e => OnFcNameChange(fc, e.Value)" />
                     <select value="@fc.AccountId"
@@ -129,30 +136,161 @@
     マスタの変更は未作成の月を開いたときから反映されます。作成済みの月は月次管理の「↺ 再読み込み」で手動反映できます。
 </div>
 
+<!-- 口座未登録警告 -->
+<WarnDialog IsVisible="@ShowNoAccountWarn"
+            Title="口座が登録されていません"
+            Messages="@(new List<string> { "固定費を追加するには、先に口座設定タブで口座を登録してください。" })"
+            SubMessage=""
+            OnClose="() => ShowNoAccountWarn = false" />
+
+<!-- 追加ダイアログ -->
+@if (ShowAddDialog)
+{
+    <div class="dialog-overlay" @onclick="CloseAddDialog">
+        <div class="dialog-box" @onclick:stopPropagation="true">
+            <h4>固定費を追加</h4>
+            <div class="dialog-form">
+                <label>項目名</label>
+                <input @bind="NewName" placeholder="例：家賃" @bind:event="oninput" />
+                <label>口座</label>
+                <select @bind="NewAccountId">
+                    <option value="">口座を選択</option>
+                    @foreach (var a in Svc.ActiveAccounts)
+                    {
+                        <option value="@a.Id">@a.Name</option>
+                    }
+                </select>
+                <label>金額</label>
+                <AmountInput CssClass="ra" Value="@NewAmount" ValueChanged="v => NewAmount = v" />
+            </div>
+            @if (!string.IsNullOrEmpty(AddError))
+            {
+                <div class="dialog-error">@AddError</div>
+            }
+            <div class="dialog-btns">
+                <button class="btn" @onclick="CloseAddDialog">キャンセル</button>
+                <button class="btn primary" @onclick="ExecuteAdd">追加する</button>
+            </div>
+        </div>
+    </div>
+}
+
+<ConfirmDialog IsVisible="@ShowConfirm"
+               Title="固定費を削除しますか？"
+               Message="@("この操作は取り消せません。\n当月以降の月次からは自動的に削除されます。\n過去月の明細はそのまま残ります。")"
+               ConfirmText="削除する"
+               OnConfirm="ExecuteDelete"
+               OnCancel="CancelDelete" />
+
 @code {
     private HashSet<string> ExpandedIds = new();
     private void Save() => _ = Svc.SaveAsync();
     private void SaveWithReload() { Svc.OnFixedCostChanged(); _ = Svc.SaveAsync(); }
     private void ToggleExpand(string id) { if (!ExpandedIds.Remove(id)) ExpandedIds.Add(id); }
 
-    private void OnFcNameChange(FixedCost fc, object? v) { fc.Name = v?.ToString() ?? ""; SaveWithReload(); }
+    // ── 追加ダイアログ ──────────────────────────────
+    private bool ShowAddDialog = false;
+    private string NewName = "";
+    private string NewAccountId = "";
+    private decimal NewAmount = 0;
+    private string AddError = "";
+
+    private bool ShowNoAccountWarn = false;
+
+    private void OpenAddDialog()
+    {
+        if (!Svc.ActiveAccounts.Any())
+        {
+            ShowNoAccountWarn = true;
+            return;
+        }
+        NewName      = "";
+        NewAccountId = Svc.ActiveAccounts.FirstOrDefault()?.Id ?? "";
+        NewAmount    = 0;
+        AddError     = "";
+        ShowAddDialog = true;
+    }
+
+    private void CloseAddDialog() => ShowAddDialog = false;
+
+    private void ExecuteAdd()
+    {
+        if (string.IsNullOrWhiteSpace(NewName))    { AddError = "項目名を入力してください。"; return; }
+        if (string.IsNullOrWhiteSpace(NewAccountId)) { AddError = "口座を選択してください。"; return; }
+
+        Svc.State.FixedCosts.Add(new FixedCost
+        {
+            Name      = NewName.Trim(),
+            AccountId = NewAccountId,
+            Amount    = NewAmount,
+            SortOrder = Svc.State.FixedCosts.Count
+        });
+        SaveWithReload();
+        ShowAddDialog = false;
+    }
+
+    // ── ドラッグ＆ドロップ並び替え ──────────────────
+    private string? DragSourceId = null;
+    private string? DragOverId   = null;
+
+    private void OnDragStart(string id) => DragSourceId = id;
+    private void OnDragOver(string id)  => DragOverId   = id;
+
+    private void OnDrop(string targetId)
+    {
+        if (DragSourceId == null || DragSourceId == targetId) return;
+
+        var list = Svc.State.FixedCosts;
+        var srcIdx = list.FindIndex(f => f.Id == DragSourceId);
+        var tgtIdx = list.FindIndex(f => f.Id == targetId);
+        if (srcIdx < 0 || tgtIdx < 0) return;
+
+        var item = list[srcIdx];
+        list.RemoveAt(srcIdx);
+        list.Insert(tgtIdx, item);
+
+        // SortOrder を連番に振り直す
+        for (int i = 0; i < list.Count; i++) list[i].SortOrder = i;
+
+        SaveWithReload();
+    }
+
+    private void OnDragEnd()
+    {
+        DragSourceId = null;
+        DragOverId   = null;
+    }
+
+    // ── 編集 ────────────────────────────────────────
+    private void OnFcNameChange(FixedCost fc, object? v)    { fc.Name      = v?.ToString() ?? ""; SaveWithReload(); }
     private void OnFcAccountChange(FixedCost fc, object? v) { fc.AccountId = v?.ToString() ?? ""; SaveWithReload(); }
     private void OnBonusMonthChange(BonusSetting b, object? v) { b.Month = int.TryParse(v?.ToString(), out var m) ? m : 1; SaveWithReload(); }
-    private void OnBonusTypeChange(BonusSetting b, object? v) { b.Type = v?.ToString() == "Add" ? BonusType.Add : BonusType.Separate; SaveWithReload(); }
+    private void OnBonusTypeChange(BonusSetting b, object? v)  { b.Type  = v?.ToString() == "Add" ? BonusType.Add : BonusType.Separate; SaveWithReload(); }
 
-    private void AddFixedCost() { Svc.State.FixedCosts.Add(new FixedCost()); SaveWithReload(); }
-    private void RemoveFixedCost(string id) { Svc.State.FixedCosts.RemoveAll(f => f.Id == id); SaveWithReload(); }
-    private void AddBonus(FixedCost fc) { fc.BonusSettings.Add(new BonusSetting { Month = 6 }); SaveWithReload(); }
+    // ── 削除 ────────────────────────────────────────
+    private string? PendingDeleteId = null;
+    private bool ShowConfirm = false;
+
+    private void RemoveFixedCost(string id) { PendingDeleteId = id; ShowConfirm = true; }
+
+    private void ExecuteDelete()
+    {
+        if (PendingDeleteId != null) { Svc.State.FixedCosts.RemoveAll(f => f.Id == PendingDeleteId); SaveWithReload(); }
+        PendingDeleteId = null;
+        ShowConfirm = false;
+    }
+
+    private void CancelDelete() { PendingDeleteId = null; ShowConfirm = false; }
+
+    private void AddBonus(FixedCost fc)    { fc.BonusSettings.Add(new BonusSetting { Month = 6 }); SaveWithReload(); }
     private void RemoveBonus(FixedCost fc, string bid) { fc.BonusSettings.RemoveAll(b => b.Id == bid); SaveWithReload(); }
 
-    private static decimal ParseDecimal(object? v) =>
-        decimal.TryParse(v?.ToString()?.Replace(",", ""), out var d) ? d : 0;
+    // ── 年月ヘルパー ────────────────────────────────
     private static IEnumerable<int> YearRange() => Enumerable.Range(DateTime.Today.Year - 5, 31);
-
-    private static string StartYear(FixedCost fc) => fc.StartYm != null && fc.StartYm.Length >= 4 ? fc.StartYm[..4] : "";
+    private static string StartYear(FixedCost fc)  => fc.StartYm != null && fc.StartYm.Length >= 4 ? fc.StartYm[..4] : "";
     private static string StartMonth(FixedCost fc) => fc.StartYm != null && fc.StartYm.Length == 6 ? int.Parse(fc.StartYm[4..]).ToString() : "";
-    private static string EndYear(FixedCost fc) => fc.EndYm != null && fc.EndYm.Length >= 4 ? fc.EndYm[..4] : "";
-    private static string EndMonth(FixedCost fc) => fc.EndYm != null && fc.EndYm.Length == 6 ? int.Parse(fc.EndYm[4..]).ToString() : "";
+    private static string EndYear(FixedCost fc)    => fc.EndYm   != null && fc.EndYm.Length   >= 4 ? fc.EndYm[..4]   : "";
+    private static string EndMonth(FixedCost fc)   => fc.EndYm   != null && fc.EndYm.Length   == 6 ? int.Parse(fc.EndYm[4..]).ToString()   : "";
 
     private void SetStartYear(FixedCost fc, string? y)
     {
