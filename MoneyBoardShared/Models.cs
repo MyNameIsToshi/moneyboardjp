@@ -34,6 +34,7 @@ public class FixedCost
     public string? StartYm { get; set; }
     public string? EndYm { get; set; }
     public List<BonusSetting> BonusSettings { get; set; } = new();
+    public int SortOrder { get; set; }
 }
 
 public class BonusSetting
@@ -46,7 +47,7 @@ public class BonusSetting
 
 public enum BonusType { Add, Separate }
 
-// ── 月次チE�Eタ ────────────────────────────────────
+// ── 月次データ ────────────────────────────────────
 public class MonthData
 {
     public Dictionary<string, Ledger> Ledgers { get; set; } = new();
@@ -77,4 +78,3 @@ public class Transfer
     public string To { get; set; } = "";
     public decimal Amount { get; set; }
 }
-

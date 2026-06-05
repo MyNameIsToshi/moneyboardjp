@@ -3,11 +3,12 @@
 <div class="panel">
     <div class="panel-head">
         <h3>口座設定</h3>
+        <button class="btn" @onclick="OpenAddDialog">＋ 追加</button>
     </div>
 
     @if (Svc.ActiveAccounts.Count == 0)
     {
-        <div class="none">口座が登録されていません。下から追加してください。</div>
+        <div class="none">口座が登録されていません。</div>
     }
     else
     {
@@ -42,17 +43,34 @@
             </tbody>
         </table>
     }
-
-    <div class="add-row">
-        <input @bind="NewName" placeholder="口座名" @bind:event="oninput" />
-        <button class="btn" @onclick="AddAccount">＋ 口座を追加</button>
-    </div>
 </div>
 
 <div class="foot">
     ボーナス受取口座は1つだけ選択できます。<br />
     固定費設定に使用中の口座、または現在月以降の月次データに記録がある口座は削除できません。
 </div>
+
+<!-- 追加ダイアログ -->
+@if (ShowAddDialog)
+{
+    <div class="dialog-overlay" @onclick="CloseAddDialog">
+        <div class="dialog-box" @onclick:stopPropagation="true">
+            <h4>口座を追加</h4>
+            <div class="dialog-form">
+                <label>口座名</label>
+                <input @bind="NewName" placeholder="例：三菱UFJ 普通" @bind:event="oninput" />
+            </div>
+            @if (!string.IsNullOrEmpty(AddError))
+            {
+                <div class="dialog-error">@AddError</div>
+            }
+            <div class="dialog-btns">
+                <button class="btn" @onclick="CloseAddDialog">キャンセル</button>
+                <button class="btn primary" @onclick="ExecuteAdd">追加する</button>
+            </div>
+        </div>
+    </div>
+}
 
 <!-- 削除確認ダイアログ -->
 <ConfirmDialog IsVisible="@ShowConfirm"
@@ -71,6 +89,8 @@
 
 @code {
     private string NewName = "";
+    private string AddError = "";
+    private bool ShowAddDialog = false;
     private string? PendingDeleteId = null;
     private bool ShowConfirm = false;
     private bool ShowWarn = false;
@@ -79,8 +99,8 @@
 
     private void Save() => _ = Svc.SaveAsync();
 
-    private void OnNameChange(Account a, object? v) { a.Name = v?.ToString() ?? ""; Save(); }
-    private void OnBankCodeChange(Account a, object? v) { a.BankCode = v?.ToString() ?? ""; Save(); }
+    private void OnNameChange(Account a, object? v)          { a.Name          = v?.ToString() ?? ""; Save(); }
+    private void OnBankCodeChange(Account a, object? v)      { a.BankCode      = v?.ToString() ?? ""; Save(); }
     private void OnAccountNumberChange(Account a, object? v) { a.AccountNumber = v?.ToString() ?? ""; Save(); }
 
     private void SetBonusAccount(string id)
@@ -90,24 +110,36 @@
         Save();
     }
 
-    private void AddAccount()
+    // ── 追加ダイアログ ──────────────────────────────
+    private void OpenAddDialog()
     {
-        if (string.IsNullOrWhiteSpace(NewName)) return;
+        NewName  = "";
+        AddError = "";
+        ShowAddDialog = true;
+    }
+
+    private void CloseAddDialog() => ShowAddDialog = false;
+
+    private void ExecuteAdd()
+    {
+        if (string.IsNullOrWhiteSpace(NewName)) { AddError = "口座名を入力してください。"; return; }
+
         Svc.State.Accounts.Add(new Account
         {
-            Name = NewName.Trim(),
+            Name      = NewName.Trim(),
             SortOrder = Svc.State.Accounts.Count
         });
         NewName = "";
         Save();
+        ShowAddDialog = false;
     }
 
+    // ── 削除 ────────────────────────────────────────
     private void RequestDelete(string id)
     {
         WarnMessages.Clear();
         WarnSubMessage = "";
 
-        // チェック①：固定費マスタに使用中か
         var fcNames = Svc.GetFixedCostsUsingAccount(id);
         if (fcNames.Count > 0)
         {
@@ -117,7 +149,6 @@
             return;
         }
 
-        // チェック②：現在月以降の月次データにあるか
         var months = Svc.GetFutureMonthsUsingAccount(id);
         if (months.Count > 0)
         {
@@ -133,18 +164,10 @@
 
     private void ExecuteDelete()
     {
-        if (PendingDeleteId != null)
-        {
-            Svc.DeleteAccount(PendingDeleteId);
-            Save();
-        }
+        if (PendingDeleteId != null) { Svc.DeleteAccount(PendingDeleteId); Save(); }
         PendingDeleteId = null;
         ShowConfirm = false;
     }
 
-    private void CancelDelete()
-    {
-        PendingDeleteId = null;
-        ShowConfirm = false;
-    }
+    private void CancelDelete() { PendingDeleteId = null; ShowConfirm = false; }
 }
