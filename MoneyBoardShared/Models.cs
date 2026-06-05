@@ -17,7 +17,6 @@ public class Account
 {
     public string Id { get; set; } = Util.NewId();
     public string Name { get; set; } = "";
-    public string BankCode { get; set; } = "";
     public string AccountNumber { get; set; } = "";
     public int SortOrder { get; set; }
     public bool IsDeleted { get; set; }
