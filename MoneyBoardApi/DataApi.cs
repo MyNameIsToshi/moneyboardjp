@@ -12,6 +12,17 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos)
 {
     private const string UserId = "default"; // Google認証実装後にヘッダーから取得
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
+
+    // 本文サイズ上限。Cosmos のドキュメント上限(2MB)を超えさせず、
+    // 巨大ペイロードによる RU 暴発・DoS を防ぐ。
+    private const long MaxBodyBytes = 1_900_000;
+
+    // 構造上の健全性チェック（異常に巨大なコレクションを拒否）
+    private const int MaxAccounts = 100;
+    private const int MaxFixedCosts = 500;
+    private const int MaxMonths = 600;          // 約50年分
+    private const int MaxDebitsPerLedger = 1000;
+
     private Container GetContainer() =>
         cosmos.GetContainer(Environment.GetEnvironmentVariable("CosmosDb__DatabaseName"), "userdata");
 
@@ -46,9 +57,22 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos)
     {
         try
         {
-            var body = await new StreamReader(req.Body).ReadToEndAsync();
+            // Content-Length での先行チェック（存在すれば即拒否）
+            if (req.ContentLength > MaxBodyBytes)
+                return new StatusCodeResult(StatusCodes.Status413RequestEntityTooLarge);
+
+            var body = await ReadBodyCappedAsync(req.Body);
+            if (body == null) // 上限超過（Content-Length が無い/不正なケースも捕捉）
+                return new StatusCodeResult(StatusCodes.Status413RequestEntityTooLarge);
+
             var state = JsonSerializer.Deserialize<AppState>(body, JsonOptions);
             if (state == null) return new BadRequestResult();
+
+            if (!IsStructurallyValid(state, out var reason))
+            {
+                logger.LogWarning("SaveData rejected: {Reason}", reason);
+                return new BadRequestResult();
+            }
 
             var doc = new CosmosDoc { Id = UserId, UserId = UserId, Data = state };
             var options = new ItemRequestOptions { EnableContentResponseOnWrite = false };
@@ -73,6 +97,43 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos)
             logger.LogError(ex, "SaveData failed");
             return new StatusCodeResult(500);
         }
+    }
+
+    // 上限までを読み、超過したら null を返す（Content-Length が無い/偽装の場合の保険）。
+    private static async Task<string?> ReadBodyCappedAsync(Stream body)
+    {
+        using var ms = new MemoryStream();
+        var buffer = new byte[81920];
+        long total = 0;
+        int read;
+        while ((read = await body.ReadAsync(buffer)) > 0)
+        {
+            total += read;
+            if (total > MaxBodyBytes) return null;
+            ms.Write(buffer, 0, read);
+        }
+        return System.Text.Encoding.UTF8.GetString(ms.GetBuffer(), 0, (int)ms.Length);
+    }
+
+    // 異常に巨大なコレクションを拒否（DoS / 破損データ対策）。業務的な厳密検証ではない。
+    private static bool IsStructurallyValid(AppState state, out string reason)
+    {
+        if (state.Accounts.Count > MaxAccounts) { reason = $"accounts={state.Accounts.Count}"; return false; }
+        if (state.FixedCosts.Count > MaxFixedCosts) { reason = $"fixedCosts={state.FixedCosts.Count}"; return false; }
+        if (state.Months.Count > MaxMonths) { reason = $"months={state.Months.Count}"; return false; }
+        foreach (var (ym, mo) in state.Months)
+        {
+            foreach (var (accId, ledger) in mo.Ledgers)
+            {
+                if (ledger.Debits.Count > MaxDebitsPerLedger)
+                {
+                    reason = $"debits in {ym}/{accId}={ledger.Debits.Count}";
+                    return false;
+                }
+            }
+        }
+        reason = "";
+        return true;
     }
 }
 
