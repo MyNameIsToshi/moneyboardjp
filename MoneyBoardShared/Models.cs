@@ -36,10 +36,22 @@ public class FixedCost
     public string Name { get; set; } = "";
     public string AccountId { get; set; } = "";
     public decimal Amount { get; set; }
-    public string? StartYm { get; set; }
-    public string? EndYm { get; set; }
+    public string? StartYm { get; set; }   // null / "yyyy"（年のみ）/ "yyyyMM"
+    public string? EndYm { get; set; }     // null / "yyyy"（年のみ）/ "yyyyMM"
     public List<BonusSetting> BonusSettings { get; set; } = new();
     public int SortOrder { get; set; }
+
+    // 有効期間の下限・上限を Ym として返す。年のみ指定は開始=1月 / 終了=12月 とみなす。
+    public Ym? StartBound() => ParseBound(StartYm, 1);
+    public Ym? EndBound() => ParseBound(EndYm, 12);
+
+    private static Ym? ParseBound(string? s, int monthIfYearOnly)
+    {
+        if (string.IsNullOrEmpty(s) || s.Length < 4) return null;
+        var year = int.Parse(s[..4]);
+        var month = s.Length >= 6 ? int.Parse(s[4..6]) : monthIfYearOnly;
+        return new Ym(year, month);
+    }
 }
 
 public class BonusSetting

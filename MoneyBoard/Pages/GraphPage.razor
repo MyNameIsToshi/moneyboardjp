@@ -213,7 +213,7 @@
 
         FixedCostData = yms.Select(ym =>
         {
-            var month = int.Parse(ym[4..]);
+            var month = Ym.Parse(ym).Month;
             var total = Svc.State.FixedCosts
                 .Where(fc => LedgerService.IsFixedCostActive(fc, ym))
                 .Sum(fc => LedgerService.GetFixedCostAmount(fc, month));

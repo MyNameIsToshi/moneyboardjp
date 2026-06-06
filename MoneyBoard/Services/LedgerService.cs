@@ -86,31 +86,20 @@ public class LedgerService(StorageService storage)
         }
     }
 
-    public static string PrevYm(string ym)
-    {
-        int y = int.Parse(ym[..4]), m = int.Parse(ym[4..]) - 1;
-        if (m < 1) { m = 12; y--; }
-        return $"{y}{m:D2}";
-    }
+    public static string PrevYm(string ym) => Ym.Parse(ym).Prev().ToString();
 
-    public static string NextYm(string ym)
-    {
-        int y = int.Parse(ym[..4]), m = int.Parse(ym[4..]) + 1;
-        if (m > 12) { m = 1; y++; }
-        return $"{y}{m:D2}";
-    }
+    public static string NextYm(string ym) => Ym.Parse(ym).Next().ToString();
 
-    public static string Label(string ym) => $"{ym[..4]}年{int.Parse(ym[4..])}月";
+    public static string Label(string ym) => Ym.Parse(ym).Label;
 
-    public static string NowYm() => DateTime.Today.ToString("yyyyMM");
+    public static string NowYm() => Ym.Today.ToString();
 
     public static string CurrentCycleStartYm()
     {
         var today = DateTime.Today;
-        if (today.Day >= 15)
-            return today.ToString("yyyyMM");
-        var prev = today.AddMonths(-1);
-        return prev.ToString("yyyyMM");
+        // 給料日サイクル: 15日以降は当月、14日以前は前月を起点とする
+        var start = today.Day >= 15 ? Ym.FromDate(today) : Ym.FromDate(today.AddMonths(-1));
+        return start.ToString();
     }
 
     public static bool IsCurrentOrFutureCycle(string ym)
@@ -137,7 +126,7 @@ public class LedgerService(StorageService storage)
 
     private void ExpandFixedCosts(string ym, MonthData mo)
     {
-        var month = int.Parse(ym[4..]);
+        var month = Ym.Parse(ym).Month;
         foreach (var fc in State.FixedCosts.Where(f => IsFixedCostActive(f, ym)))
         {
             if (!mo.Ledgers.TryGetValue(fc.AccountId, out var ledger)) continue;
@@ -166,16 +155,9 @@ public class LedgerService(StorageService storage)
 
     public static bool IsFixedCostActive(FixedCost fc, string ym)
     {
-        if (fc.StartYm != null)
-        {
-            var startFull = fc.StartYm.Length == 6 ? fc.StartYm : fc.StartYm + "01";
-            if (string.Compare(ym, startFull) < 0) return false;
-        }
-        if (fc.EndYm != null)
-        {
-            var endFull = fc.EndYm.Length == 6 ? fc.EndYm : fc.EndYm + "12";
-            if (string.Compare(ym, endFull) > 0) return false;
-        }
+        var target = Ym.Parse(ym);
+        if (fc.StartBound() is { } start && target < start) return false;
+        if (fc.EndBound() is { } end && target > end) return false;
         return true;
     }
 

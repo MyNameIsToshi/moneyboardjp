@@ -289,59 +289,41 @@
     private void RemoveBonus(FixedCost fc, string bid) { fc.BonusSettings.RemoveAll(b => b.Id == bid); SaveWithReload(); }
 
     // ── 年月ヘルパー ────────────────────────────────
+    // StartYm/EndYm は null / "yyyy"（年のみ）/ "yyyyMM" の3形態。
     private static IEnumerable<int> YearRange() => Enumerable.Range(DateTime.Today.Year - 5, 31);
-    private static string StartYear(FixedCost fc)  => fc.StartYm != null && fc.StartYm.Length >= 4 ? fc.StartYm[..4] : "";
-    private static string StartMonth(FixedCost fc) => fc.StartYm != null && fc.StartYm.Length == 6 ? int.Parse(fc.StartYm[4..]).ToString() : "";
-    private static string EndYear(FixedCost fc)    => fc.EndYm   != null && fc.EndYm.Length   >= 4 ? fc.EndYm[..4]   : "";
-    private static string EndMonth(FixedCost fc)   => fc.EndYm   != null && fc.EndYm.Length   == 6 ? int.Parse(fc.EndYm[4..]).ToString()   : "";
 
-    private void SetStartYear(FixedCost fc, string? y)
+    private static string YearPart(string? ym)  => ym is { Length: >= 4 } ? ym[..4] : "";
+    private static string MonthPart(string? ym) => ym is { Length: 6 } ? int.Parse(ym[4..6]).ToString() : "";
+
+    // 年・月のドロップダウン値から StartYm/EndYm を組み立てる（月未選択なら年のみ）。
+    private static string? ComposeYm(string? year, string? month)
     {
-        if (string.IsNullOrEmpty(y)) { fc.StartYm = null; SaveWithReload(); return; }
-        var m = StartMonth(fc);
-        fc.StartYm = !string.IsNullOrEmpty(m) ? string.Format("{0}{1:D2}", y, int.Parse(m)) : y;
-        SaveWithReload();
+        if (string.IsNullOrEmpty(year)) return null;
+        return string.IsNullOrEmpty(month) ? year : $"{year}{int.Parse(month):D2}";
     }
-    private void SetStartMonth(FixedCost fc, string? m)
-    {
-        var y = StartYear(fc);
-        if (string.IsNullOrEmpty(m)) { fc.StartYm = y.Length == 4 ? y : null; SaveWithReload(); return; }
-        fc.StartYm = !string.IsNullOrEmpty(y) ? string.Format("{0}{1:D2}", y, int.Parse(m)) : null;
-        SaveWithReload();
-    }
-    private void SetEndYear(FixedCost fc, string? y)
-    {
-        if (string.IsNullOrEmpty(y)) { fc.EndYm = null; SaveWithReload(); return; }
-        var m = EndMonth(fc);
-        fc.EndYm = !string.IsNullOrEmpty(m) ? string.Format("{0}{1:D2}", y, int.Parse(m)) : y;
-        SaveWithReload();
-    }
-    private void SetEndMonth(FixedCost fc, string? m)
-    {
-        var y = EndYear(fc);
-        if (string.IsNullOrEmpty(m)) { fc.EndYm = y.Length == 4 ? y : null; SaveWithReload(); return; }
-        fc.EndYm = !string.IsNullOrEmpty(y) ? string.Format("{0}{1:D2}", y, int.Parse(m)) : null;
-        SaveWithReload();
-    }
+
+    private static string StartYear(FixedCost fc)  => YearPart(fc.StartYm);
+    private static string StartMonth(FixedCost fc) => MonthPart(fc.StartYm);
+    private static string EndYear(FixedCost fc)    => YearPart(fc.EndYm);
+    private static string EndMonth(FixedCost fc)   => MonthPart(fc.EndYm);
+
+    private void SetStartYear(FixedCost fc, string? y)  { fc.StartYm = ComposeYm(y, StartMonth(fc)); SaveWithReload(); }
+    private void SetStartMonth(FixedCost fc, string? m) { fc.StartYm = ComposeYm(StartYear(fc), m);  SaveWithReload(); }
+    private void SetEndYear(FixedCost fc, string? y)    { fc.EndYm   = ComposeYm(y, EndMonth(fc));    SaveWithReload(); }
+    private void SetEndMonth(FixedCost fc, string? m)   { fc.EndYm   = ComposeYm(EndYear(fc), m);     SaveWithReload(); }
 
     private static string SummaryText(FixedCost fc)
     {
-        string start, end;
-        if (fc.StartYm == null)
-            start = "開始なし〜";
-        else if (fc.StartYm.Length == 6)
-            start = string.Format("{0}年{1}月〜", fc.StartYm[..4], int.Parse(fc.StartYm[4..]));
-        else
-            start = fc.StartYm + "年〜";
+        var start = fc.StartYm == null ? "開始なし〜" : FmtBound(fc.StartYm) + "〜";
+        var end   = fc.EndYm   == null ? "無期限"     : FmtBound(fc.EndYm);
+        var bonus = fc.BonusSettings.Count > 0 ? $"ボーナス{fc.BonusSettings.Count}件" : "ボーナスなし";
+        return $"{start}{end}・{bonus}";
+    }
 
-        if (fc.EndYm == null)
-            end = "無期限";
-        else if (fc.EndYm.Length == 6)
-            end = string.Format("{0}年{1}月", fc.EndYm[..4], int.Parse(fc.EndYm[4..]));
-        else
-            end = fc.EndYm + "年";
-
-        var bonus = fc.BonusSettings.Count > 0 ? string.Format("ボーナス{0}件", fc.BonusSettings.Count) : "ボーナスなし";
-        return string.Format("{0}{1}・{2}", start, end, bonus);
+    // "yyyy年m月"（月あり）または "yyyy年"（年のみ）
+    private static string FmtBound(string ym)
+    {
+        var month = MonthPart(ym);
+        return month != "" ? $"{YearPart(ym)}年{month}月" : $"{YearPart(ym)}年";
     }
 }
