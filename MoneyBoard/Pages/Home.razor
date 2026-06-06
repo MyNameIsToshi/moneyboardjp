@@ -1,8 +1,17 @@
 @page "/"
+@implements IDisposable
 @inject LedgerService Svc
 
 <div class="wrap">
     <div class="app-title">生計 <small>口座別 引き落とし管理</small></div>
+
+    @if (ShowConflictNotice)
+    {
+        <div style="background:#fff3cd;border:1px solid #ffe69c;color:#664d03;padding:10px 14px;border-radius:6px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:12px">
+            <span>別の場所でデータが更新されたため、最新の内容を再読み込みしました。</span>
+            <button class="x" @onclick="() => ShowConflictNotice = false">✕</button>
+        </div>
+    }
 
     <div class="tabs">
         <button class="tab @(ActiveTab == "monthly" ? "active" : "")" @onclick='() => SetTab("monthly")'>月次管理</button>
@@ -25,10 +34,10 @@
     }
     else
     {
-        @if (ActiveTab == "monthly")  { <MonthlyTab /> }
-        @if (ActiveTab == "fixed")    { <FixedCostTab /> }
-        @if (ActiveTab == "accounts") { <AccountsTab /> }
-        @if (ActiveTab == "mypage")   { <MyPageTab /> }
+        @if (ActiveTab == "monthly")  { <MonthlyTab @key="ReloadKey" /> }
+        @if (ActiveTab == "fixed")    { <FixedCostTab @key="ReloadKey" /> }
+        @if (ActiveTab == "accounts") { <AccountsTab @key="ReloadKey" /> }
+        @if (ActiveTab == "mypage")   { <MyPageTab @key="ReloadKey" /> }
     }
 </div>
 
@@ -36,8 +45,25 @@
     private string ActiveTab = "monthly";
     private bool Loaded = false;
     private bool LoadFailed = false;
+    private bool ShowConflictNotice = false;
+    private int ReloadKey = 0;
 
-    protected override async Task OnInitializedAsync() => await Load();
+    protected override async Task OnInitializedAsync()
+    {
+        Svc.StateReloadedExternally += OnExternalReload;
+        await Load();
+    }
+
+    // 保存競合で最新を読み込み直したとき: タブを再マウントして
+    // 子コンポーネントがキャッシュした状態（Mo など）を作り直す。
+    private void OnExternalReload()
+    {
+        ReloadKey++;
+        ShowConflictNotice = true;
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose() => Svc.StateReloadedExternally -= OnExternalReload;
 
     // 読み込み失敗時はタブ内容を描画しない（空状態での編集→実データ上書きを防ぐ）。
     private async Task Load()

@@ -62,6 +62,9 @@ public class LedgerService(StorageService storage)
         await SaveAsync();
     }
 
+    /// <summary>保存が競合し、最新状態を読み込み直したときに発火（UI 再描画用）。</summary>
+    public event Action? StateReloadedExternally;
+
     /// <summary>即時保存。保留中のデバウンスはキャンセルする（直後に最新状態を保存するため）。</summary>
     public async Task SaveAsync()
     {
@@ -69,7 +72,20 @@ public class LedgerService(StorageService storage)
         await _saveLock.WaitAsync();
         try
         {
-            await storage.SetAsync(Key, JsonSerializer.Serialize(State));
+            var result = await storage.SetAsync(Key, JsonSerializer.Serialize(State));
+            if (result == SaveResult.Conflict)
+            {
+                // 別タブ/別端末が先に更新済み。ローカルの変更で上書きせず最新を読み込む。
+                try
+                {
+                    var json = await storage.GetAsync(Key);
+                    State = string.IsNullOrEmpty(json)
+                        ? new AppState()
+                        : JsonSerializer.Deserialize<AppState>(json) ?? State;
+                }
+                catch { /* 再読込失敗時は既存 State を維持 */ }
+                StateReloadedExternally?.Invoke();
+            }
         }
         finally
         {
