@@ -37,7 +37,45 @@ public class LedgerService(StorageService storage)
         }
     }
 
-    public Task SaveAsync() => storage.SetAsync(Key, JsonSerializer.Serialize(State));
+    // 保存はすべて _saveLock で直列化し、フル状態アップロードが
+    // 同時に走って互いを古い内容で上書きする（更新ロスト）のを防ぐ。
+    private readonly SemaphoreSlim _saveLock = new(1, 1);
+    private CancellationTokenSource? _debounceCts;
+
+    /// <summary>
+    /// 連続入力をまとめて1回だけ保存する（デバウンス）。
+    /// 金額入力など高頻度の編集で毎キーストローク POST するのを防ぐ。
+    /// </summary>
+    public void RequestSave(int delayMs = 600)
+    {
+        _debounceCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        _debounceCts = cts;
+        _ = DebouncedSaveAsync(delayMs, cts.Token);
+    }
+
+    private async Task DebouncedSaveAsync(int delayMs, CancellationToken token)
+    {
+        try { await Task.Delay(delayMs, token); }
+        catch (TaskCanceledException) { return; }
+        if (token.IsCancellationRequested) return;
+        await SaveAsync();
+    }
+
+    /// <summary>即時保存。保留中のデバウンスはキャンセルする（直後に最新状態を保存するため）。</summary>
+    public async Task SaveAsync()
+    {
+        _debounceCts?.Cancel();
+        await _saveLock.WaitAsync();
+        try
+        {
+            await storage.SetAsync(Key, JsonSerializer.Serialize(State));
+        }
+        finally
+        {
+            _saveLock.Release();
+        }
+    }
 
     public static string PrevYm(string ym)
     {

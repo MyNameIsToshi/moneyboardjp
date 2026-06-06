@@ -38,7 +38,7 @@
                             <option value="@a.Id" selected="@(fc.AccountId == a.Id)">@a.Name</option>
                         }
                     </select>
-                    <AmountInput CssClass="ra" Value="@fc.Amount" ValueChanged="v => { fc.Amount = v; SaveWithReload(); }" />
+                    <AmountInput CssClass="ra" Value="@fc.Amount" ValueChanged="v => { fc.Amount = v; RequestSaveWithReload(); }" />
                     <button class="x" @onclick="() => RemoveFixedCost(fc.Id)">✕</button>
                 </div>
 
@@ -116,7 +116,7 @@
                                                 <option value="Add" selected="@(b.Type == BonusType.Add)">上乗せ</option>
                                                 <option value="Separate" selected="@(b.Type == BonusType.Separate)">別額</option>
                                             </select>
-                                            <AmountInput CssClass="ra" Value="@b.Amount" ValueChanged="v => { b.Amount = v; SaveWithReload(); }" />
+                                            <AmountInput CssClass="ra" Value="@b.Amount" ValueChanged="v => { b.Amount = v; RequestSaveWithReload(); }" />
                                             <button class="x" @onclick="() => RemoveBonus(fc, b.Id)">✕</button>
                                         </div>
                                     }
@@ -185,7 +185,10 @@
 @code {
     private HashSet<string> ExpandedIds = new();
     private void Save() => _ = Svc.SaveAsync();
+    // 構造変更・単発イベント用（即時保存）
     private void SaveWithReload() { Svc.OnFixedCostChanged(); _ = Svc.SaveAsync(); }
+    // 金額入力など高頻度の編集用（再展開は即時・メモリ内、保存はデバウンス）
+    private void RequestSaveWithReload() { Svc.OnFixedCostChanged(); Svc.RequestSave(); }
     private void ToggleExpand(string id) { if (!ExpandedIds.Remove(id)) ExpandedIds.Add(id); }
 
     // ── 追加ダイアログ ──────────────────────────────
