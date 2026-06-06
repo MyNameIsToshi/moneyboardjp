@@ -7,6 +7,12 @@ public static class Util
 
 public class AppState
 {
+    // 既存スキーマのバージョン。JSON に無い旧データは「最古=1」として読み込まれる
+    // （初期値は CurrentVersion ではなく最古の 1 にすること。current にすると
+    //  フィールド未保持の旧データが誤って最新扱いされ移行をスキップしてしまう）。
+    public int SchemaVersion { get; set; } = 1;
+    public DateTimeOffset? UpdatedAt { get; set; }
+
     public List<Account> Accounts { get; set; } = new();
     public List<FixedCost> FixedCosts { get; set; } = new();
     public Dictionary<string, MonthData> Months { get; set; } = new();

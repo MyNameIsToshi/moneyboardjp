@@ -27,6 +27,11 @@ public class LedgerService(StorageService storage)
             State = string.IsNullOrEmpty(json)
                 ? new AppState()
                 : JsonSerializer.Deserialize<AppState>(json) ?? new AppState();
+
+            // 旧スキーマなら最新へ移行し、移行が発生したときだけ永続化する。
+            if (SchemaMigration.Apply(State))
+                await SaveAsync();
+
             IsLoaded = true;
             return true;
         }
@@ -72,6 +77,7 @@ public class LedgerService(StorageService storage)
         await _saveLock.WaitAsync();
         try
         {
+            State.UpdatedAt = DateTimeOffset.UtcNow;
             var result = await storage.SetAsync(Key, JsonSerializer.Serialize(State));
             if (result == SaveResult.Conflict)
             {
