@@ -10,18 +10,30 @@ public class LedgerService(StorageService storage)
     public AppState State { get; private set; } = new();
     public string CurrentMonth { get; set; } = CurrentCycleStartYm();
 
-    public async Task LoadAsync()
+    public bool IsLoaded { get; private set; }
+
+    /// <summary>
+    /// サーバーから状態を読み込む。成功時 true。
+    /// 取得・解析に失敗した場合は State を変更せず、保存も行わずに false を返す
+    /// （失敗を「データなし」と誤認して実データを空で上書きするのを防ぐため）。
+    /// </summary>
+    public async Task<bool> LoadAsync()
     {
-        var json = await storage.GetAsync(Key);
-        if (string.IsNullOrEmpty(json))
+        try
         {
-            State = new AppState();
-            await SaveAsync();
+            var json = await storage.GetAsync(Key);
+            // API は新規ユーザーに対し 200 + 空の AppState を返すため、
+            // json が空になるのは本当に中身が無い場合のみ。
+            State = string.IsNullOrEmpty(json)
+                ? new AppState()
+                : JsonSerializer.Deserialize<AppState>(json) ?? new AppState();
+            IsLoaded = true;
+            return true;
         }
-        else
+        catch
         {
-            try { State = JsonSerializer.Deserialize<AppState>(json) ?? new AppState(); }
-            catch { State = new AppState(); }
+            // 通信エラー・JSON 破損など。State は触らず保存もしない。
+            return false;
         }
     }
 
