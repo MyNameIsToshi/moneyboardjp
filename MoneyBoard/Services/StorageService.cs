@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Http.Json;
-using System.Text.Json;
 using MoneyBoardShared;
 
 namespace MoneyBoard.Services;
@@ -16,22 +15,20 @@ public class StorageService(HttpClient http)
     private string? _etag;
 
     // 取得失敗（通信エラー・500 等）は例外として呼び出し元へ伝播させる。
-    // ここで握りつぶして null を返すと、呼び出し元が「データなし(新規)」と誤認し
-    // 実データを空で上書き保存してしまうため。null は本当に中身が無い場合のみ。
-    public async Task<string?> GetAsync(string key)
+    // ここで握りつぶすと、呼び出し元が「データなし(新規)」と誤認し
+    // 実データを空で上書き保存してしまうため。
+    public async Task<AppState?> LoadAsync()
     {
         using var resp = await http.GetAsync(ApiPath);
         resp.EnsureSuccessStatusCode();
         _etag = resp.Headers.ETag?.Tag;
-        var state = await resp.Content.ReadFromJsonAsync<AppState>();
-        return state == null ? null : JsonSerializer.Serialize(state);
+        return await resp.Content.ReadFromJsonAsync<AppState>();
     }
 
-    public async Task<SaveResult> SetAsync(string key, string value)
+    public async Task<SaveResult> SaveAsync(AppState state)
     {
         try
         {
-            var state = JsonSerializer.Deserialize<AppState>(value);
             using var req = new HttpRequestMessage(HttpMethod.Post, ApiPath)
             {
                 Content = JsonContent.Create(state)

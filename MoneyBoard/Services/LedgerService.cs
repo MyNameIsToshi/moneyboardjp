@@ -1,12 +1,9 @@
-using System.Text.Json;
 using MoneyBoardShared;
 
 namespace MoneyBoard.Services;
 
 public class LedgerService(StorageService storage)
 {
-    private const string Key = "moneyboard:data";
-
     public AppState State { get; private set; } = new();
     public string CurrentMonth { get; set; } = CurrentCycleStartYm();
 
@@ -21,12 +18,8 @@ public class LedgerService(StorageService storage)
     {
         try
         {
-            var json = await storage.GetAsync(Key);
-            // API は新規ユーザーに対し 200 + 空の AppState を返すため、
-            // json が空になるのは本当に中身が無い場合のみ。
-            State = string.IsNullOrEmpty(json)
-                ? new AppState()
-                : JsonSerializer.Deserialize<AppState>(json) ?? new AppState();
+            // API は新規ユーザーに対し 200 + 空の AppState を返すため null にはならない。
+            State = await storage.LoadAsync() ?? new AppState();
 
             // 旧スキーマなら最新へ移行し、移行が発生したときだけ永続化する。
             if (SchemaMigration.Apply(State))
@@ -78,17 +71,11 @@ public class LedgerService(StorageService storage)
         try
         {
             State.UpdatedAt = DateTimeOffset.UtcNow;
-            var result = await storage.SetAsync(Key, JsonSerializer.Serialize(State));
+            var result = await storage.SaveAsync(State);
             if (result == SaveResult.Conflict)
             {
                 // 別タブ/別端末が先に更新済み。ローカルの変更で上書きせず最新を読み込む。
-                try
-                {
-                    var json = await storage.GetAsync(Key);
-                    State = string.IsNullOrEmpty(json)
-                        ? new AppState()
-                        : JsonSerializer.Deserialize<AppState>(json) ?? State;
-                }
+                try { State = await storage.LoadAsync() ?? State; }
                 catch { /* 再読込失敗時は既存 State を維持 */ }
                 StateReloadedExternally?.Invoke();
             }
