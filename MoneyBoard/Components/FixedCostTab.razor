@@ -28,14 +28,12 @@
                  @ondragend="OnDragEnd">
                 <div class="fc-row">
                     <span class="drag-handle">⠿</span>
-                    <input value="@fc.Name" placeholder="項目名"
-                           @onchange="e => OnFcNameChange(fc, e.Value)" />
-                    <select value="@fc.AccountId"
-                            @onchange="e => OnFcAccountChange(fc, e.Value)">
+                    <input @bind="fc.Name" @bind:after="SaveWithReload" placeholder="項目名" />
+                    <select @bind="fc.AccountId" @bind:after="SaveWithReload">
                         <option value="">口座を選択</option>
                         @foreach (var a in Svc.ActiveAccounts)
                         {
-                            <option value="@a.Id" selected="@(fc.AccountId == a.Id)">@a.Name</option>
+                            <option value="@a.Id">@a.Name</option>
                         }
                     </select>
                     <AmountInput CssClass="ra" Value="@fc.Amount" ValueChanged="v => { fc.Amount = v; RequestSaveWithReload(); }" />
@@ -102,19 +100,15 @@
                                     @foreach (var b in fc.BonusSettings)
                                     {
                                         <div class="bonus-row">
-                                            <select value="@b.Month.ToString()"
-                                                    @onchange="e => OnBonusMonthChange(b, e.Value)">
+                                            <select @bind="b.Month" @bind:after="SaveWithReload">
                                                 @for (int mi = 1; mi <= 12; mi++)
                                                 {
-                                                    var label = mi + " 月";
-                                                    var val = mi.ToString();
-                                                    <option value="@val" selected="@(b.Month == mi)">@label</option>
+                                                    <option value="@mi">@mi 月</option>
                                                 }
                                             </select>
-                                            <select value="@b.Type.ToString()"
-                                                    @onchange="e => OnBonusTypeChange(b, e.Value)">
-                                                <option value="Add" selected="@(b.Type == BonusType.Add)">上乗せ</option>
-                                                <option value="Separate" selected="@(b.Type == BonusType.Separate)">別額</option>
+                                            <select @bind="b.Type" @bind:after="SaveWithReload">
+                                                <option value="@BonusType.Add">上乗せ</option>
+                                                <option value="@BonusType.Separate">別額</option>
                                             </select>
                                             <AmountInput CssClass="ra" Value="@b.Amount" ValueChanged="v => { b.Amount = v; RequestSaveWithReload(); }" />
                                             <button class="x" @onclick="() => RemoveBonus(fc, b.Id)">✕</button>
@@ -263,12 +257,6 @@
         DragSourceId = null;
         DragOverId   = null;
     }
-
-    // ── 編集 ────────────────────────────────────────
-    private void OnFcNameChange(FixedCost fc, object? v)    { fc.Name      = v?.ToString() ?? ""; SaveWithReload(); }
-    private void OnFcAccountChange(FixedCost fc, object? v) { fc.AccountId = v?.ToString() ?? ""; SaveWithReload(); }
-    private void OnBonusMonthChange(BonusSetting b, object? v) { b.Month = int.TryParse(v?.ToString(), out var m) ? m : 1; SaveWithReload(); }
-    private void OnBonusTypeChange(BonusSetting b, object? v)  { b.Type  = v?.ToString() == "Add" ? BonusType.Add : BonusType.Separate; SaveWithReload(); }
 
     // ── 削除 ────────────────────────────────────────
     private string? PendingDeleteId = null;

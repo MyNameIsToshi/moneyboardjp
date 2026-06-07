@@ -62,8 +62,7 @@
                     @foreach (var d in l.Debits)
                     {
                         <div class="row">
-                            <input class="name" value="@d.Name" placeholder="項目"
-                                   @onchange="e => SetText(s => d.Name = s, e.Value)" />
+                            <input class="name" @bind="d.Name" @bind:after="Save" placeholder="項目" />
                             @if (d.IsFixed) { <span class="lock" title="固定費マスタから展開">🔒</span> }
                             <AmountInput CssClass="amt" Value="@d.Amount" ValueChanged="v => { d.Amount = v; Svc.RequestSave(); }" />
                             <button class="x" @onclick="() => RemoveDebit(a.Id, d.Id)">✕</button>
@@ -151,7 +150,6 @@
     private static string Yen(decimal v) => "¥" + v.ToString("#,0");
 
 
-    private void SetText(Action<string> set, object? value) { set(value?.ToString() ?? ""); Save(); }
     private void Save() => _ = Svc.SaveAsync();
 
     // 新規ユーザー（作成済み月次が当月サイクルのみ）は過去月に戻れない
