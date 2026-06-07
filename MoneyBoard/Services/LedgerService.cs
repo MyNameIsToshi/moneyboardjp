@@ -2,96 +2,33 @@ using MoneyBoardShared;
 
 namespace MoneyBoard.Services;
 
-public class LedgerService(StorageService storage)
+/// <summary>
+/// 家計簿のドメインロジック（年月・給料日サイクル・月次展開・残高計算・
+/// 口座/固定費の参照と操作）を担う。状態の保持と永続化は AppStateStore に委譲する。
+/// </summary>
+public class LedgerService(AppStateStore store)
 {
-    public AppState State { get; private set; } = new();
+    // ── 永続化（AppStateStore への委譲）──────────────
+    public AppState State => store.State;
+    public bool IsLoaded => store.IsLoaded;
+
+    public event Action? StateReloadedExternally
+    {
+        add => store.StateReloadedExternally += value;
+        remove => store.StateReloadedExternally -= value;
+    }
+
+    public Task<bool> LoadAsync() => store.LoadAsync();
+    public Task SaveAsync() => store.SaveAsync();
+    public void RequestSave(int delayMs = 600) => store.RequestSave(delayMs);
+
+    // 表示中の月（ビュー状態）
     public string CurrentMonth { get; set; } = CurrentCycleStartYm();
 
-    public bool IsLoaded { get; private set; }
-
-    /// <summary>
-    /// サーバーから状態を読み込む。成功時 true。
-    /// 取得・解析に失敗した場合は State を変更せず、保存も行わずに false を返す
-    /// （失敗を「データなし」と誤認して実データを空で上書きするのを防ぐため）。
-    /// </summary>
-    public async Task<bool> LoadAsync()
-    {
-        try
-        {
-            // API は新規ユーザーに対し 200 + 空の AppState を返すため null にはならない。
-            State = await storage.LoadAsync() ?? new AppState();
-
-            // 旧スキーマなら最新へ移行し、移行が発生したときだけ永続化する。
-            if (SchemaMigration.Apply(State))
-                await SaveAsync();
-
-            IsLoaded = true;
-            return true;
-        }
-        catch
-        {
-            // 通信エラー・JSON 破損など。State は触らず保存もしない。
-            return false;
-        }
-    }
-
-    // 保存はすべて _saveLock で直列化し、フル状態アップロードが
-    // 同時に走って互いを古い内容で上書きする（更新ロスト）のを防ぐ。
-    private readonly SemaphoreSlim _saveLock = new(1, 1);
-    private CancellationTokenSource? _debounceCts;
-
-    /// <summary>
-    /// 連続入力をまとめて1回だけ保存する（デバウンス）。
-    /// 金額入力など高頻度の編集で毎キーストローク POST するのを防ぐ。
-    /// </summary>
-    public void RequestSave(int delayMs = 600)
-    {
-        _debounceCts?.Cancel();
-        var cts = new CancellationTokenSource();
-        _debounceCts = cts;
-        _ = DebouncedSaveAsync(delayMs, cts.Token);
-    }
-
-    private async Task DebouncedSaveAsync(int delayMs, CancellationToken token)
-    {
-        try { await Task.Delay(delayMs, token); }
-        catch (TaskCanceledException) { return; }
-        if (token.IsCancellationRequested) return;
-        await SaveAsync();
-    }
-
-    /// <summary>保存が競合し、最新状態を読み込み直したときに発火（UI 再描画用）。</summary>
-    public event Action? StateReloadedExternally;
-
-    /// <summary>即時保存。保留中のデバウンスはキャンセルする（直後に最新状態を保存するため）。</summary>
-    public async Task SaveAsync()
-    {
-        _debounceCts?.Cancel();
-        await _saveLock.WaitAsync();
-        try
-        {
-            State.UpdatedAt = DateTimeOffset.UtcNow;
-            var result = await storage.SaveAsync(State);
-            if (result == SaveResult.Conflict)
-            {
-                // 別タブ/別端末が先に更新済み。ローカルの変更で上書きせず最新を読み込む。
-                try { State = await storage.LoadAsync() ?? State; }
-                catch { /* 再読込失敗時は既存 State を維持 */ }
-                StateReloadedExternally?.Invoke();
-            }
-        }
-        finally
-        {
-            _saveLock.Release();
-        }
-    }
-
+    // ── 年月・給料日サイクル ─────────────────────────
     public static string PrevYm(string ym) => Ym.Parse(ym).Prev().ToString();
-
     public static string NextYm(string ym) => Ym.Parse(ym).Next().ToString();
-
     public static string Label(string ym) => Ym.Parse(ym).Label;
-
     public static string NowYm() => Ym.Today.ToString();
 
     public static string CurrentCycleStartYm()
@@ -105,6 +42,7 @@ public class LedgerService(StorageService storage)
     public static bool IsCurrentOrFutureCycle(string ym)
         => string.Compare(ym, CurrentCycleStartYm()) >= 0;
 
+    // ── 月次展開 ─────────────────────────────────────
     public MonthData EnsureMonth(string ym)
     {
         if (!State.Months.TryGetValue(ym, out var mo))
@@ -153,6 +91,7 @@ public class LedgerService(StorageService storage)
         }
     }
 
+    // ── 固定費計算 ───────────────────────────────────
     public static bool IsFixedCostActive(FixedCost fc, string ym)
     {
         var target = Ym.Parse(ym);
@@ -172,6 +111,7 @@ public class LedgerService(StorageService storage)
         };
     }
 
+    // ── 残高計算 ─────────────────────────────────────
     public decimal CloseOf(string ym, string accountId)
     {
         if (!State.Months.TryGetValue(ym, out var mo)) return 0;
@@ -187,6 +127,7 @@ public class LedgerService(StorageService storage)
         return v;
     }
 
+    // ── 口座/固定費の参照・操作 ──────────────────────
     public string? AccountName(string id) => State.Accounts.FirstOrDefault(a => a.Id == id)?.Name;
 
     public List<Account> ActiveAccounts =>
@@ -216,14 +157,5 @@ public class LedgerService(StorageService storage)
     {
         var a = State.Accounts.FirstOrDefault(x => x.Id == accountId);
         if (a != null) a.IsDeleted = true;
-    }
-
-    public void ReorderAccounts(List<string> orderedIds)
-    {
-        for (int i = 0; i < orderedIds.Count; i++)
-        {
-            var a = State.Accounts.FirstOrDefault(x => x.Id == orderedIds[i]);
-            if (a != null) a.SortOrder = i;
-        }
     }
 }

@@ -15,6 +15,7 @@ var apiBaseUrl = builder.HostEnvironment.IsDevelopment()
 
 builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(apiBaseUrl) });
 builder.Services.AddScoped<StorageService>();
+builder.Services.AddScoped<AppStateStore>();
 builder.Services.AddScoped<LedgerService>();
 builder.Services.AddApexCharts();
 
