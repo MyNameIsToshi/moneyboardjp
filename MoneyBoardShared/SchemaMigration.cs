@@ -7,7 +7,9 @@ namespace MoneyBoardShared;
 /// </summary>
 public static class SchemaMigration
 {
-    public const int CurrentVersion = 1;
+    // v2: Phase 2（カテゴリ／カード／カード明細）を追加。いずれも加算的な
+    // フィールド追加のため、旧データは欠損フィールドが空で読み込まれるだけで移行処理は不要。
+    public const int CurrentVersion = 2;
 
     /// <summary>最新スキーマへ移行する。実際に変更が発生した場合のみ true を返す（=保存が必要）。</summary>
     public static bool Apply(AppState state)

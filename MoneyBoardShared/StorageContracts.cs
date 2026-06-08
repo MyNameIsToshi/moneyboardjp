@@ -17,6 +17,7 @@ public class SettingsPart
     public int SchemaVersion { get; set; } = 1;
     public List<Account> Accounts { get; set; } = new();
     public List<FixedCost> FixedCosts { get; set; } = new();
+    public List<Category> Categories { get; set; } = new();
 }
 
 /// <summary>月次ドキュメントに対応するパート。</summary>

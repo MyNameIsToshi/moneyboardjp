@@ -20,6 +20,7 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos)
     // 構造上の健全性チェック
     private const int MaxAccounts = 100;
     private const int MaxFixedCosts = 500;
+    private const int MaxCategories = 100;
     private const int MaxMonthsPerSave = 600;
     private const int MaxDebitsPerLedger = 1000;
 
@@ -48,7 +49,8 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos)
                     Etag = r.ETag,
                     SchemaVersion = r.Resource.SchemaVersion,
                     Accounts = r.Resource.Accounts,
-                    FixedCosts = r.Resource.FixedCosts
+                    FixedCosts = r.Resource.FixedCosts,
+                    Categories = r.Resource.Categories
                 };
             }
             catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)
@@ -117,7 +119,8 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos)
                     Id = SettingsId, UserId = UserId, Type = "settings",
                     SchemaVersion = env.Settings.SchemaVersion,
                     Accounts = env.Settings.Accounts,
-                    FixedCosts = env.Settings.FixedCosts
+                    FixedCosts = env.Settings.FixedCosts,
+                    Categories = env.Settings.Categories
                 };
                 batch.UpsertItem(doc, BatchOptions(env.Settings.Etag));
                 ops.Add(("settings", ""));
@@ -194,6 +197,7 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos)
         {
             if (env.Settings.Accounts.Count > MaxAccounts) { reason = $"accounts={env.Settings.Accounts.Count}"; return false; }
             if (env.Settings.FixedCosts.Count > MaxFixedCosts) { reason = $"fixedCosts={env.Settings.FixedCosts.Count}"; return false; }
+            if (env.Settings.Categories.Count > MaxCategories) { reason = $"categories={env.Settings.Categories.Count}"; return false; }
         }
         if (env.Months.Count > MaxMonthsPerSave) { reason = $"months={env.Months.Count}"; return false; }
         foreach (var (ym, m) in env.Months)
@@ -221,6 +225,7 @@ public class SettingsDoc
     public int SchemaVersion { get; set; } = 1;
     public List<Account> Accounts { get; set; } = new();
     public List<FixedCost> FixedCosts { get; set; } = new();
+    public List<Category> Categories { get; set; } = new();
 }
 
 public class MonthDoc
