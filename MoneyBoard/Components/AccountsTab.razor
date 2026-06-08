@@ -25,10 +25,8 @@
                 @foreach (var a in Svc.ActiveAccounts)
                 {
                     <tr>
-                        <td><input class="tinput" value="@a.Name" placeholder="口座名"
-                               @onchange="e => OnNameChange(a, e.Value)" /></td>
-                        <td><input class="tinput" value="@a.AccountNumber" placeholder="口座番号"
-                               @onchange="e => OnAccountNumberChange(a, e.Value)" /></td>
+                        <td><input class="tinput" @bind="a.Name" @bind:after="Save" placeholder="口座名" /></td>
+                        <td><input class="tinput" @bind="a.AccountNumber" @bind:after="Save" placeholder="口座番号" /></td>
                         <td style="text-align:center">
                             <input type="radio" name="bonusAcct" class="radio-bonus"
                                    checked="@a.IsBonusAccount"
@@ -95,9 +93,6 @@
     private string WarnSubMessage = "";
 
     private void Save() => _ = Svc.SaveAsync();
-
-    private void OnNameChange(Account a, object? v)          { a.Name          = v?.ToString() ?? ""; Save(); }
-    private void OnAccountNumberChange(Account a, object? v) { a.AccountNumber = v?.ToString() ?? ""; Save(); }
 
     private void SetBonusAccount(string id)
     {

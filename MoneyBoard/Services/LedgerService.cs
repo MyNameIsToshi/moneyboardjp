@@ -1,62 +1,48 @@
-using System.Text.Json;
 using MoneyBoardShared;
 
 namespace MoneyBoard.Services;
 
-public class LedgerService(StorageService storage)
+/// <summary>
+/// 家計簿のドメインロジック（年月・給料日サイクル・月次展開・残高計算・
+/// 口座/固定費の参照と操作）を担う。状態の保持と永続化は AppStateStore に委譲する。
+/// </summary>
+public class LedgerService(AppStateStore store)
 {
-    private const string Key = "moneyboard:data";
+    // ── 永続化（AppStateStore への委譲）──────────────
+    public AppState State => store.State;
+    public bool IsLoaded => store.IsLoaded;
 
-    public AppState State { get; private set; } = new();
+    public event Action? StateReloadedExternally
+    {
+        add => store.StateReloadedExternally += value;
+        remove => store.StateReloadedExternally -= value;
+    }
+
+    public Task<bool> LoadAsync() => store.LoadAsync();
+    public Task SaveAsync() => store.SaveAsync();
+    public void RequestSave(int delayMs = 600) => store.RequestSave(delayMs);
+
+    // 表示中の月（ビュー状態）
     public string CurrentMonth { get; set; } = CurrentCycleStartYm();
 
-    public async Task LoadAsync()
-    {
-        var json = await storage.GetAsync(Key);
-        if (string.IsNullOrEmpty(json))
-        {
-            State = new AppState();
-            await SaveAsync();
-        }
-        else
-        {
-            try { State = JsonSerializer.Deserialize<AppState>(json) ?? new AppState(); }
-            catch { State = new AppState(); }
-        }
-    }
-
-    public Task SaveAsync() => storage.SetAsync(Key, JsonSerializer.Serialize(State));
-
-    public static string PrevYm(string ym)
-    {
-        int y = int.Parse(ym[..4]), m = int.Parse(ym[4..]) - 1;
-        if (m < 1) { m = 12; y--; }
-        return $"{y}{m:D2}";
-    }
-
-    public static string NextYm(string ym)
-    {
-        int y = int.Parse(ym[..4]), m = int.Parse(ym[4..]) + 1;
-        if (m > 12) { m = 1; y++; }
-        return $"{y}{m:D2}";
-    }
-
-    public static string Label(string ym) => $"{ym[..4]}年{int.Parse(ym[4..])}月";
-
-    public static string NowYm() => DateTime.Today.ToString("yyyyMM");
+    // ── 年月・給料日サイクル ─────────────────────────
+    public static string PrevYm(string ym) => Ym.Parse(ym).Prev().ToString();
+    public static string NextYm(string ym) => Ym.Parse(ym).Next().ToString();
+    public static string Label(string ym) => Ym.Parse(ym).Label;
+    public static string NowYm() => Ym.Today.ToString();
 
     public static string CurrentCycleStartYm()
     {
         var today = DateTime.Today;
-        if (today.Day >= 15)
-            return today.ToString("yyyyMM");
-        var prev = today.AddMonths(-1);
-        return prev.ToString("yyyyMM");
+        // 給料日サイクル: 15日以降は当月、14日以前は前月を起点とする
+        var start = today.Day >= 15 ? Ym.FromDate(today) : Ym.FromDate(today.AddMonths(-1));
+        return start.ToString();
     }
 
     public static bool IsCurrentOrFutureCycle(string ym)
         => string.Compare(ym, CurrentCycleStartYm()) >= 0;
 
+    // ── 月次展開 ─────────────────────────────────────
     public MonthData EnsureMonth(string ym)
     {
         if (!State.Months.TryGetValue(ym, out var mo))
@@ -78,7 +64,7 @@ public class LedgerService(StorageService storage)
 
     private void ExpandFixedCosts(string ym, MonthData mo)
     {
-        var month = int.Parse(ym[4..]);
+        var month = Ym.Parse(ym).Month;
         foreach (var fc in State.FixedCosts.Where(f => IsFixedCostActive(f, ym)))
         {
             if (!mo.Ledgers.TryGetValue(fc.AccountId, out var ledger)) continue;
@@ -105,18 +91,12 @@ public class LedgerService(StorageService storage)
         }
     }
 
+    // ── 固定費計算 ───────────────────────────────────
     public static bool IsFixedCostActive(FixedCost fc, string ym)
     {
-        if (fc.StartYm != null)
-        {
-            var startFull = fc.StartYm.Length == 6 ? fc.StartYm : fc.StartYm + "01";
-            if (string.Compare(ym, startFull) < 0) return false;
-        }
-        if (fc.EndYm != null)
-        {
-            var endFull = fc.EndYm.Length == 6 ? fc.EndYm : fc.EndYm + "12";
-            if (string.Compare(ym, endFull) > 0) return false;
-        }
+        var target = Ym.Parse(ym);
+        if (fc.StartBound() is { } start && target < start) return false;
+        if (fc.EndBound() is { } end && target > end) return false;
         return true;
     }
 
@@ -131,6 +111,7 @@ public class LedgerService(StorageService storage)
         };
     }
 
+    // ── 残高計算 ─────────────────────────────────────
     public decimal CloseOf(string ym, string accountId)
     {
         if (!State.Months.TryGetValue(ym, out var mo)) return 0;
@@ -146,6 +127,7 @@ public class LedgerService(StorageService storage)
         return v;
     }
 
+    // ── 口座/固定費の参照・操作 ──────────────────────
     public string? AccountName(string id) => State.Accounts.FirstOrDefault(a => a.Id == id)?.Name;
 
     public List<Account> ActiveAccounts =>
@@ -175,14 +157,5 @@ public class LedgerService(StorageService storage)
     {
         var a = State.Accounts.FirstOrDefault(x => x.Id == accountId);
         if (a != null) a.IsDeleted = true;
-    }
-
-    public void ReorderAccounts(List<string> orderedIds)
-    {
-        for (int i = 0; i < orderedIds.Count; i++)
-        {
-            var a = State.Accounts.FirstOrDefault(x => x.Id == orderedIds[i]);
-            if (a != null) a.SortOrder = i;
-        }
     }
 }

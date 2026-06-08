@@ -171,55 +171,32 @@
     private void BuildChartData()
     {
         var yms = GetTargetYms();
-        var accounts = Svc.ActiveAccounts;
 
-        MonthlyDebitData = yms.Select(ym =>
-        {
-            var mo = Svc.State.Months.GetValueOrDefault(ym);
-            var total = mo?.Ledgers.Values.Sum(l => l.Debits.Sum(d => d.Amount)) ?? 0;
-            return new ChartPoint { Label = LedgerService.Label(ym), Value = (decimal)total };
-        }).ToList();
+        MonthlyDebitData = BuildSeries(yms, ym => MonthSum(ym, l => l.Debits.Sum(d => d.Amount)));
+        SalaryData       = BuildSeries(yms, ym => MonthSum(ym, l => l.Salary));
+        BonusData        = BuildSeries(yms, ym => MonthSum(ym, l => l.Bonus));
+        IncomeData       = BuildSeries(yms, ym => MonthSum(ym, l => l.Salary + l.Bonus));
 
-        BalanceSeriesData = accounts.ToDictionary(
+        BalanceSeriesData = Svc.ActiveAccounts.ToDictionary(
             a => a.Name,
-            a => yms.Select(ym => new ChartPoint
-            {
-                Label = LedgerService.Label(ym),
-                Value = (decimal)Svc.CloseOf(ym, a.Id)
-            }).ToList()
-        );
+            a => BuildSeries(yms, ym => Svc.CloseOf(ym, a.Id)));
 
-        SalaryData = yms.Select(ym =>
+        FixedCostData = BuildSeries(yms, ym =>
         {
-            var mo = Svc.State.Months.GetValueOrDefault(ym);
-            var total = mo?.Ledgers.Values.Sum(l => l.Salary) ?? 0;
-            return new ChartPoint { Label = LedgerService.Label(ym), Value = (decimal)total };
-        }).ToList();
-
-        BonusData = yms.Select(ym =>
-        {
-            var mo = Svc.State.Months.GetValueOrDefault(ym);
-            var total = mo?.Ledgers.Values.Sum(l => l.Bonus) ?? 0;
-            return new ChartPoint { Label = LedgerService.Label(ym), Value = (decimal)total };
-        }).ToList();
-
-        IncomeData = yms.Select(ym =>
-        {
-            var mo = Svc.State.Months.GetValueOrDefault(ym);
-            var salary = mo?.Ledgers.Values.Sum(l => l.Salary) ?? 0;
-            var bonus = mo?.Ledgers.Values.Sum(l => l.Bonus) ?? 0;
-            return new ChartPoint { Label = LedgerService.Label(ym), Value = (decimal)(salary + bonus) };
-        }).ToList();
-
-        FixedCostData = yms.Select(ym =>
-        {
-            var month = int.Parse(ym[4..]);
-            var total = Svc.State.FixedCosts
+            var month = Ym.Parse(ym).Month;
+            return Svc.State.FixedCosts
                 .Where(fc => LedgerService.IsFixedCostActive(fc, ym))
                 .Sum(fc => LedgerService.GetFixedCostAmount(fc, month));
-            return new ChartPoint { Label = LedgerService.Label(ym), Value = (decimal)total };
-        }).ToList();
+        });
     }
+
+    // 期間中の各月について Label/Value のチャート点を作る共通処理
+    private static List<ChartPoint> BuildSeries(List<string> yms, Func<string, decimal> valueOf) =>
+        yms.Select(ym => new ChartPoint { Label = LedgerService.Label(ym), Value = valueOf(ym) }).ToList();
+
+    // 指定月の全口座台帳にセレクタを適用して合計（月が無ければ 0）
+    private decimal MonthSum(string ym, Func<Ledger, decimal> selector) =>
+        Svc.State.Months.GetValueOrDefault(ym)?.Ledgers.Values.Sum(selector) ?? 0;
 
     public class ChartPoint
     {

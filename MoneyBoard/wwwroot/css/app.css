@@ -19,6 +19,14 @@
   box-sizing: border-box
 }
 
+/* フォーム部品はブラウザ既定で本文フォントを継承しないため明示的に統一する */
+input,
+select,
+textarea,
+button {
+  font-family: inherit;
+}
+
 html,
 body {
   margin: 0
@@ -584,6 +592,7 @@ input.num:focus,
   border-radius: 7px;
   padding: 5px 8px;
   font: inherit;
+  font-size: 14px;
   background: #fff;
 }
 
@@ -617,10 +626,10 @@ input.num:focus,
 .bonus-row input,
 .bonus-row select {
   border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 4px 7px;
+  border-radius: 7px;
+  padding: 5px 8px;
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   background: #fff;
   width: 100%;
 }

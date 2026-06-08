@@ -41,19 +41,19 @@
                             <span class="hint">前月末 @Yen(prevClose.Value)</span>
                         }
                     </label>
-                    <AmountInput Value="@l.Confirmed" ValueChanged="v => { l.Confirmed = v; Save(); }" />
+                    <AmountInput Value="@l.Confirmed" ValueChanged="v => { l.Confirmed = v; Svc.RequestSave(); }" />
                 </div>
 
                 <div class="field">
                     <label>給料</label>
-                    <AmountInput Value="@l.Salary" ValueChanged="v => { l.Salary = v; Save(); }" />
+                    <AmountInput Value="@l.Salary" ValueChanged="v => { l.Salary = v; Svc.RequestSave(); }" />
                 </div>
 
                 @if (a.IsBonusAccount)
                 {
                     <div class="field">
                         <label>ボーナス <span class="bonus-tag">受取口座</span></label>
-                        <AmountInput Value="@l.Bonus" ValueChanged="v => { l.Bonus = v; Save(); }" />
+                        <AmountInput Value="@l.Bonus" ValueChanged="v => { l.Bonus = v; Svc.RequestSave(); }" />
                     </div>
                 }
 
@@ -62,10 +62,9 @@
                     @foreach (var d in l.Debits)
                     {
                         <div class="row">
-                            <input class="name" value="@d.Name" placeholder="項目"
-                                   @oninput="e => SetText(s => d.Name = s, e.Value)" />
+                            <input class="name" @bind="d.Name" @bind:after="Save" placeholder="項目" />
                             @if (d.IsFixed) { <span class="lock" title="固定費マスタから展開">🔒</span> }
-                            <AmountInput CssClass="amt" Value="@d.Amount" ValueChanged="v => { d.Amount = v; Save(); }" />
+                            <AmountInput CssClass="amt" Value="@d.Amount" ValueChanged="v => { d.Amount = v; Svc.RequestSave(); }" />
                             <button class="x" @onclick="() => RemoveDebit(a.Id, d.Id)">✕</button>
                         </div>
                     }
@@ -84,7 +83,7 @@
                                     <option value="@o.Id">@o.Name へ</option>
                                 }
                             </select>
-                            <AmountInput CssClass="amt" Value="@t.Amount" ValueChanged="v => { t.Amount = v; Save(); }" />
+                            <AmountInput CssClass="amt" Value="@t.Amount" ValueChanged="v => { t.Amount = v; Svc.RequestSave(); }" />
                             <button class="x" @onclick="() => RemoveTransfer(t.Id)">✕</button>
                         </div>
                     }
@@ -151,7 +150,6 @@
     private static string Yen(decimal v) => "¥" + v.ToString("#,0");
 
 
-    private void SetText(Action<string> set, object? value) { set(value?.ToString() ?? ""); Save(); }
     private void Save() => _ = Svc.SaveAsync();
 
     // 新規ユーザー（作成済み月次が当月サイクルのみ）は過去月に戻れない
@@ -161,7 +159,8 @@
         string.Compare(Svc.CurrentMonth, LedgerService.CurrentCycleStartYm()) <= 0;
 
     [Inject] NavigationManager Nav { get; set; } = default!;
-    private void GoToGraph() => Nav.NavigateTo("/graph");
+    // 保留中のデバウンス保存をフラッシュしてから遷移（グラフ側の再読込が最新を取得できるように）
+    private async Task GoToGraph() { await Svc.SaveAsync(); Nav.NavigateTo("/graph"); }
     private void Prev() { Svc.CurrentMonth = LedgerService.PrevYm(Svc.CurrentMonth); Mo = Svc.EnsureMonth(Svc.CurrentMonth); }
     private void Next() { Svc.CurrentMonth = LedgerService.NextYm(Svc.CurrentMonth); Mo = Svc.EnsureMonth(Svc.CurrentMonth); }
 
