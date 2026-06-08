@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Cosmos;
+using System.Net;
 using System.Text.Json;
 using MoneyBoardShared;
 
@@ -11,37 +12,70 @@ namespace MoneyBoardApi;
 public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos)
 {
     private const string UserId = "default"; // Google認証実装後にヘッダーから取得
+    private const string SettingsId = "settings";
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
-    // 本文サイズ上限。Cosmos のドキュメント上限(2MB)を超えさせず、
-    // 巨大ペイロードによる RU 暴発・DoS を防ぐ。
+    // 本文サイズ上限（巨大ペイロードによる RU 暴発・DoS を防ぐ）
     private const long MaxBodyBytes = 1_900_000;
-
-    // 構造上の健全性チェック（異常に巨大なコレクションを拒否）
+    // 構造上の健全性チェック
     private const int MaxAccounts = 100;
     private const int MaxFixedCosts = 500;
-    private const int MaxMonths = 600;          // 約50年分
+    private const int MaxMonthsPerSave = 600;
     private const int MaxDebitsPerLedger = 1000;
 
     private Container GetContainer() =>
         cosmos.GetContainer(Environment.GetEnvironmentVariable("CosmosDb__DatabaseName"), "userdata");
 
-    // GET /api/data → AppState を返す
+    private static string MonthId(string ym) => $"month:{ym}";
+
+    // GET /api/data → 設定ドキュメント＋全月次ドキュメントを集約して返す
     [Function("GetData")]
     public async Task<IActionResult> GetData(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "data")] HttpRequest req)
     {
         try
         {
-            var item = await GetContainer().ReadItemAsync<CosmosDoc>(UserId, new PartitionKey(UserId));
-            // 楽観的並行制御用に ETag をヘッダーで返す（保存時に If-Match で送り返す）
-            req.HttpContext.Response.Headers.ETag = item.ETag;
-            return new OkObjectResult(item.Resource.Data);
-        }
-        catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
-        {
-            // 新規ユーザー。ETag なし → 初回保存は If-Match なしで作成される。
-            return new OkObjectResult(new AppState());
+            var container = GetContainer();
+            var pk = new PartitionKey(UserId);
+            var env = new DataEnvelope { Settings = new SettingsPart() };
+
+            // 設定（ポイント読み取り）。無ければ新規ユーザーとして空の設定。
+            try
+            {
+                var r = await container.ReadItemAsync<SettingsDoc>(SettingsId, pk);
+                env.Settings = new SettingsPart
+                {
+                    Etag = r.ETag,
+                    SchemaVersion = r.Resource.SchemaVersion,
+                    Accounts = r.Resource.Accounts,
+                    FixedCosts = r.Resource.FixedCosts
+                };
+            }
+            catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)
+            {
+                // 空の設定のまま返す
+            }
+
+            // 月次（クエリ）。_etag はドキュメント本文から取得する。
+            var query = new QueryDefinition("SELECT * FROM c WHERE c.userId = @u AND c.type = 'month'")
+                .WithParameter("@u", UserId);
+            using var it = container.GetItemQueryIterator<MonthReadDoc>(query,
+                requestOptions: new QueryRequestOptions { PartitionKey = pk });
+            while (it.HasMoreResults)
+            {
+                foreach (var d in await it.ReadNextAsync())
+                {
+                    if (string.IsNullOrEmpty(d.Ym)) continue;
+                    env.Months[d.Ym] = new MonthPart
+                    {
+                        Etag = d.Etag,
+                        Ledgers = d.Ledgers ?? new(),
+                        Transfers = d.Transfers ?? new()
+                    };
+                }
+            }
+
+            return new OkObjectResult(env);
         }
         catch (Exception ex)
         {
@@ -50,53 +84,91 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos)
         }
     }
 
-    // POST /api/data → AppState を保存
+    // POST /api/data → 変更された設定/月次のみを TransactionalBatch で原子的に保存
     [Function("SaveData")]
     public async Task<IActionResult> SaveData(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "data")] HttpRequest req)
     {
         try
         {
-            // Content-Length での先行チェック（存在すれば即拒否）
             if (req.ContentLength > MaxBodyBytes)
                 return new StatusCodeResult(StatusCodes.Status413RequestEntityTooLarge);
-
             var body = await ReadBodyCappedAsync(req.Body);
-            if (body == null) // 上限超過（Content-Length が無い/不正なケースも捕捉）
+            if (body == null)
                 return new StatusCodeResult(StatusCodes.Status413RequestEntityTooLarge);
 
-            var state = JsonSerializer.Deserialize<AppState>(body, JsonOptions);
-            if (state == null) return new BadRequestResult();
-
-            if (!IsStructurallyValid(state, out var reason))
+            var env = JsonSerializer.Deserialize<DataEnvelope>(body, JsonOptions);
+            if (env == null) return new BadRequestResult();
+            if (!IsStructurallyValid(env, out var reason))
             {
                 logger.LogWarning("SaveData rejected: {Reason}", reason);
                 return new BadRequestResult();
             }
 
-            var doc = new CosmosDoc { Id = UserId, UserId = UserId, Data = state };
-            var options = new ItemRequestOptions { EnableContentResponseOnWrite = false };
+            var container = GetContainer();
+            var pk = new PartitionKey(UserId);
+            var batch = container.CreateTransactionalBatch(pk);
+            var ops = new List<(string kind, string ym)>();
 
-            // クライアントが保持する ETag を渡された場合は条件付き更新。
-            // サーバー側が新しければ Cosmos が 412 を返し、黙った上書きを防ぐ。
-            var ifMatch = req.Headers.IfMatch.ToString();
-            if (!string.IsNullOrEmpty(ifMatch)) options.IfMatchEtag = ifMatch;
+            if (env.Settings != null)
+            {
+                var doc = new SettingsDoc
+                {
+                    Id = SettingsId, UserId = UserId, Type = "settings",
+                    SchemaVersion = env.Settings.SchemaVersion,
+                    Accounts = env.Settings.Accounts,
+                    FixedCosts = env.Settings.FixedCosts
+                };
+                batch.UpsertItem(doc, BatchOptions(env.Settings.Etag));
+                ops.Add(("settings", ""));
+            }
+            foreach (var (ym, m) in env.Months)
+            {
+                var doc = new MonthDoc
+                {
+                    Id = MonthId(ym), UserId = UserId, Type = "month", Ym = ym,
+                    Ledgers = m.Ledgers, Transfers = m.Transfers
+                };
+                batch.UpsertItem(doc, BatchOptions(m.Etag));
+                ops.Add(("month", ym));
+            }
 
-            var response = await GetContainer().UpsertItemAsync(doc, new PartitionKey(UserId), options);
-            req.HttpContext.Response.Headers.ETag = response.ETag;
-            return new OkResult();
-        }
-        catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.PreconditionFailed)
-        {
-            // 別タブ/別端末が先に更新済み。クライアントに再読込を促す。
-            logger.LogInformation("SaveData conflict (412): client etag is stale");
-            return new StatusCodeResult(StatusCodes.Status412PreconditionFailed);
+            if (ops.Count == 0) return new OkObjectResult(new SaveResponse());
+
+            using var resp = await batch.ExecuteAsync();
+            if (!resp.IsSuccessStatusCode)
+            {
+                for (int i = 0; i < resp.Count; i++)
+                {
+                    if (resp[i].StatusCode == HttpStatusCode.PreconditionFailed)
+                        return new StatusCodeResult(StatusCodes.Status412PreconditionFailed);
+                }
+                logger.LogError("SaveData batch failed: {Status}", resp.StatusCode);
+                return new StatusCodeResult(500);
+            }
+
+            var result = new SaveResponse();
+            for (int i = 0; i < ops.Count; i++)
+            {
+                var (kind, ym) = ops[i];
+                if (kind == "settings") result.SettingsEtag = resp[i].ETag;
+                else result.MonthEtags[ym] = resp[i].ETag;
+            }
+            return new OkObjectResult(result);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "SaveData failed");
             return new StatusCodeResult(500);
         }
+    }
+
+    // クライアントが保持する etag があれば条件付き更新（競合検出）。
+    private static TransactionalBatchItemRequestOptions BatchOptions(string? etag)
+    {
+        var opt = new TransactionalBatchItemRequestOptions { EnableContentResponseOnWrite = false };
+        if (!string.IsNullOrEmpty(etag)) opt.IfMatchEtag = etag;
+        return opt;
     }
 
     // 上限までを読み、超過したら null を返す（Content-Length が無い/偽装の場合の保険）。
@@ -115,19 +187,22 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos)
         return System.Text.Encoding.UTF8.GetString(ms.GetBuffer(), 0, (int)ms.Length);
     }
 
-    // 異常に巨大なコレクションを拒否（DoS / 破損データ対策）。業務的な厳密検証ではない。
-    private static bool IsStructurallyValid(AppState state, out string reason)
+    // 異常に巨大なコレクションを拒否（DoS / 破損データ対策）。
+    private static bool IsStructurallyValid(DataEnvelope env, out string reason)
     {
-        if (state.Accounts.Count > MaxAccounts) { reason = $"accounts={state.Accounts.Count}"; return false; }
-        if (state.FixedCosts.Count > MaxFixedCosts) { reason = $"fixedCosts={state.FixedCosts.Count}"; return false; }
-        if (state.Months.Count > MaxMonths) { reason = $"months={state.Months.Count}"; return false; }
-        foreach (var (ym, mo) in state.Months)
+        if (env.Settings != null)
         {
-            foreach (var (accId, ledger) in mo.Ledgers)
+            if (env.Settings.Accounts.Count > MaxAccounts) { reason = $"accounts={env.Settings.Accounts.Count}"; return false; }
+            if (env.Settings.FixedCosts.Count > MaxFixedCosts) { reason = $"fixedCosts={env.Settings.FixedCosts.Count}"; return false; }
+        }
+        if (env.Months.Count > MaxMonthsPerSave) { reason = $"months={env.Months.Count}"; return false; }
+        foreach (var (ym, m) in env.Months)
+        {
+            foreach (var (accId, l) in m.Ledgers)
             {
-                if (ledger.Debits.Count > MaxDebitsPerLedger)
+                if (l.Debits.Count > MaxDebitsPerLedger)
                 {
-                    reason = $"debits in {ym}/{accId}={ledger.Debits.Count}";
+                    reason = $"debits in {ym}/{accId}={l.Debits.Count}";
                     return false;
                 }
             }
@@ -137,10 +212,32 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos)
     }
 }
 
-public class CosmosDoc
+// ── Cosmos ドキュメント（同一パーティション /userId 内で type により分割）──
+public class SettingsDoc
 {
-    [System.Text.Json.Serialization.JsonPropertyName("id")]
-    public string Id { get; set; } = "";
+    [Newtonsoft.Json.JsonProperty("id")] public string Id { get; set; } = "";
     public string UserId { get; set; } = "";
-    public AppState Data { get; set; } = new();
+    public string Type { get; set; } = "settings";
+    public int SchemaVersion { get; set; } = 1;
+    public List<Account> Accounts { get; set; } = new();
+    public List<FixedCost> FixedCosts { get; set; } = new();
+}
+
+public class MonthDoc
+{
+    [Newtonsoft.Json.JsonProperty("id")] public string Id { get; set; } = "";
+    public string UserId { get; set; } = "";
+    public string Type { get; set; } = "month";
+    public string Ym { get; set; } = "";
+    public Dictionary<string, Ledger> Ledgers { get; set; } = new();
+    public List<Transfer> Transfers { get; set; } = new();
+}
+
+// 月次クエリ読み取り専用（_etag を本文から取得するため）
+public class MonthReadDoc
+{
+    public string? Ym { get; set; }
+    public Dictionary<string, Ledger>? Ledgers { get; set; }
+    public List<Transfer>? Transfers { get; set; }
+    [Newtonsoft.Json.JsonProperty("_etag")] public string? Etag { get; set; }
 }

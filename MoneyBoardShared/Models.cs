@@ -11,7 +11,6 @@ public class AppState
     // （初期値は CurrentVersion ではなく最古の 1 にすること。current にすると
     //  フィールド未保持の旧データが誤って最新扱いされ移行をスキップしてしまう）。
     public int SchemaVersion { get; set; } = 1;
-    public DateTimeOffset? UpdatedAt { get; set; }
 
     public List<Account> Accounts { get; set; } = new();
     public List<FixedCost> FixedCosts { get; set; } = new();
