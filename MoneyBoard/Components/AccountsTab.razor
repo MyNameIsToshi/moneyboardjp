@@ -140,6 +140,15 @@
             return;
         }
 
+        var cardNames = Svc.GetCardsUsingAccount(id);
+        if (cardNames.Count > 0)
+        {
+            WarnMessages.Add($"以下のカードで使用されています：{string.Join("、", cardNames)}");
+            WarnSubMessage = "マイページのカード設定から該当のカードを変更または削除してください。";
+            ShowWarn = true;
+            return;
+        }
+
         var months = Svc.GetFutureMonthsUsingAccount(id);
         if (months.Count > 0)
         {

@@ -750,6 +750,21 @@ input.num:focus,
   border-color: var(--ink);
 }
 
+.card-acct {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 5px 8px;
+  font: inherit;
+  background: #fff;
+  min-width: 160px;
+}
+
+.card-acct:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(31, 58, 95, .08);
+}
+
 /* =====================================================
    ダイアログ共通 (ConfirmDialog / WarnDialog / 追加ダイアログ)
    ===================================================== */

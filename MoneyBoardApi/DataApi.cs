@@ -21,6 +21,7 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos)
     private const int MaxAccounts = 100;
     private const int MaxFixedCosts = 500;
     private const int MaxCategories = 100;
+    private const int MaxCards = 100;
     private const int MaxMonthsPerSave = 600;
     private const int MaxDebitsPerLedger = 1000;
 
@@ -50,7 +51,8 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos)
                     SchemaVersion = r.Resource.SchemaVersion,
                     Accounts = r.Resource.Accounts,
                     FixedCosts = r.Resource.FixedCosts,
-                    Categories = r.Resource.Categories
+                    Categories = r.Resource.Categories,
+                    Cards = r.Resource.Cards
                 };
             }
             catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)
@@ -120,7 +122,8 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos)
                     SchemaVersion = env.Settings.SchemaVersion,
                     Accounts = env.Settings.Accounts,
                     FixedCosts = env.Settings.FixedCosts,
-                    Categories = env.Settings.Categories
+                    Categories = env.Settings.Categories,
+                    Cards = env.Settings.Cards
                 };
                 batch.UpsertItem(doc, BatchOptions(env.Settings.Etag));
                 ops.Add(("settings", ""));
@@ -198,6 +201,7 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos)
             if (env.Settings.Accounts.Count > MaxAccounts) { reason = $"accounts={env.Settings.Accounts.Count}"; return false; }
             if (env.Settings.FixedCosts.Count > MaxFixedCosts) { reason = $"fixedCosts={env.Settings.FixedCosts.Count}"; return false; }
             if (env.Settings.Categories.Count > MaxCategories) { reason = $"categories={env.Settings.Categories.Count}"; return false; }
+            if (env.Settings.Cards.Count > MaxCards) { reason = $"cards={env.Settings.Cards.Count}"; return false; }
         }
         if (env.Months.Count > MaxMonthsPerSave) { reason = $"months={env.Months.Count}"; return false; }
         foreach (var (ym, m) in env.Months)
@@ -226,6 +230,7 @@ public class SettingsDoc
     public List<Account> Accounts { get; set; } = new();
     public List<FixedCost> FixedCosts { get; set; } = new();
     public List<Category> Categories { get; set; } = new();
+    public List<Card> Cards { get; set; } = new();
 }
 
 public class MonthDoc

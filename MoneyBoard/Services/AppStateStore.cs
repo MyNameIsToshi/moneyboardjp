@@ -128,7 +128,8 @@ public class AppStateStore(StorageService storage)
         SchemaVersion = State.SchemaVersion,
         Accounts = State.Accounts,
         FixedCosts = State.FixedCosts,
-        Categories = State.Categories
+        Categories = State.Categories,
+        Cards = State.Cards
     };
 
     private static MonthPart BuildMonthPart(MonthData mo) => new()

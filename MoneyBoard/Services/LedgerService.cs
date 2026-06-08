@@ -136,6 +136,9 @@ public class LedgerService(AppStateStore store)
     public List<string> GetFixedCostsUsingAccount(string accountId) =>
         State.FixedCosts.Where(f => f.AccountId == accountId).Select(f => f.Name).ToList();
 
+    public List<string> GetCardsUsingAccount(string accountId) =>
+        State.Cards.Where(c => c.AccountId == accountId).Select(c => c.Name).ToList();
+
     public List<string> GetFutureMonthsUsingAccount(string accountId)
     {
         var cycleStart = CurrentCycleStartYm();

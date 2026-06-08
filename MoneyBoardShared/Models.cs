@@ -15,6 +15,7 @@ public class AppState
     public List<Account> Accounts { get; set; } = new();
     public List<FixedCost> FixedCosts { get; set; } = new();
     public List<Category> Categories { get; set; } = new();
+    public List<Card> Cards { get; set; } = new();
     public Dictionary<string, MonthData> Months { get; set; } = new();
 }
 
@@ -24,6 +25,15 @@ public class Category
     public string Id { get; set; } = Util.NewId();
     public string Name { get; set; } = "";
     public string Color { get; set; } = "";   // パレットの16進カラー
+    public int SortOrder { get; set; }
+}
+
+// ── カード ──────────────────────────────────────
+public class Card
+{
+    public string Id { get; set; } = Util.NewId();
+    public string Name { get; set; } = "";
+    public string AccountId { get; set; } = "";   // 引き落とし口座
     public int SortOrder { get; set; }
 }
 

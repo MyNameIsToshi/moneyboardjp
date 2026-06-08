@@ -1,0 +1,89 @@
+@inject LedgerService Svc
+
+<div class="cat-head">
+    <span>カード</span>
+    <button class="btn" @onclick="Add">＋ 追加</button>
+</div>
+
+@if (Svc.State.Cards.Count == 0)
+{
+    <div class="none">カードが登録されていません。</div>
+}
+else
+{
+    @foreach (var card in Ordered)
+    {
+        <div class="cat-row @(DragOverId == card.Id ? "drag-over" : "")"
+             draggable="true"
+             @ondragstart="() => OnDragStart(card.Id)"
+             @ondragover:preventDefault="true"
+             @ondragover="() => OnDragOver(card.Id)"
+             @ondrop="() => OnDrop(card.Id)"
+             @ondragend="OnDragEnd">
+            <span class="drag-handle">⠿</span>
+            <input class="cat-name" @bind="card.Name" @bind:after="Save" placeholder="カード名" />
+            <select class="card-acct" @bind="card.AccountId" @bind:after="Save">
+                <option value="">引き落とし口座を選択</option>
+                @foreach (var a in Svc.ActiveAccounts)
+                {
+                    <option value="@a.Id">@a.Name</option>
+                }
+            </select>
+            <button class="x" @onclick="() => Remove(card.Id)">✕</button>
+        </div>
+    }
+}
+
+<div class="foot" style="text-align:left;margin-top:10px">
+    カードの利用明細合計が、選択した口座のその月の引き落としに反映されます（明細機能は今後追加）。
+</div>
+
+@code {
+    private IEnumerable<Card> Ordered => Svc.State.Cards.OrderBy(c => c.SortOrder);
+
+    private void Save() => _ = Svc.SaveAsync();
+
+    private void Add()
+    {
+        Svc.State.Cards.Add(new Card
+        {
+            Name = "",
+            AccountId = Svc.ActiveAccounts.FirstOrDefault()?.Id ?? "",
+            SortOrder = Svc.State.Cards.Count
+        });
+        Save();
+    }
+
+    private void Remove(string id) { Svc.State.Cards.RemoveAll(c => c.Id == id); Save(); }
+
+    // ── ドラッグ＆ドロップ並び替え ──────────────────
+    private string? DragSourceId;
+    private string? DragOverId;
+
+    private void OnDragStart(string id) => DragSourceId = id;
+    private void OnDragOver(string id) => DragOverId = id;
+
+    private void OnDrop(string targetId)
+    {
+        if (DragSourceId == null || DragSourceId == targetId) { OnDragEnd(); return; }
+
+        var ordered = Svc.State.Cards.OrderBy(c => c.SortOrder).ToList();
+        var srcIdx = ordered.FindIndex(c => c.Id == DragSourceId);
+        var tgtIdx = ordered.FindIndex(c => c.Id == targetId);
+        if (srcIdx < 0 || tgtIdx < 0) { OnDragEnd(); return; }
+
+        var item = ordered[srcIdx];
+        ordered.RemoveAt(srcIdx);
+        ordered.Insert(tgtIdx, item);
+        for (int i = 0; i < ordered.Count; i++) ordered[i].SortOrder = i;
+
+        OnDragEnd();
+        Save();
+    }
+
+    private void OnDragEnd()
+    {
+        DragSourceId = null;
+        DragOverId = null;
+    }
+}

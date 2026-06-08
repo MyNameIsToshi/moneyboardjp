@@ -18,6 +18,7 @@ public class SettingsPart
     public List<Account> Accounts { get; set; } = new();
     public List<FixedCost> FixedCosts { get; set; } = new();
     public List<Category> Categories { get; set; } = new();
+    public List<Card> Cards { get; set; } = new();
 }
 
 /// <summary>月次ドキュメントに対応するパート。</summary>
