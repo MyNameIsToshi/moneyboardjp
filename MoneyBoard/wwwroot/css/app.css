@@ -874,6 +874,28 @@ input.num:focus,
   box-shadow: 0 0 0 3px rgba(31, 58, 95, .08);
 }
 
+/* CSV取込ボタン（隠しファイル入力をラベルで包む）＋取込結果メッセージ */
+.import-label {
+  cursor: pointer;
+}
+
+.import-input {
+  display: none;
+}
+
+.import-msg {
+  background: var(--okbg);
+  border: 1px solid #b7dccd;
+  color: var(--ok);
+  border-radius: 7px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
 /* =====================================================
    ダイアログ共通 (ConfirmDialog / WarnDialog / 追加ダイアログ)
    ===================================================== */

@@ -1,4 +1,5 @@
 @inject LedgerService Svc
+@inject IJSRuntime JS
 
 <div>
     <div class="top">
@@ -11,6 +12,14 @@
             </div>
         </div>
     </div>
+
+    @if (ImportMessage != null)
+    {
+        <div class="import-msg">
+            <span>@ImportMessage</span>
+            <button class="x" @onclick="() => ImportMessage = null">✕</button>
+        </div>
+    }
 
     @if (Svc.CardsOrdered.Count == 0)
     {
@@ -27,6 +36,7 @@
                     <span class="card-acct-name">@Svc.AccountName(card.AccountId)</span>
                     <span class="card-total">@Yen(details.Sum(d => d.Amount))</span>
                     <button class="add-line" @onclick="() => AddDetail(card.Id)">＋ 明細を追加</button>
+                    <label class="add-line import-label">📥 CSV取込<InputFile OnChange="@(e => OnCsvSelected(e, card.Id))" accept=".csv" class="import-input" /></label>
                 </div>
 
                 @if (details.Count == 0)
@@ -97,5 +107,35 @@
         Mo.CardDetails.RemoveAll(d => d.Id == id);
         Svc.RecalcCards(Svc.CardMonth);
         Save();
+    }
+
+    // ── JCB CSV 取込（表示中の月へ・そのカードを全置換）──
+    private string? ImportMessage;
+
+    private async Task OnCsvSelected(InputFileChangeEventArgs e, string cardId)
+    {
+        var file = e.File;
+        if (file == null) return;
+        try
+        {
+            using var stream = file.OpenReadStream(maxAllowedSize: 5_000_000);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            var text = await JS.InvokeAsync<string>("decodeShiftJis", ms.ToArray());
+
+            var parsed = JcbCsvParser.Parse(text, cardId);
+
+            // 全置換：このカードの当月明細を消して入れ直す
+            Mo.CardDetails.RemoveAll(d => d.CardId == cardId);
+            Mo.CardDetails.AddRange(parsed);
+            Svc.RecalcCards(Svc.CardMonth);
+            Save();
+
+            ImportMessage = $"「{Svc.CardById(cardId)?.Name}」に {parsed.Count} 件を取り込みました（{LedgerService.Label(Svc.CardMonth)}・全置換）";
+        }
+        catch (Exception ex)
+        {
+            ImportMessage = $"取込に失敗しました: {ex.Message}";
+        }
     }
 }

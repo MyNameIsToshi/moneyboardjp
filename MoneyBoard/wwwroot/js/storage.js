@@ -27,3 +27,8 @@ window.moneyboardStorage = (function () {
         }
     };
 })();
+
+// Shift-JIS（JCB CSV など）をブラウザの TextDecoder でデコードする
+window.decodeShiftJis = function (bytes) {
+    return new TextDecoder('shift_jis').decode(new Uint8Array(bytes));
+};
