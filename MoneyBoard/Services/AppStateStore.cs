@@ -135,7 +135,8 @@ public class AppStateStore(StorageService storage)
     private static MonthPart BuildMonthPart(MonthData mo) => new()
     {
         Ledgers = mo.Ledgers,
-        Transfers = mo.Transfers
+        Transfers = mo.Transfers,
+        CardDetails = mo.CardDetails
     };
 
     private string SerializeSettings() => JsonSerializer.Serialize(BuildSettingsPart());

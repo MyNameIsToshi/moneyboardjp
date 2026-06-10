@@ -88,6 +88,18 @@ public class MonthData
 {
     public Dictionary<string, Ledger> Ledgers { get; set; } = new();
     public List<Transfer> Transfers { get; set; } = new();
+    public List<CardDetail> CardDetails { get; set; } = new();   // この月に計上するカード利用明細
+}
+
+// カード利用明細（合計が ExpandCards で月次 Debit に反映される）
+public class CardDetail
+{
+    public string Id { get; set; } = Util.NewId();
+    public string CardId { get; set; } = "";
+    public string Date { get; set; } = "";        // 利用日 "yyyy-MM-dd"（表示用）
+    public string Name { get; set; } = "";         // 利用先・摘要
+    public decimal Amount { get; set; }
+    public string? CategoryId { get; set; }        // 未設定=未分類
 }
 
 public class Ledger
@@ -105,6 +117,7 @@ public class Debit
     public decimal Amount { get; set; }
     public bool IsFixed { get; set; }
     public string? FixedCostId { get; set; }
+    public string? CardId { get; set; }   // カード由来 Debit の目印（明細合計を反映・読み取り専用）
 }
 
 public class Transfer

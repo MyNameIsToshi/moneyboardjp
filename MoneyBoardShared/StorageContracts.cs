@@ -27,6 +27,7 @@ public class MonthPart
     public string? Etag { get; set; }
     public Dictionary<string, Ledger> Ledgers { get; set; } = new();
     public List<Transfer> Transfers { get; set; } = new();
+    public List<CardDetail> CardDetails { get; set; } = new();
 }
 
 /// <summary>POST /api/data の成功レスポンス。保存後の新しい etag を返す。</summary>

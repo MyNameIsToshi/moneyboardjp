@@ -37,7 +37,7 @@ public class StorageService(HttpClient http)
         foreach (var (ym, m) in env.Months)
         {
             if (!string.IsNullOrEmpty(m.Etag)) _monthEtags[ym] = m.Etag;
-            state.Months[ym] = new MonthData { Ledgers = m.Ledgers, Transfers = m.Transfers };
+            state.Months[ym] = new MonthData { Ledgers = m.Ledgers, Transfers = m.Transfers, CardDetails = m.CardDetails };
         }
         return state;
     }

@@ -41,7 +41,8 @@ else
 @code {
     private IEnumerable<Card> Ordered => Svc.State.Cards.OrderBy(c => c.SortOrder);
 
-    private void Save() => _ = Svc.SaveAsync();
+    // カード変更は当月以降の月次カード Debit を作り直してから保存する
+    private void Save() { Svc.OnCardsChanged(); _ = Svc.SaveAsync(); }
 
     private void Add()
     {

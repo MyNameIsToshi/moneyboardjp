@@ -59,14 +59,26 @@
 
                 <div class="sec">
                     <h4>引き落とし <button class="add-line" @onclick="() => AddDebit(a.Id)">＋追加</button></h4>
-                    @foreach (var d in l.Debits)
+                    @* カード由来の項目を先頭に表示 *@
+                    @foreach (var d in l.Debits.OrderBy(d => d.CardId != null ? 0 : 1))
                     {
-                        <div class="row">
-                            <input class="name" @bind="d.Name" @bind:after="Save" placeholder="項目" />
-                            @if (d.IsFixed) { <span class="lock" title="固定費マスタから展開">🔒</span> }
-                            <AmountInput CssClass="amt" Value="@d.Amount" ValueChanged="v => { d.Amount = v; Svc.RequestSave(); }" />
-                            <button class="x" @onclick="() => RemoveDebit(a.Id, d.Id)">✕</button>
-                        </div>
+                        @if (d.CardId != null)
+                        {
+                            <div class="row card-row" @onclick="GoToCard" title="カードタブで明細を編集">
+                                <span class="name card-name">💳 @d.Name</span>
+                                <span class="amt card-amt">@Yen(d.Amount)</span>
+                                <span class="card-arrow">›</span>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="row">
+                                <input class="name" @bind="d.Name" @bind:after="Save" placeholder="項目" />
+                                @if (d.IsFixed) { <span class="lock" title="固定費マスタから展開">🔒</span> }
+                                <AmountInput CssClass="amt" Value="@d.Amount" ValueChanged="v => { d.Amount = v; Svc.RequestSave(); }" />
+                                <button class="x" @onclick="() => RemoveDebit(a.Id, d.Id)">✕</button>
+                            </div>
+                        }
                     }
 
                 </div>
@@ -161,6 +173,10 @@
     [Inject] NavigationManager Nav { get; set; } = default!;
     // 保留中のデバウンス保存をフラッシュしてから遷移（グラフ側の再読込が最新を取得できるように）
     private async Task GoToGraph() { await Svc.SaveAsync(); Nav.NavigateTo("/graph"); }
+
+    // カード明細はカードタブで編集する。月次の月をカードタブへ引き継いでから切替。
+    [Parameter] public EventCallback<string> RequestTab { get; set; }
+    private Task GoToCard() { Svc.CardMonth = Svc.CurrentMonth; return RequestTab.InvokeAsync("card"); }
     private void Prev() { Svc.CurrentMonth = LedgerService.PrevYm(Svc.CurrentMonth); Mo = Svc.EnsureMonth(Svc.CurrentMonth); }
     private void Next() { Svc.CurrentMonth = LedgerService.NextYm(Svc.CurrentMonth); Mo = Svc.EnsureMonth(Svc.CurrentMonth); }
 

@@ -766,6 +766,115 @@ input.num:focus,
 }
 
 /* =====================================================
+   カードタブ (CardTab) ＋ 月次のカード行 (MonthlyTab)
+   ===================================================== */
+/* 月次管理のカード由来 Debit 行（読み取り専用・クリックで遷移） */
+.row.card-row {
+  cursor: pointer;
+  border-radius: 7px;
+  padding: 4px 6px;
+}
+
+.row.card-row:hover {
+  background: #f3f5f8;
+}
+
+.card-name {
+  flex: 1;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.card-amt {
+  width: 96px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.card-arrow {
+  color: var(--sub);
+}
+
+/* カードタブの明細パネル */
+.card-panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 14px;
+  margin-bottom: 12px;
+}
+
+.card-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.card-title {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.card-acct-name {
+  font-size: 12px;
+  color: var(--sub);
+}
+
+.card-total {
+  margin-left: auto;
+  font-weight: 700;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.cd-head,
+.cd-row {
+  display: grid;
+  grid-template-columns: 140px 1fr 130px 110px 32px;
+  gap: 8px;
+  align-items: center;
+}
+
+.cd-head {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.cd-head span {
+  font-size: 11px;
+  color: var(--sub);
+  font-weight: 600;
+}
+
+.cd-row {
+  padding: 3px 0;
+}
+
+.cd-row input,
+.cd-row select {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 5px 8px;
+  font: inherit;
+  background: #fff;
+  width: 100%;
+}
+
+.cd-row .cd-amt {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.cd-row input:focus,
+.cd-row select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(31, 58, 95, .08);
+}
+
+/* =====================================================
    ダイアログ共通 (ConfirmDialog / WarnDialog / 追加ダイアログ)
    ===================================================== */
 .dialog-overlay {

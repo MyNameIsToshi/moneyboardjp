@@ -24,6 +24,7 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos)
     private const int MaxCards = 100;
     private const int MaxMonthsPerSave = 600;
     private const int MaxDebitsPerLedger = 1000;
+    private const int MaxCardDetailsPerMonth = 5000;
 
     private Container GetContainer() =>
         cosmos.GetContainer(Environment.GetEnvironmentVariable("CosmosDb__DatabaseName"), "userdata");
@@ -74,7 +75,8 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos)
                     {
                         Etag = d.Etag,
                         Ledgers = d.Ledgers ?? new(),
-                        Transfers = d.Transfers ?? new()
+                        Transfers = d.Transfers ?? new(),
+                        CardDetails = d.CardDetails ?? new()
                     };
                 }
             }
@@ -133,7 +135,7 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos)
                 var doc = new MonthDoc
                 {
                     Id = MonthId(ym), UserId = UserId, Type = "month", Ym = ym,
-                    Ledgers = m.Ledgers, Transfers = m.Transfers
+                    Ledgers = m.Ledgers, Transfers = m.Transfers, CardDetails = m.CardDetails
                 };
                 batch.UpsertItem(doc, BatchOptions(m.Etag));
                 ops.Add(("month", ym));
@@ -206,6 +208,7 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos)
         if (env.Months.Count > MaxMonthsPerSave) { reason = $"months={env.Months.Count}"; return false; }
         foreach (var (ym, m) in env.Months)
         {
+            if (m.CardDetails.Count > MaxCardDetailsPerMonth) { reason = $"cardDetails in {ym}={m.CardDetails.Count}"; return false; }
             foreach (var (accId, l) in m.Ledgers)
             {
                 if (l.Debits.Count > MaxDebitsPerLedger)
@@ -241,6 +244,7 @@ public class MonthDoc
     public string Ym { get; set; } = "";
     public Dictionary<string, Ledger> Ledgers { get; set; } = new();
     public List<Transfer> Transfers { get; set; } = new();
+    public List<CardDetail> CardDetails { get; set; } = new();
 }
 
 // 月次クエリ読み取り専用（_etag を本文から取得するため）
@@ -249,5 +253,6 @@ public class MonthReadDoc
     public string? Ym { get; set; }
     public Dictionary<string, Ledger>? Ledgers { get; set; }
     public List<Transfer>? Transfers { get; set; }
+    public List<CardDetail>? CardDetails { get; set; }
     [Newtonsoft.Json.JsonProperty("_etag")] public string? Etag { get; set; }
 }

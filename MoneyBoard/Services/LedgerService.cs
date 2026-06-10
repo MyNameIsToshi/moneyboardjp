@@ -22,8 +22,9 @@ public class LedgerService(AppStateStore store)
     public Task SaveAsync() => store.SaveAsync();
     public void RequestSave(int delayMs = 600) => store.RequestSave(delayMs);
 
-    // 表示中の月（ビュー状態）
+    // 表示中の月（ビュー状態）。月次管理タブとカードタブは独立して月を持つ。
     public string CurrentMonth { get; set; } = CurrentCycleStartYm();
+    public string CardMonth { get; set; } = CurrentCycleStartYm();
 
     // ── 年月・給料日サイクル ─────────────────────────
     public static string PrevYm(string ym) => Ym.Parse(ym).Prev().ToString();
@@ -59,6 +60,7 @@ public class LedgerService(AppStateStore store)
                 mo.Ledgers[a.Id] = new Ledger { Confirmed = hasPrev ? CloseOf(prev, a.Id) : 0 };
         }
         ExpandFixedCosts(ym, mo);
+        ExpandCards(ym, mo);
         return mo;
     }
 
@@ -90,6 +92,45 @@ public class LedgerService(AppStateStore store)
             ExpandFixedCosts(ym, mo);
         }
     }
+
+    // ── カード明細 → 月次 Debit 反映 ──────────────────
+    // 各カードの「その月の明細合計」を、紐づく口座の Debit(CardId付き) に反映する。
+    private void ExpandCards(string ym, MonthData mo)
+    {
+        foreach (var card in State.Cards.OrderBy(c => c.SortOrder))
+        {
+            if (!mo.Ledgers.TryGetValue(card.AccountId, out var ledger)) continue;
+            var sum = mo.CardDetails.Where(d => d.CardId == card.Id).Sum(d => d.Amount);
+            var debit = ledger.Debits.FirstOrDefault(d => d.CardId == card.Id);
+            if (debit == null)
+                ledger.Debits.Add(new Debit { Name = card.Name, Amount = sum, CardId = card.Id });
+            else { debit.Name = card.Name; debit.Amount = sum; }
+        }
+    }
+
+    // カード設定（追加/削除/口座変更/改名）の反映：当月以降のカード Debit を作り直す。
+    public void OnCardsChanged()
+    {
+        foreach (var ym in State.Months.Keys.Where(IsCurrentOrFutureCycle).ToList())
+        {
+            var mo = State.Months[ym];
+            foreach (var ledger in mo.Ledgers.Values)
+                ledger.Debits.RemoveAll(d => d.CardId != null);
+            ExpandCards(ym, mo);
+        }
+    }
+
+    // 明細を編集した月のカード Debit 金額を再計算する。
+    public void RecalcCards(string ym)
+    {
+        if (State.Months.TryGetValue(ym, out var mo)) ExpandCards(ym, mo);
+    }
+
+    // ── カテゴリ/カード参照 ──────────────────────────
+    public List<Category> CategoriesOrdered => State.Categories.OrderBy(c => c.SortOrder).ToList();
+    public Category? CategoryById(string? id) => string.IsNullOrEmpty(id) ? null : State.Categories.FirstOrDefault(c => c.Id == id);
+    public List<Card> CardsOrdered => State.Cards.OrderBy(c => c.SortOrder).ToList();
+    public Card? CardById(string id) => State.Cards.FirstOrDefault(c => c.Id == id);
 
     // ── 固定費計算 ───────────────────────────────────
     public static bool IsFixedCostActive(FixedCost fc, string ym)
