@@ -867,6 +867,41 @@ input.num:focus,
   font-variant-numeric: tabular-nums;
 }
 
+/* カテゴリ列：色ドット＋select */
+.cd-cat-cell,
+.bulk-cat-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.cd-cat-cell select,
+.bulk-cat-cell select {
+  flex: 1;
+  min-width: 0;
+}
+
+.cat-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  flex: none;
+  border: 1px solid var(--line);
+}
+
+/* 並び替え可能な見出し */
+.cd-head .sortable,
+.bulk-head .sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.cd-head .sortable:hover,
+.bulk-head .sortable:hover {
+  color: var(--accent);
+}
+
 .cd-row input:focus,
 .cd-row select:focus {
   outline: none;
@@ -897,27 +932,28 @@ input.num:focus,
 }
 
 /* 一括カテゴリ ダイアログ */
-.bulk-box {
-  max-width: 640px;
+/* .dialog-box(max-width:420px)より後に定義されるため、複合セレクタで確実に上書きする */
+.dialog-box.bulk-box {
+  max-width: 760px;
 }
 
 .bulk-list {
-  max-height: 55vh;
+  max-height: 60vh;
   overflow-y: auto;
   margin-bottom: 8px;
 }
 
 .bulk-row {
   display: grid;
-  grid-template-columns: 1fr 52px 92px 150px;
-  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) 56px 100px 160px;
+  gap: 12px;
   align-items: center;
-  padding: 6px 0;
+  padding: 7px 0;
   border-bottom: 1px dashed var(--line);
 }
 
 .bulk-head {
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--sub);
   font-weight: 600;
   border-bottom: 1px solid var(--line);
@@ -927,20 +963,20 @@ input.num:focus,
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .bulk-count,
 .bulk-total {
   text-align: right;
   font-variant-numeric: tabular-nums;
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .bulk-row select {
   border: 1px solid var(--line);
   border-radius: 7px;
-  padding: 5px 8px;
+  padding: 6px 8px;
   font: inherit;
   font-size: 14px;
   background: #fff;

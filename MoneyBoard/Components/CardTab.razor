@@ -47,20 +47,27 @@
                 else
                 {
                     <div class="cd-head">
-                        <span>利用日</span><span>利用先</span><span>カテゴリ</span><span>金額</span><span></span>
+                        <span class="sortable" @onclick="@(() => SetSort("date"))">@SortHead("date", "利用日")</span>
+                        <span class="sortable" @onclick="@(() => SetSort("name"))">@SortHead("name", "利用先")</span>
+                        <span class="sortable" @onclick="@(() => SetSort("category"))">@SortHead("category", "カテゴリ")</span>
+                        <span class="sortable" @onclick="@(() => SetSort("amount"))">@SortHead("amount", "金額")</span>
+                        <span></span>
                     </div>
                     @foreach (var d in details)
                     {
                         <div class="cd-row">
                             <input class="cd-date" type="date" value="@d.Date" @onchange="e => OnDateChange(d, e.Value)" />
-                            <input class="cd-name" @bind="d.Name" @bind:after="Save" placeholder="利用先" />
-                            <select class="cd-cat" @bind="d.CategoryId" @bind:after="Save">
-                                <option value="">未分類</option>
-                                @foreach (var c in Svc.CategoriesOrdered)
-                                {
-                                    <option value="@c.Id">@c.Name</option>
-                                }
-                            </select>
+                            <input class="cd-name" @bind="d.Name" @bind:after="() => OnNameChanged(d)" placeholder="利用先" />
+                            <div class="cd-cat-cell">
+                                <span class="cat-dot" style="background:@DotColor(d.CategoryId)"></span>
+                                <select class="cd-cat" @bind="d.CategoryId" @bind:after="Save">
+                                    <option value="">未分類</option>
+                                    @foreach (var c in Svc.CategoriesOrdered)
+                                    {
+                                        <option value="@c.Id">@c.Name</option>
+                                    }
+                                </select>
+                            </div>
                             <AmountInput CssClass="cd-amt" Value="@d.Amount" ValueChanged="v => { d.Amount = v; OnAmountChanged(); }" />
                             <button class="x" @onclick="() => RemoveDetail(d.Id)">✕</button>
                         </div>
@@ -89,7 +96,10 @@
             {
                 <div class="bulk-list">
                     <div class="bulk-row bulk-head">
-                        <span>利用先</span><span>件数</span><span>金額</span><span>カテゴリ</span>
+                        <span class="sortable" @onclick="@(() => SetBulkSort("store"))">@BulkHead("store", "利用先")</span>
+                        <span class="sortable" @onclick="@(() => SetBulkSort("count"))">@BulkHead("count", "件数")</span>
+                        <span class="sortable" @onclick="@(() => SetBulkSort("total"))">@BulkHead("total", "金額")</span>
+                        <span class="sortable" @onclick="@(() => SetBulkSort("category"))">@BulkHead("category", "カテゴリ")</span>
                     </div>
                     @foreach (var g in BulkGroups)
                     {
@@ -97,15 +107,18 @@
                             <span class="bulk-store" title="@g.Store">@g.Store</span>
                             <span class="bulk-count">@g.Count 件</span>
                             <span class="bulk-total">@Yen(g.Total)</span>
-                            <select value="@BulkSelection[g.Store]"
-                                    @onchange="e => BulkSelection[g.Store] = e.Value?.ToString() ?? KeepSentinel">
-                                <option value="@KeepSentinel">変更しない</option>
-                                <option value="">未分類</option>
-                                @foreach (var c in Svc.CategoriesOrdered)
-                                {
-                                    <option value="@c.Id">@c.Name</option>
-                                }
-                            </select>
+                            <div class="bulk-cat-cell">
+                                <span class="cat-dot" style="background:@DotColor(BulkSelection.GetValueOrDefault(g.Store))"></span>
+                                <select value="@BulkSelection[g.Store]"
+                                        @onchange="e => BulkSelection[g.Store] = e.Value?.ToString() ?? KeepSentinel">
+                                    <option value="@KeepSentinel">変更しない</option>
+                                    <option value="">未分類</option>
+                                    @foreach (var c in Svc.CategoriesOrdered)
+                                    {
+                                        <option value="@c.Id">@c.Name</option>
+                                    }
+                                </select>
+                            </div>
                         </div>
                     }
                 </div>
@@ -126,10 +139,53 @@
 
     protected override void OnInitialized() => Mo = Svc.EnsureMonth(Svc.CardMonth);
 
-    private List<CardDetail> DetailsFor(string cardId) =>
-        Mo.CardDetails.Where(d => d.CardId == cardId).ToList();
+    private List<CardDetail> DetailsFor(string cardId)
+    {
+        var q = Mo.CardDetails.Where(d => d.CardId == cardId);
+        return (_sortAsc ? q.OrderBy(SortKey) : q.OrderByDescending(SortKey)).ToList();
+    }
 
     private static string Yen(decimal v) => "¥" + v.ToString("#,0");
+
+    // ── 明細の並び替え（利用日/利用先/カテゴリ/金額）。全カードパネル共通 ──
+    private string _sortKey = "date";
+    private bool _sortAsc = true;
+
+    private object SortKey(CardDetail d) => _sortKey switch
+    {
+        "name" => d.Name,
+        "category" => CategorySortKey(d.CategoryId),
+        "amount" => d.Amount,
+        _ => d.Date,
+    };
+
+    private void SetSort(string key)
+    {
+        if (_sortKey == key) _sortAsc = !_sortAsc;
+        else { _sortKey = key; _sortAsc = true; }
+    }
+
+    // ラベル＋並び替え矢印をまとめて返す（@の直前が文字だとRazorがメール扱いするのを回避）
+    private MarkupString SortHead(string key, string label) =>
+        new(label + (_sortKey == key ? (_sortAsc ? " ▲" : " ▼") : ""));
+
+    // カテゴリ設定の並び順（未分類・不明は末尾）
+    private int CategorySortKey(string? catId) =>
+        Svc.CategoryById(catId)?.SortOrder ?? int.MaxValue;
+
+    // カテゴリ設定の色（未分類・不明は透明＝空リング）
+    private string DotColor(string? catId) =>
+        Svc.CategoryById(catId)?.Color ?? "transparent";
+
+    // 手入力で利用先を確定したとき、未分類なら記憶済みルールで自動分類する
+    // （手動でカテゴリを選んだ行は上書きしない）。
+    private void OnNameChanged(CardDetail d)
+    {
+        if (string.IsNullOrEmpty(d.CategoryId)
+            && Svc.State.CategoryRules.TryGetValue(d.Name, out var catId))
+            d.CategoryId = catId;
+        Save();
+    }
 
     private void Prev() { Svc.CardMonth = LedgerService.PrevYm(Svc.CardMonth); Mo = Svc.EnsureMonth(Svc.CardMonth); }
     private void Next() { Svc.CardMonth = LedgerService.NextYm(Svc.CardMonth); Mo = Svc.EnsureMonth(Svc.CardMonth); }
@@ -198,7 +254,6 @@
         BulkGroups = Mo.CardDetails
             .GroupBy(d => d.Name)
             .Select(g => new StoreGroup(g.Key, g.Count(), g.Sum(d => d.Amount)))
-            .OrderByDescending(g => g.Total)
             .ToList();
 
         BulkSelection = new();
@@ -209,8 +264,35 @@
                 .Select(d => d.CategoryId ?? "").Distinct().ToList();
             BulkSelection[g.Store] = cats.Count == 1 ? cats[0] : KeepSentinel;
         }
+        SortBulk();   // BulkSelection 構築後に現在の並び順（既定は金額降順）を適用
         ShowBulk = true;
     }
+
+    // ── 一括ダイアログの並び替え（利用先/件数/金額）。既定は金額の降順 ──
+    private string _bulkSort = "total";
+    private bool _bulkAsc = false;
+
+    private void SetBulkSort(string key)
+    {
+        if (_bulkSort == key) _bulkAsc = !_bulkAsc;
+        else { _bulkSort = key; _bulkAsc = true; }   // 初回クリックは昇順で統一
+        SortBulk();
+    }
+
+    private void SortBulk()
+    {
+        Func<StoreGroup, object> key = _bulkSort switch
+        {
+            "store" => g => g.Store,
+            "count" => g => g.Count,
+            "category" => g => CategorySortKey(BulkSelection.GetValueOrDefault(g.Store)),
+            _ => g => g.Total,
+        };
+        BulkGroups = (_bulkAsc ? BulkGroups.OrderBy(key) : BulkGroups.OrderByDescending(key)).ToList();
+    }
+
+    private MarkupString BulkHead(string key, string label) =>
+        new(label + (_bulkSort == key ? (_bulkAsc ? " ▲" : " ▼") : ""));
 
     private void ApplyBulk()
     {
