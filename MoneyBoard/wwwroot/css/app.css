@@ -882,7 +882,7 @@ input.num:focus,
   min-width: 0;
 }
 
-.cat-dot {
+.color-dot {
   width: 11px;
   height: 11px;
   border-radius: 50%;
@@ -1123,7 +1123,7 @@ input.num:focus,
 }
 
 /* カテゴリ別支出：ドーナツ＋一覧 */
-.cat-spend {
+.spend {
   display: grid;
   grid-template-columns: minmax(260px, 1fr) 1fr;
   gap: 20px;
@@ -1131,12 +1131,12 @@ input.num:focus,
 }
 
 @media (max-width: 760px) {
-  .cat-spend {
+  .spend {
     grid-template-columns: 1fr;
   }
 }
 
-.cat-spend-row {
+.spend-row {
   display: grid;
   grid-template-columns: 16px 1fr 96px 60px 56px;
   gap: 8px;
@@ -1146,26 +1146,26 @@ input.num:focus,
   font-size: 13px;
 }
 
-.cat-spend-head {
+.spend-head {
   color: var(--sub);
   font-weight: 600;
   font-size: 12px;
 }
 
-.cat-spend-amt,
-.cat-spend-pct,
-.cat-spend-cnt {
+.spend-amt,
+.spend-pct,
+.spend-cnt {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-.cat-spend-name {
+.spend-name {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.cat-spend-total {
+.spend-total {
   font-weight: 700;
   border-bottom: none;
   border-top: 2px solid var(--line);

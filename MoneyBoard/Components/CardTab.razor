@@ -59,7 +59,7 @@
                             <input class="cd-date" type="date" value="@d.Date" @onchange="e => OnDateChange(d, e.Value)" />
                             <input class="cd-name" @bind="d.Name" @bind:after="() => OnNameChanged(d)" placeholder="利用先" />
                             <div class="cd-cat-cell">
-                                <span class="cat-dot" style="background:@DotColor(d.CategoryId)"></span>
+                                <span class="color-dot" style="background:@DotColor(d.CategoryId)"></span>
                                 <select class="cd-cat" @bind="d.CategoryId" @bind:after="Save">
                                     <option value="">未分類</option>
                                     @foreach (var c in Svc.CategoriesOrdered)
@@ -108,7 +108,7 @@
                             <span class="bulk-count">@g.Count 件</span>
                             <span class="bulk-total">@Yen(g.Total)</span>
                             <div class="bulk-cat-cell">
-                                <span class="cat-dot" style="background:@DotColor(BulkSelection.GetValueOrDefault(g.Store))"></span>
+                                <span class="color-dot" style="background:@DotColor(BulkSelection.GetValueOrDefault(g.Store))"></span>
                                 <select value="@BulkSelection[g.Store]"
                                         @onchange="e => BulkSelection[g.Store] = e.Value?.ToString() ?? KeepSentinel">
                                     <option value="@KeepSentinel">変更しない</option>

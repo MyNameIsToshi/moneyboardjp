@@ -124,8 +124,8 @@
             <h4>カテゴリ別 支出（カード明細）</h4>
             @if (CategorySpendData.Any())
             {
-                <div class="cat-spend">
-                    <div class="cat-spend-chart">
+                <div class="spend">
+                    <div class="spend-chart">
                         <ApexChart TItem="CategorySlice" Options="DonutOptions" @key="@($"cat-{SelectedPeriod}")">
                             <ApexPointSeries TItem="CategorySlice"
                                              Items="CategorySpendData"
@@ -135,25 +135,67 @@
                                              YValue="@(e => e.Value)" />
                         </ApexChart>
                     </div>
-                    <div class="cat-spend-list">
-                        <div class="cat-spend-row cat-spend-head">
+                    <div class="spend-list">
+                        <div class="spend-row spend-head">
                             <span></span><span>カテゴリ</span><span>金額</span><span>割合</span><span>件数</span>
                         </div>
                         @foreach (var s in CategorySpendData)
                         {
-                            <div class="cat-spend-row">
-                                <span class="cat-dot" style="background:@s.Color"></span>
-                                <span class="cat-spend-name">@s.Label</span>
-                                <span class="cat-spend-amt">@Yen(s.Value)</span>
-                                <span class="cat-spend-pct">@Pct(s.Value)</span>
-                                <span class="cat-spend-cnt">@s.Count 件</span>
+                            <div class="spend-row">
+                                <span class="color-dot" style="background:@s.Color"></span>
+                                <span class="spend-name">@s.Label</span>
+                                <span class="spend-amt">@Yen(s.Value)</span>
+                                <span class="spend-pct">@Pct(s.Value)</span>
+                                <span class="spend-cnt">@s.Count 件</span>
                             </div>
                         }
-                        <div class="cat-spend-row cat-spend-total">
+                        <div class="spend-row spend-total">
                             <span></span><span>合計</span>
-                            <span class="cat-spend-amt">@Yen(CategoryTotal)</span>
+                            <span class="spend-amt">@Yen(CategoryTotal)</span>
                             <span></span>
-                            <span class="cat-spend-cnt">@CategorySpendData.Sum(s => s.Count) 件</span>
+                            <span class="spend-cnt">@CategorySpendData.Sum(s => s.Count) 件</span>
+                        </div>
+                    </div>
+                </div>
+            }
+            else { <div class="graph-placeholder">カード明細がありません</div> }
+        </div>
+
+        <!-- ⑦ カード別利用額（カード明細） -->
+        <div class="graph-card graph-card-full">
+            <h4>カード別 利用額</h4>
+            @if (CardSpendData.Any())
+            {
+                <div class="spend">
+                    <div class="spend-chart">
+                        <ApexChart TItem="CardSlice" Options="CardDonutOptions" @key="@($"card-{SelectedPeriod}")">
+                            <ApexPointSeries TItem="CardSlice"
+                                             Items="CardSpendData"
+                                             SeriesType="SeriesType.Donut"
+                                             Name="利用額"
+                                             XValue="@(e => e.Label)"
+                                             YValue="@(e => e.Value)" />
+                        </ApexChart>
+                    </div>
+                    <div class="spend-list">
+                        <div class="spend-row spend-head">
+                            <span></span><span>カード</span><span>金額</span><span>割合</span><span>件数</span>
+                        </div>
+                        @foreach (var s in CardSpendData)
+                        {
+                            <div class="spend-row">
+                                <span class="color-dot" style="background:@s.Color"></span>
+                                <span class="spend-name">@s.Label</span>
+                                <span class="spend-amt">@Yen(s.Value)</span>
+                                <span class="spend-pct">@PctOf(s.Value, CardTotal)</span>
+                                <span class="spend-cnt">@s.Count 件</span>
+                            </div>
+                        }
+                        <div class="spend-row spend-total">
+                            <span></span><span>合計</span>
+                            <span class="spend-amt">@Yen(CardTotal)</span>
+                            <span></span>
+                            <span class="spend-cnt">@CardSpendData.Sum(s => s.Count) 件</span>
                         </div>
                     </div>
                 </div>
@@ -204,7 +246,19 @@
     private List<CategorySlice> CategorySpendData = new();
     private decimal CategoryTotal => CategorySpendData.Sum(s => s.Value);
 
-    private ApexChartOptions<CategorySlice> DonutOptions = new()
+    private List<CardSlice> CardSpendData = new();
+    private decimal CardTotal => CardSpendData.Sum(s => s.Value);
+
+    // カードは色設定を持たないため、表示順に割り当てる固定パレット。
+    private static readonly string[] CardPalette =
+    {
+        "#5b8def", "#34c3a3", "#f6a609", "#ef6a6a", "#9b7ede",
+        "#4db3d6", "#e879b9", "#7ac74f", "#f08a4b", "#6c7a89"
+    };
+
+    // ドーナツ共通設定（カテゴリ/カードで別インスタンスにする。1インスタンスを
+    // 複数の <ApexChart> で共有すると最初の1つしか描画されないため）。
+    private static ApexChartOptions<T> NewDonutOptions<T>() where T : class => new()
     {
         Chart = new Chart { Height = 300, Toolbar = new Toolbar { Show = false } },
         Legend = new Legend { Position = LegendPosition.Bottom },
@@ -216,6 +270,9 @@
             Active = new StatesActive { Filter = new StatesFilter { Type = StatesFilterType.darken, Value = 0.12 } }
         }
     };
+
+    private readonly ApexChartOptions<CategorySlice> DonutOptions = NewDonutOptions<CategorySlice>();
+    private readonly ApexChartOptions<CardSlice> CardDonutOptions = NewDonutOptions<CardSlice>();
 
     protected override async Task OnInitializedAsync()
     {
@@ -260,6 +317,7 @@
         });
 
         BuildCategorySpend(yms);
+        BuildCardSpend(yms);
     }
 
     // 期間中の全カード明細を CategoryId で集計（未分類はまとめて末尾の色なし扱い）
@@ -288,8 +346,33 @@
         DonutOptions.Colors = CategorySpendData.Select(s => s.Color).ToList();
     }
 
+    // 期間中の全カード明細を CardId で集計。削除済みカードもソフト削除でレコードが
+    // 残るため名前を引けて、自身のスライスとして表示される。
+    private void BuildCardSpend(List<string> yms)
+    {
+        var details = yms.SelectMany(ym =>
+            Svc.State.Months.GetValueOrDefault(ym)?.CardDetails ?? Enumerable.Empty<CardDetail>());
+
+        CardSpendData = details
+            .GroupBy(d => d.CardId ?? "")
+            .Select(g => new CardSlice
+            {
+                Label = Svc.CardById(g.Key)?.Name is { Length: > 0 } n ? n : "（不明）",
+                Value = g.Sum(d => d.Amount),
+                Count = g.Count()
+            })
+            .OrderByDescending(s => s.Value)
+            .ToList();
+
+        // 表示順にパレット色を割り当て、スライス色と一覧ドットを揃える。
+        for (int i = 0; i < CardSpendData.Count; i++)
+            CardSpendData[i].Color = CardPalette[i % CardPalette.Length];
+        CardDonutOptions.Colors = CardSpendData.Select(s => s.Color).ToList();
+    }
+
     private static string Yen(decimal v) => "¥" + v.ToString("#,0");
-    private string Pct(decimal v) => CategoryTotal == 0 ? "0%" : (v / CategoryTotal * 100).ToString("0.0") + "%";
+    private string Pct(decimal v) => PctOf(v, CategoryTotal);
+    private static string PctOf(decimal v, decimal total) => total == 0 ? "0%" : (v / total * 100).ToString("0.0") + "%";
 
     // 期間中の各月について Label/Value のチャート点を作る共通処理
     private static List<ChartPoint> BuildSeries(List<string> yms, Func<string, decimal> valueOf) =>
@@ -306,6 +389,14 @@
     }
 
     public class CategorySlice
+    {
+        public string Label { get; set; } = "";
+        public decimal Value { get; set; }
+        public string Color { get; set; } = "";
+        public int Count { get; set; }
+    }
+
+    public class CardSlice
     {
         public string Label { get; set; } = "";
         public decimal Value { get; set; }
