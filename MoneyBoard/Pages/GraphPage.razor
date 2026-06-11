@@ -24,7 +24,7 @@
             <h4>月別 引き落とし合計推移</h4>
             @if (MonthlyDebitData.Any())
             {
-                <ApexChart TItem="ChartPoint" Options="LineOptions">
+                <ApexChart TItem="ChartPoint" Options="DebitLineOptions">
                     <ApexPointSeries TItem="ChartPoint"
                                      Items="MonthlyDebitData"
                                      SeriesType="SeriesType.Line"
@@ -41,7 +41,7 @@
             <h4>口座別 月末残高推移</h4>
             @if (BalanceSeriesData.Any())
             {
-                <ApexChart TItem="ChartPoint" Options="LineOptions">
+                <ApexChart TItem="ChartPoint" Options="BalanceLineOptions">
                     @foreach (var series in BalanceSeriesData)
                     {
                         <ApexPointSeries TItem="ChartPoint"
@@ -61,7 +61,7 @@
             <h4>給料・ボーナス推移</h4>
             @if (SalaryData.Any())
             {
-                <ApexChart TItem="ChartPoint" Options="BarOptions">
+                <ApexChart TItem="ChartPoint" Options="SalaryBarOptions">
                     <ApexPointSeries TItem="ChartPoint"
                                      Items="SalaryData"
                                      SeriesType="SeriesType.Bar"
@@ -84,7 +84,7 @@
             <h4>収入 vs 引き落とし比較</h4>
             @if (IncomeData.Any())
             {
-                <ApexChart TItem="ChartPoint" Options="BarOptions">
+                <ApexChart TItem="ChartPoint" Options="IncomeBarOptions">
                     <ApexPointSeries TItem="ChartPoint"
                                      Items="IncomeData"
                                      SeriesType="SeriesType.Bar"
@@ -107,7 +107,7 @@
             <h4>固定費 年間合計</h4>
             @if (FixedCostData.Any())
             {
-                <ApexChart TItem="ChartPoint" Options="BarOptions">
+                <ApexChart TItem="ChartPoint" Options="FixedBarOptions">
                     <ApexPointSeries TItem="ChartPoint"
                                      Items="FixedCostData"
                                      SeriesType="SeriesType.Bar"
@@ -180,18 +180,26 @@
     private List<ChartPoint> IncomeData = new();
     private List<ChartPoint> FixedCostData = new();
 
-    private ApexChartOptions<ChartPoint> LineOptions = new()
+    // ApexChartOptions はチャート固有の状態を書き込むため、1インスタンスを複数の
+    // <ApexChart> で共有すると最初の1つしか描画されない。チャートごとに専用インスタンスを持つ。
+    private static ApexChartOptions<ChartPoint> NewLineOptions() => new()
     {
         Chart = new Chart { Height = 200, Toolbar = new Toolbar { Show = false } },
         Stroke = new Stroke { Curve = Curve.Smooth },
         Yaxis = new List<YAxis> { new YAxis { Labels = new YAxisLabels { Formatter = "function(v){return '¥'+v.toLocaleString()}" } } }
     };
 
-    private ApexChartOptions<ChartPoint> BarOptions = new()
+    private static ApexChartOptions<ChartPoint> NewBarOptions() => new()
     {
         Chart = new Chart { Height = 200, Toolbar = new Toolbar { Show = false } },
         Yaxis = new List<YAxis> { new YAxis { Labels = new YAxisLabels { Formatter = "function(v){return '¥'+v.toLocaleString()}" } } }
     };
+
+    private readonly ApexChartOptions<ChartPoint> DebitLineOptions = NewLineOptions();
+    private readonly ApexChartOptions<ChartPoint> BalanceLineOptions = NewLineOptions();
+    private readonly ApexChartOptions<ChartPoint> SalaryBarOptions = NewBarOptions();
+    private readonly ApexChartOptions<ChartPoint> IncomeBarOptions = NewBarOptions();
+    private readonly ApexChartOptions<ChartPoint> FixedBarOptions = NewBarOptions();
 
     private List<CategorySlice> CategorySpendData = new();
     private decimal CategoryTotal => CategorySpendData.Sum(s => s.Value);
