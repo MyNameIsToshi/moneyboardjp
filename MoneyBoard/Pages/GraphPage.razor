@@ -219,7 +219,11 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await Svc.LoadAsync();
+        // State はアプリ起動時(Home)にメモリへ読込済み。/graph を開くたびに
+        // 再取得すると無駄な往復＋未保存のメモリ状態破棄になるため、未ロード
+        // （直接ディープリンク等）のときだけ読み込む。
+        if (!Svc.IsLoaded)
+            await Svc.LoadAsync();
         BuildChartData();
     }
 
