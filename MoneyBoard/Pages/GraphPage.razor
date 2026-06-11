@@ -3,7 +3,7 @@
 @using ApexCharts
 
 <div class="wrap">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+    <div class="graph-header">
         <button class="btn" @onclick="GoBack">← 戻る</button>
         <div class="app-title">統計</div>
     </div>
@@ -120,7 +120,7 @@
         </div>
 
         <!-- ⑥ カテゴリ別支出（カード明細） -->
-        <div class="graph-card" style="grid-column:1/-1">
+        <div class="graph-card graph-card-full">
             <h4>カテゴリ別 支出（カード明細）</h4>
             @if (CategorySpendData.Any())
             {
