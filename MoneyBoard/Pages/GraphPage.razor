@@ -119,6 +119,48 @@
             else { <div class="graph-placeholder">データなし</div> }
         </div>
 
+        <!-- ⑥ カテゴリ別支出（カード明細） -->
+        <div class="graph-card" style="grid-column:1/-1">
+            <h4>カテゴリ別 支出（カード明細）</h4>
+            @if (CategorySpendData.Any())
+            {
+                <div class="cat-spend">
+                    <div class="cat-spend-chart">
+                        <ApexChart TItem="CategorySlice" Options="DonutOptions" @key="@($"cat-{SelectedPeriod}")">
+                            <ApexPointSeries TItem="CategorySlice"
+                                             Items="CategorySpendData"
+                                             SeriesType="SeriesType.Donut"
+                                             Name="支出"
+                                             XValue="@(e => e.Label)"
+                                             YValue="@(e => e.Value)" />
+                        </ApexChart>
+                    </div>
+                    <div class="cat-spend-list">
+                        <div class="cat-spend-row cat-spend-head">
+                            <span></span><span>カテゴリ</span><span>金額</span><span>割合</span><span>件数</span>
+                        </div>
+                        @foreach (var s in CategorySpendData)
+                        {
+                            <div class="cat-spend-row">
+                                <span class="cat-dot" style="background:@s.Color"></span>
+                                <span class="cat-spend-name">@s.Label</span>
+                                <span class="cat-spend-amt">@Yen(s.Value)</span>
+                                <span class="cat-spend-pct">@Pct(s.Value)</span>
+                                <span class="cat-spend-cnt">@s.Count 件</span>
+                            </div>
+                        }
+                        <div class="cat-spend-row cat-spend-total">
+                            <span></span><span>合計</span>
+                            <span class="cat-spend-amt">@Yen(CategoryTotal)</span>
+                            <span></span>
+                            <span class="cat-spend-cnt">@CategorySpendData.Sum(s => s.Count) 件</span>
+                        </div>
+                    </div>
+                </div>
+            }
+            else { <div class="graph-placeholder">カード明細がありません</div> }
+        </div>
+
     </div>
 </div>
 
@@ -149,6 +191,22 @@
     {
         Chart = new Chart { Height = 200, Toolbar = new Toolbar { Show = false } },
         Yaxis = new List<YAxis> { new YAxis { Labels = new YAxisLabels { Formatter = "function(v){return '¥'+v.toLocaleString()}" } } }
+    };
+
+    private List<CategorySlice> CategorySpendData = new();
+    private decimal CategoryTotal => CategorySpendData.Sum(s => s.Value);
+
+    private ApexChartOptions<CategorySlice> DonutOptions = new()
+    {
+        Chart = new Chart { Height = 300, Toolbar = new Toolbar { Show = false } },
+        Legend = new Legend { Position = LegendPosition.Bottom },
+        Tooltip = new Tooltip { Y = new TooltipY { Formatter = "function(v){return '¥'+v.toLocaleString()}" } },
+        // 既定のホバー効果(lighten)だと薄い色(未分類のグレー)が白飛びするため、わずかに暗くする
+        States = new States
+        {
+            Hover = new StatesHover { Filter = new StatesFilter { Type = StatesFilterType.darken, Value = 0.12 } },
+            Active = new StatesActive { Filter = new StatesFilter { Type = StatesFilterType.darken, Value = 0.12 } }
+        }
     };
 
     protected override async Task OnInitializedAsync()
@@ -188,7 +246,38 @@
                 .Where(fc => LedgerService.IsFixedCostActive(fc, ym))
                 .Sum(fc => LedgerService.GetFixedCostAmount(fc, month));
         });
+
+        BuildCategorySpend(yms);
     }
+
+    // 期間中の全カード明細を CategoryId で集計（未分類はまとめて末尾の色なし扱い）
+    private void BuildCategorySpend(List<string> yms)
+    {
+        var details = yms.SelectMany(ym =>
+            Svc.State.Months.GetValueOrDefault(ym)?.CardDetails ?? Enumerable.Empty<CardDetail>());
+
+        CategorySpendData = details
+            .GroupBy(d => d.CategoryId ?? "")
+            .Select(g =>
+            {
+                var cat = Svc.CategoryById(g.Key);
+                return new CategorySlice
+                {
+                    Label = cat?.Name ?? "未分類",
+                    Value = g.Sum(d => d.Amount),
+                    Color = cat?.Color ?? "#bdbdbd",
+                    Count = g.Count()
+                };
+            })
+            .OrderByDescending(s => s.Value)
+            .ToList();
+
+        // スライス色をカテゴリ設定色に合わせる（データ並びと同順）
+        DonutOptions.Colors = CategorySpendData.Select(s => s.Color).ToList();
+    }
+
+    private static string Yen(decimal v) => "¥" + v.ToString("#,0");
+    private string Pct(decimal v) => CategoryTotal == 0 ? "0%" : (v / CategoryTotal * 100).ToString("0.0") + "%";
 
     // 期間中の各月について Label/Value のチャート点を作る共通処理
     private static List<ChartPoint> BuildSeries(List<string> yms, Func<string, decimal> valueOf) =>
@@ -202,5 +291,13 @@
     {
         public string Label { get; set; } = "";
         public decimal Value { get; set; }
+    }
+
+    public class CategorySlice
+    {
+        public string Label { get; set; } = "";
+        public decimal Value { get; set; }
+        public string Color { get; set; } = "";
+        public int Count { get; set; }
     }
 }

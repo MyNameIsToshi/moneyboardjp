@@ -1111,6 +1111,55 @@ input.num:focus,
   color: var(--sub);
 }
 
+/* カテゴリ別支出：ドーナツ＋一覧 */
+.cat-spend {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) 1fr;
+  gap: 20px;
+  align-items: center;
+}
+
+@media (max-width: 760px) {
+  .cat-spend {
+    grid-template-columns: 1fr;
+  }
+}
+
+.cat-spend-row {
+  display: grid;
+  grid-template-columns: 16px 1fr 96px 60px 56px;
+  gap: 8px;
+  align-items: center;
+  padding: 5px 0;
+  border-bottom: 1px dashed var(--line);
+  font-size: 13px;
+}
+
+.cat-spend-head {
+  color: var(--sub);
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.cat-spend-amt,
+.cat-spend-pct,
+.cat-spend-cnt {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.cat-spend-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cat-spend-total {
+  font-weight: 700;
+  border-bottom: none;
+  border-top: 2px solid var(--line);
+}
+
 /* =====================================================
    マイページタブ (MyPageTab.razor)
    ===================================================== */
