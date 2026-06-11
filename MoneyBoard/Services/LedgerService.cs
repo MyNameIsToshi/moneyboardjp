@@ -108,6 +108,16 @@ public class LedgerService(AppStateStore store)
         }
     }
 
+    // カード削除：当月以降の月から該当カードの明細を除去し、カード Debit を作り直す。
+    // 過去月の明細・Debit は履歴として凍結（残す）。
+    public void DeleteCard(string id)
+    {
+        State.Cards.RemoveAll(c => c.Id == id);
+        foreach (var ym in State.Months.Keys.Where(IsCurrentOrFutureCycle).ToList())
+            State.Months[ym].CardDetails.RemoveAll(d => d.CardId == id);
+        OnCardsChanged();
+    }
+
     // カード設定（追加/削除/口座変更/改名）の反映：当月以降のカード Debit を作り直す。
     public void OnCardsChanged()
     {

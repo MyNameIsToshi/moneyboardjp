@@ -55,7 +55,8 @@ else
         Save();
     }
 
-    private void Remove(string id) { Svc.State.Cards.RemoveAll(c => c.Id == id); Save(); }
+    // 当月以降の明細を除去しカード Debit を作り直す（過去月は履歴として凍結）。
+    private void Remove(string id) { Svc.DeleteCard(id); _ = Svc.SaveAsync(); }
 
     // ── ドラッグ＆ドロップ並び替え ──────────────────
     private string? DragSourceId;
