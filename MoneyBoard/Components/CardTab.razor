@@ -5,6 +5,7 @@
     <div class="top">
         <div></div>
         <div class="topright">
+            <button class="btn" @onclick="OpenBulk">一括カテゴリ</button>
             <div class="monthnav">
                 <button @onclick="Prev">‹</button>
                 <div class="m">@LedgerService.Label(Svc.CardMonth)</div>
@@ -75,6 +76,51 @@
     明細は表示中の月（@LedgerService.Label(Svc.CardMonth)）に計上されます。
 </div>
 
+@if (ShowBulk)
+{
+    <div class="dialog-overlay" @onclick="() => ShowBulk = false">
+        <div class="dialog-box bulk-box" @onclick:stopPropagation="true">
+            <h4>一括カテゴリ設定（@LedgerService.Label(Svc.CardMonth)）</h4>
+            @if (BulkGroups.Count == 0)
+            {
+                <div class="none">この月の明細がありません。</div>
+            }
+            else
+            {
+                <div class="bulk-list">
+                    <div class="bulk-row bulk-head">
+                        <span>利用先</span><span>件数</span><span>金額</span><span>カテゴリ</span>
+                    </div>
+                    @foreach (var g in BulkGroups)
+                    {
+                        <div class="bulk-row">
+                            <span class="bulk-store" title="@g.Store">@g.Store</span>
+                            <span class="bulk-count">@g.Count 件</span>
+                            <span class="bulk-total">@Yen(g.Total)</span>
+                            <select value="@BulkSelection[g.Store]"
+                                    @onchange="e => BulkSelection[g.Store] = e.Value?.ToString() ?? KeepSentinel">
+                                <option value="@KeepSentinel">変更しない</option>
+                                <option value="">未分類</option>
+                                @foreach (var c in Svc.CategoriesOrdered)
+                                {
+                                    <option value="@c.Id">@c.Name</option>
+                                }
+                            </select>
+                        </div>
+                    }
+                </div>
+                <div class="dialog-message">
+                    選んだ利用先のカテゴリを当月の明細にまとめて適用し、以降の取込でも自動分類します。「変更しない」はそのまま。
+                </div>
+            }
+            <div class="dialog-btns">
+                <button class="btn" @onclick="() => ShowBulk = false">キャンセル</button>
+                <button class="btn primary" @onclick="ApplyBulk">適用</button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private MonthData Mo = new();
 
@@ -124,6 +170,7 @@
             var text = await JS.InvokeAsync<string>("decodeShiftJis", ms.ToArray());
 
             var parsed = JcbCsvParser.Parse(text, cardId);
+            Svc.ApplyCategoryRules(parsed);   // 記憶済みの店名→カテゴリを自動適用
 
             // 全置換：このカードの当月明細を消して入れ直す
             Mo.CardDetails.RemoveAll(d => d.CardId == cardId);
@@ -137,5 +184,49 @@
         {
             ImportMessage = $"取込に失敗しました: {ex.Message}";
         }
+    }
+
+    // ── 一括カテゴリ（利用先ごと・当月適用＋ルール記憶）──
+    private const string KeepSentinel = "__keep__";
+    private bool ShowBulk;
+    private record StoreGroup(string Store, int Count, decimal Total);
+    private List<StoreGroup> BulkGroups = new();
+    private Dictionary<string, string> BulkSelection = new();
+
+    private void OpenBulk()
+    {
+        BulkGroups = Mo.CardDetails
+            .GroupBy(d => d.Name)
+            .Select(g => new StoreGroup(g.Key, g.Count(), g.Sum(d => d.Amount)))
+            .OrderByDescending(g => g.Total)
+            .ToList();
+
+        BulkSelection = new();
+        foreach (var g in BulkGroups)
+        {
+            // 当該店名の明細カテゴリが揃っていれば初期選択、混在なら「変更しない」
+            var cats = Mo.CardDetails.Where(d => d.Name == g.Store)
+                .Select(d => d.CategoryId ?? "").Distinct().ToList();
+            BulkSelection[g.Store] = cats.Count == 1 ? cats[0] : KeepSentinel;
+        }
+        ShowBulk = true;
+    }
+
+    private void ApplyBulk()
+    {
+        foreach (var g in BulkGroups)
+        {
+            var sel = BulkSelection.GetValueOrDefault(g.Store, KeepSentinel);
+            if (sel == KeepSentinel) continue;   // 変更しない
+
+            foreach (var d in Mo.CardDetails.Where(d => d.Name == g.Store))
+                d.CategoryId = string.IsNullOrEmpty(sel) ? null : sel;
+
+            // 店名→カテゴリのルールを記憶（未分類選択時は削除）
+            if (string.IsNullOrEmpty(sel)) Svc.State.CategoryRules.Remove(g.Store);
+            else Svc.State.CategoryRules[g.Store] = sel;
+        }
+        ShowBulk = false;
+        Save();
     }
 }

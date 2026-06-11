@@ -16,6 +16,8 @@ public class AppState
     public List<FixedCost> FixedCosts { get; set; } = new();
     public List<Category> Categories { get; set; } = new();
     public List<Card> Cards { get; set; } = new();
+    // 利用先(店名) → カテゴリId。一括適用で記憶し、以降の取込で自動分類する。
+    public Dictionary<string, string> CategoryRules { get; set; } = new();
     public Dictionary<string, MonthData> Months { get; set; } = new();
 }
 

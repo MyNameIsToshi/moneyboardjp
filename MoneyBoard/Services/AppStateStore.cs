@@ -129,7 +129,8 @@ public class AppStateStore(StorageService storage)
         Accounts = State.Accounts,
         FixedCosts = State.FixedCosts,
         Categories = State.Categories,
-        Cards = State.Cards
+        Cards = State.Cards,
+        CategoryRules = State.CategoryRules
     };
 
     private static MonthPart BuildMonthPart(MonthData mo) => new()

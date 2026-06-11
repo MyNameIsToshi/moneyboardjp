@@ -53,7 +53,8 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos)
                     Accounts = r.Resource.Accounts,
                     FixedCosts = r.Resource.FixedCosts,
                     Categories = r.Resource.Categories,
-                    Cards = r.Resource.Cards
+                    Cards = r.Resource.Cards,
+                    CategoryRules = r.Resource.CategoryRules
                 };
             }
             catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)
@@ -125,7 +126,8 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos)
                     Accounts = env.Settings.Accounts,
                     FixedCosts = env.Settings.FixedCosts,
                     Categories = env.Settings.Categories,
-                    Cards = env.Settings.Cards
+                    Cards = env.Settings.Cards,
+                    CategoryRules = env.Settings.CategoryRules
                 };
                 batch.UpsertItem(doc, BatchOptions(env.Settings.Etag));
                 ops.Add(("settings", ""));
@@ -234,6 +236,7 @@ public class SettingsDoc
     public List<FixedCost> FixedCosts { get; set; } = new();
     public List<Category> Categories { get; set; } = new();
     public List<Card> Cards { get; set; } = new();
+    public Dictionary<string, string> CategoryRules { get; set; } = new();
 }
 
 public class MonthDoc

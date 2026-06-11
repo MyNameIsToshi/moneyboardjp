@@ -126,6 +126,14 @@ public class LedgerService(AppStateStore store)
         if (State.Months.TryGetValue(ym, out var mo)) ExpandCards(ym, mo);
     }
 
+    // 店名→カテゴリの記憶ルールを明細に適用する（取込時の自動分類）。
+    public void ApplyCategoryRules(IEnumerable<CardDetail> details)
+    {
+        foreach (var d in details)
+            if (State.CategoryRules.TryGetValue(d.Name, out var catId))
+                d.CategoryId = catId;
+    }
+
     // ── カテゴリ/カード参照 ──────────────────────────
     public List<Category> CategoriesOrdered => State.Categories.OrderBy(c => c.SortOrder).ToList();
     public Category? CategoryById(string? id) => string.IsNullOrEmpty(id) ? null : State.Categories.FirstOrDefault(c => c.Id == id);

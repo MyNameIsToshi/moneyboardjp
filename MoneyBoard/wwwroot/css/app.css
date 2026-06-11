@@ -896,6 +896,57 @@ input.num:focus,
   gap: 12px;
 }
 
+/* 一括カテゴリ ダイアログ */
+.bulk-box {
+  max-width: 640px;
+}
+
+.bulk-list {
+  max-height: 55vh;
+  overflow-y: auto;
+  margin-bottom: 8px;
+}
+
+.bulk-row {
+  display: grid;
+  grid-template-columns: 1fr 52px 92px 150px;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--line);
+}
+
+.bulk-head {
+  font-size: 12.5px;
+  color: var(--sub);
+  font-weight: 600;
+  border-bottom: 1px solid var(--line);
+}
+
+.bulk-store {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 14px;
+}
+
+.bulk-count,
+.bulk-total {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+}
+
+.bulk-row select {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 5px 8px;
+  font: inherit;
+  font-size: 14px;
+  background: #fff;
+  width: 100%;
+}
+
 /* =====================================================
    ダイアログ共通 (ConfirmDialog / WarnDialog / 追加ダイアログ)
    ===================================================== */
