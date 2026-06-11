@@ -97,7 +97,7 @@ public class LedgerService(AppStateStore store)
     // 各カードの「その月の明細合計」を、紐づく口座の Debit(CardId付き) に反映する。
     private void ExpandCards(string ym, MonthData mo)
     {
-        foreach (var card in State.Cards.OrderBy(c => c.SortOrder))
+        foreach (var card in State.Cards.Where(c => !c.IsDeleted).OrderBy(c => c.SortOrder))
         {
             if (!mo.Ledgers.TryGetValue(card.AccountId, out var ledger)) continue;
             var sum = mo.CardDetails.Where(d => d.CardId == card.Id).Sum(d => d.Amount);
@@ -108,11 +108,13 @@ public class LedgerService(AppStateStore store)
         }
     }
 
-    // カード削除：当月以降の月から該当カードの明細を除去し、カード Debit を作り直す。
-    // 過去月の明細・Debit は履歴として凍結（残す）。
+    // カード削除：ソフト削除（IsDeleted）し、当月以降の月から該当カードの明細を除去して
+    // カード Debit を作り直す。過去月の明細・Debit は履歴として凍結し、レコードは残すため
+    // 統計の名前引き（CardById）は機能し続ける。
     public void DeleteCard(string id)
     {
-        State.Cards.RemoveAll(c => c.Id == id);
+        var card = State.Cards.FirstOrDefault(c => c.Id == id);
+        if (card != null) card.IsDeleted = true;
         foreach (var ym in State.Months.Keys.Where(IsCurrentOrFutureCycle).ToList())
             State.Months[ym].CardDetails.RemoveAll(d => d.CardId == id);
         OnCardsChanged();
@@ -147,7 +149,8 @@ public class LedgerService(AppStateStore store)
     // ── カテゴリ/カード参照 ──────────────────────────
     public List<Category> CategoriesOrdered => State.Categories.OrderBy(c => c.SortOrder).ToList();
     public Category? CategoryById(string? id) => string.IsNullOrEmpty(id) ? null : State.Categories.FirstOrDefault(c => c.Id == id);
-    public List<Card> CardsOrdered => State.Cards.OrderBy(c => c.SortOrder).ToList();
+    // 一覧用は有効なカードのみ。CardById は削除済みも引ける（過去明細の名前表示用）。
+    public List<Card> CardsOrdered => State.Cards.Where(c => !c.IsDeleted).OrderBy(c => c.SortOrder).ToList();
     public Card? CardById(string id) => State.Cards.FirstOrDefault(c => c.Id == id);
 
     // ── 固定費計算 ───────────────────────────────────
@@ -196,7 +199,7 @@ public class LedgerService(AppStateStore store)
         State.FixedCosts.Where(f => f.AccountId == accountId).Select(f => f.Name).ToList();
 
     public List<string> GetCardsUsingAccount(string accountId) =>
-        State.Cards.Where(c => c.AccountId == accountId).Select(c => c.Name).ToList();
+        State.Cards.Where(c => !c.IsDeleted && c.AccountId == accountId).Select(c => c.Name).ToList();
 
     public List<string> GetFutureMonthsUsingAccount(string accountId)
     {

@@ -37,6 +37,7 @@ public class Card
     public string Name { get; set; } = "";
     public string AccountId { get; set; } = "";   // 引き落とし口座
     public int SortOrder { get; set; }
+    public bool IsDeleted { get; set; }            // ソフト削除（過去明細の名前引きのため残す）
 }
 
 // ── 口座 ──────────────────────────────────────────

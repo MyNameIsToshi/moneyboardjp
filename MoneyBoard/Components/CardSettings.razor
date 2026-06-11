@@ -5,7 +5,7 @@
     <button class="btn" @onclick="Add">＋ 追加</button>
 </div>
 
-@if (Svc.State.Cards.Count == 0)
+@if (!Ordered.Any())
 {
     <div class="none">カードが登録されていません。</div>
 }
@@ -39,7 +39,7 @@ else
 </div>
 
 @code {
-    private IEnumerable<Card> Ordered => Svc.State.Cards.OrderBy(c => c.SortOrder);
+    private IEnumerable<Card> Ordered => Svc.State.Cards.Where(c => !c.IsDeleted).OrderBy(c => c.SortOrder);
 
     // カード変更は当月以降の月次カード Debit を作り直してから保存する
     private void Save() { Svc.OnCardsChanged(); _ = Svc.SaveAsync(); }
@@ -50,7 +50,7 @@ else
         {
             Name = "",
             AccountId = Svc.ActiveAccounts.FirstOrDefault()?.Id ?? "",
-            SortOrder = Svc.State.Cards.Count
+            SortOrder = Ordered.Count()
         });
         Save();
     }
@@ -69,7 +69,7 @@ else
     {
         if (DragSourceId == null || DragSourceId == targetId) { OnDragEnd(); return; }
 
-        var ordered = Svc.State.Cards.OrderBy(c => c.SortOrder).ToList();
+        var ordered = Ordered.ToList();
         var srcIdx = ordered.FindIndex(c => c.Id == DragSourceId);
         var tgtIdx = ordered.FindIndex(c => c.Id == targetId);
         if (srcIdx < 0 || tgtIdx < 0) { OnDragEnd(); return; }
