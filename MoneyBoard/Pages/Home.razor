@@ -17,7 +17,6 @@
         <button class="tab @(ActiveTab == "monthly" ? "active" : "")" disabled="@TabDisabled" @onclick='() => SetTab("monthly")'>月次管理</button>
         <button class="tab @(ActiveTab == "card" ? "active" : "")" disabled="@TabDisabled" @onclick='() => SetTab("card")'>カード</button>
         <button class="tab @(ActiveTab == "fixed" ? "active" : "")" disabled="@TabDisabled" @onclick='() => SetTab("fixed")'>固定費設定</button>
-        <button class="tab @(ActiveTab == "accounts" ? "active" : "")" disabled="@TabDisabled" @onclick='() => SetTab("accounts")'>口座設定</button>
         <button class="tab @(ActiveTab == "mypage" ? "active" : "")" disabled="@TabDisabled" @onclick='() => SetTab("mypage")'>マイページ</button>
     </div>
 
@@ -41,7 +40,6 @@
         @if (ActiveTab == "monthly")  { <MonthlyTab @key="ReloadKey" RequestTab="SetTab" /> }
         @if (ActiveTab == "card")     { <CardTab @key="ReloadKey" /> }
         @if (ActiveTab == "fixed")    { <FixedCostTab @key="ReloadKey" /> }
-        @if (ActiveTab == "accounts") { <AccountsTab @key="ReloadKey" /> }
         @if (ActiveTab == "mypage")   { <MyPageTab @key="ReloadKey" /> }
     }
 </div>

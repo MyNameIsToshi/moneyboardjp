@@ -8,11 +8,14 @@
 </div>
 
 <div class="mypage-section">
-    <h3>データ管理</h3>
-    <div class="mypage-row">
-        <span>CSVエクスポート</span>
-        <button class="btn" style="padding:5px 12px;font-size:13px" @onclick="ExportCsv">ダウンロード</button>
-    </div>
+    <button class="mypage-collapse" @onclick='() => ToggleSection("account")'>
+        <span>口座設定</span>
+        <span class="mypage-chevron">@(IsOpen("account") ? "▼" : "▶")</span>
+    </button>
+    @if (IsOpen("account"))
+    {
+        <div class="mypage-collapse-body"><AccountsTab /></div>
+    }
 </div>
 
 <div class="mypage-section">
@@ -42,9 +45,4 @@
     private readonly HashSet<string> _open = new();
     private bool IsOpen(string key) => _open.Contains(key);
     private void ToggleSection(string key) { if (!_open.Remove(key)) _open.Add(key); }
-
-    private void ExportCsv()
-    {
-        // Phase 1 では未実装（後で実装）
-    }
 }
