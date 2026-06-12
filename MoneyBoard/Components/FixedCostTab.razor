@@ -12,22 +12,72 @@
     }
     else
     {
+        @if (IsFilterActive)
+        {
+            <div class="fc-filter-note">口座でフィルター中（ドラッグ並べ替えは無効）</div>
+        }
+
         <div class="fc-head">
-            <span></span><span>項目名</span><span>口座</span><span>通常月金額</span><span></span>
+            <span></span>
+            <span>項目名</span>
+            <span class="fc-th-filter">
+                口座
+                <button class="fc-filter-btn @(IsFilterActive ? "active" : "")"
+                        @onclick="ToggleFilterMenu" title="口座でフィルター">
+                    <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true">
+                        <path d="M1 3 H15 L9.5 9 V14 L6.5 15.5 V9 Z" />
+                    </svg>
+                </button>
+                @if (_filterOpen)
+                {
+                    <div class="fc-filter-menu" @onclick:stopPropagation="true">
+                        @foreach (var a in Svc.ActiveAccounts)
+                        {
+                            <label class="fc-filter-item">
+                                <input type="checkbox" checked="@IsChecked(a.Id)"
+                                       @onchange="() => ToggleAccount(a.Id)" />
+                                <span>@a.Name</span>
+                            </label>
+                        }
+                        <div class="fc-filter-actions">
+                            <button class="btn" @onclick="ClearFilter">すべて表示</button>
+                        </div>
+                    </div>
+                }
+            </span>
+            <span>通常月金額</span>
+            <span></span>
         </div>
 
-        @foreach (var fc in Svc.State.FixedCosts)
+        @if (_filterOpen)
+        {
+            <div class="fc-filter-backdrop" @onclick="() => _filterOpen = false"></div>
+        }
+
+        @if (!DisplayedFixedCosts.Any())
+        {
+            <div class="none">該当する固定費がありません。</div>
+        }
+
+        @foreach (var fc in DisplayedFixedCosts)
         {
             var expanded = ExpandedIds.Contains(fc.Id);
             <div class="fc-item @(DragOverId == fc.Id ? "drag-over" : "")"
-                 draggable="true"
+                 draggable="@(IsManualOrder ? "true" : "false")"
                  @ondragstart="() => OnDragStart(fc.Id)"
                  @ondragover:preventDefault="true"
                  @ondragover="() => OnDragOver(fc.Id)"
                  @ondrop="() => OnDrop(fc.Id)"
                  @ondragend="OnDragEnd">
                 <div class="fc-row">
-                    <span class="drag-handle">⠿</span>
+                    @if (IsManualOrder)
+                    {
+                        <span class="drag-handle">⠿</span>
+                    }
+                    else
+                    {
+                        <span></span>
+                    }
                     <input @bind="fc.Name" @bind:after="SaveWithReload" placeholder="項目名" />
                     <select @bind="fc.AccountId" @bind:after="SaveWithReload">
                         <option value="">口座を選択</option>
@@ -177,6 +227,33 @@
                OnCancel="CancelDelete" />
 
 @code {
+    // ── 口座フィルター（Excel風・表示のみ・永続化しない。フィルター中は D&D 無効）──
+    // _checked == null は「全口座表示（フィルターなし）」。部分選択時のみ set を保持する。
+    private HashSet<string>? _checked;
+    private bool _filterOpen;
+
+    private bool IsChecked(string accountId) => _checked == null || _checked.Contains(accountId);
+    private bool IsFilterActive => _checked != null;
+    // フィルターしていないときだけ手動 D&D 並べ替えを許可する
+    private bool IsManualOrder => !IsFilterActive;
+
+    private void ToggleFilterMenu() => _filterOpen = !_filterOpen;
+
+    private void ToggleAccount(string accountId)
+    {
+        _checked ??= Svc.ActiveAccounts.Select(a => a.Id).ToHashSet();
+        if (!_checked.Remove(accountId)) _checked.Add(accountId);
+        // 全口座が選択された状態に戻ったらフィルター解除（null 化）
+        if (Svc.ActiveAccounts.All(a => _checked.Contains(a.Id))) _checked = null;
+    }
+
+    private void ClearFilter() { _checked = null; _filterOpen = false; }
+
+    private IEnumerable<FixedCost> DisplayedFixedCosts =>
+        _checked == null
+            ? Svc.State.FixedCosts                                        // 全表示（手動順）
+            : Svc.State.FixedCosts.Where(f => _checked.Contains(f.AccountId));
+
     private HashSet<string> ExpandedIds = new();
     private void Save() => _ = Svc.SaveAsync();
     // 構造変更・単発イベント用（即時保存）
@@ -230,11 +307,12 @@
     private string? DragSourceId = null;
     private string? DragOverId   = null;
 
-    private void OnDragStart(string id) => DragSourceId = id;
-    private void OnDragOver(string id)  => DragOverId   = id;
+    private void OnDragStart(string id) { if (IsManualOrder) DragSourceId = id; }
+    private void OnDragOver(string id)  { if (IsManualOrder) DragOverId   = id; }
 
     private void OnDrop(string targetId)
     {
+        if (!IsManualOrder) return;
         if (DragSourceId == null || DragSourceId == targetId) return;
 
         var list = Svc.State.FixedCosts;

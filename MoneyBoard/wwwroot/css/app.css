@@ -499,6 +499,81 @@ input.num:focus,
 /* =====================================================
    固定費設定タブ (FixedCostTab.razor)
    ===================================================== */
+.fc-filter-note {
+  color: var(--accent);
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+/* .fc-head span の overflow:hidden を打ち消し、フィルターメニューを表示できるようにする */
+.fc-head .fc-th-filter {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  overflow: visible;
+}
+
+.fc-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  background: none;
+  color: var(--sub);
+  cursor: pointer;
+  padding: 2px 3px;
+  line-height: 1;
+  border-radius: 4px;
+}
+
+.fc-filter-btn.active {
+  color: var(--accent);
+  background: var(--okbg);
+}
+
+.fc-filter-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 30;
+  margin-top: 4px;
+  min-width: 160px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .12);
+  padding: 8px;
+}
+
+.fc-filter-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px;
+  font-size: 13px;
+  color: var(--ink);
+  font-weight: 400;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.fc-filter-item:hover {
+  background: var(--paper);
+}
+
+.fc-filter-actions {
+  border-top: 1px dashed var(--line);
+  margin-top: 6px;
+  padding-top: 8px;
+  text-align: right;
+}
+
+.fc-filter-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+}
+
 .fc-head {
   display: grid;
   grid-template-columns: 24px 1fr 140px 100px 32px;
