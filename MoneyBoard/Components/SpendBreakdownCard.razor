@@ -1,0 +1,60 @@
+@using ApexCharts
+
+@* 統計の「ドーナツ＋一覧」カード。カテゴリ別支出・カード別利用額で共用する。
+   行クリック／スライス選択で親にキーを通知し、親側でドリルダウンを開く。 *@
+<div class="graph-card graph-card-full">
+    <h4>@Title</h4>
+    @if (Items.Count > 0)
+    {
+        <div class="spend">
+            <div class="spend-chart">
+                <ApexChart TItem="SpendSlice" Options="Options" @key="RenderKey"
+                           OnDataPointSelection="OnSliceSelected">
+                    <ApexPointSeries TItem="SpendSlice"
+                                     Items="Items"
+                                     SeriesType="SeriesType.Donut"
+                                     Name="@Title"
+                                     XValue="@(e => e.Label)"
+                                     YValue="@(e => e.Value)" />
+                </ApexChart>
+            </div>
+            <div class="spend-list">
+                <div class="spend-row spend-head">
+                    <span></span><span>@ItemColumnLabel</span><span>金額</span><span>割合</span><span>件数</span>
+                </div>
+                @foreach (var s in Items)
+                {
+                    <div class="spend-row spend-row-click" @onclick="() => OnRowClick.InvokeAsync(s.Key)" title="明細を表示">
+                        <span class="color-dot" style="background:@s.Color"></span>
+                        <span class="spend-name">@s.Label</span>
+                        <span class="spend-amt">@Yen(s.Value)</span>
+                        <span class="spend-pct">@Pct(s.Value)</span>
+                        <span class="spend-cnt">@s.Count 件 <span class="spend-chevron">›</span></span>
+                    </div>
+                }
+                <div class="spend-row spend-total">
+                    <span></span><span>合計</span>
+                    <span class="spend-amt">@Yen(Total)</span>
+                    <span></span>
+                    <span class="spend-cnt">@Items.Sum(s => s.Count) 件</span>
+                </div>
+            </div>
+        </div>
+    }
+    else { <div class="graph-placeholder">@EmptyMessage</div> }
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public string ItemColumnLabel { get; set; } = "";
+    [Parameter] public List<SpendSlice> Items { get; set; } = new();
+    [Parameter] public decimal Total { get; set; }
+    [Parameter] public ApexChartOptions<SpendSlice> Options { get; set; } = default!;
+    [Parameter] public string RenderKey { get; set; } = "";
+    [Parameter] public string EmptyMessage { get; set; } = "データがありません";
+    [Parameter] public EventCallback<string> OnRowClick { get; set; }
+    [Parameter] public EventCallback<SelectedData<SpendSlice>> OnSliceSelected { get; set; }
+
+    private static string Yen(decimal v) => "¥" + v.ToString("#,0");
+    private string Pct(decimal v) => Total == 0 ? "0%" : (v / Total * 100).ToString("0.0") + "%";
+}

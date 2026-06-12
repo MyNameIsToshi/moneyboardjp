@@ -1,0 +1,38 @@
+@* 収入/支出/固定費の項目別内訳モーダル（項目→期間合計・割合）。 *@
+<div class="dialog-overlay" @onclick="OnClose">
+    <div class="dialog-box cat-detail-box" @onclick:stopPropagation="true">
+        <div class="cat-detail-head">
+            <h4>@Title</h4>
+            <button class="x" @onclick="OnClose">✕</button>
+        </div>
+        <div class="cat-detail-sub">@SubLabel ・ 合計 @Yen(Total)</div>
+        <div class="cat-detail-list">
+            @foreach (var it in Items)
+            {
+                <div class="breakdown-row">
+                    <span class="bd-name" title="@it.Name">@it.Name</span>
+                    <span class="bd-amt">@Yen(it.Amount)</span>
+                    <span class="bd-pct">@Pct(it.Amount)</span>
+                </div>
+            }
+            <div class="breakdown-row breakdown-total">
+                <span class="bd-name">合計</span>
+                <span class="bd-amt">@Yen(Total)</span>
+                <span></span>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public string SubLabel { get; set; } = "";
+    [Parameter] public decimal Total { get; set; }
+    [Parameter] public List<BreakdownItem> Items { get; set; } = new();
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    public record BreakdownItem(string Name, decimal Amount);
+
+    private static string Yen(decimal v) => "¥" + v.ToString("#,0");
+    private string Pct(decimal v) => Total == 0 ? "0%" : (v / Total * 100).ToString("0.0") + "%";
+}
