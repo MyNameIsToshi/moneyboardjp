@@ -244,6 +244,46 @@ body {
   font-size: 15px;
 }
 
+.cycle-info {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 34px;            /* ‹ › ボタンと高さを揃えて上下中央に */
+  color: var(--sub);
+  cursor: help;
+}
+
+.cycle-info-icon {
+  display: block;          /* inline 既定のベースライン揃えを避け、確実に中央へ */
+}
+
+.cycle-tip {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  width: 250px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.6;
+  text-align: left;
+  padding: 9px 11px;
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .18);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .15s;
+}
+
+.cycle-info:hover .cycle-tip,
+.cycle-info:focus-within .cycle-tip {
+  opacity: 1;
+  visibility: visible;
+}
+
 .summary {
   display: flex;
   gap: 10px;

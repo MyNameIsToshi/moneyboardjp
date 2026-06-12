@@ -10,6 +10,7 @@
                 <button @onclick="Prev" disabled="@IsPrevDisabled">‹</button>
                 <div class="m">@LedgerService.Label(Svc.CurrentMonth)</div>
                 <button @onclick="Next">›</button>
+                <CycleInfo Ym="@Svc.CurrentMonth" />
             </div>
         </div>
     </div>

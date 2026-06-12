@@ -1,0 +1,26 @@
+@* 「当月」の定義（15日給料日サイクル）を示す ⓘ ツールチップ。月ナビ横で使う。
+   表示中の月(Ym)の実際の集計期間を明記する。 *@
+<span class="cycle-info" tabindex="0">
+    <svg class="cycle-info-icon" viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+        <circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.3" />
+        <circle cx="8" cy="5" r="1" fill="currentColor" />
+        <rect x="7.1" y="6.8" width="1.8" height="5" rx="0.9" fill="currentColor" />
+    </svg>
+    <span class="cycle-tip">
+        「当月」は給料日サイクル基準です。表示中の月は <strong>@Range(Ym)</strong> を1か月分として集計します。
+    </span>
+</span>
+
+@code {
+    [Parameter] public string Ym { get; set; } = "";
+
+    // "yyyyMM" から、その月の集計期間「15日〜翌月14日」を実日付で返す。
+    private static string Range(string ym)
+    {
+        if (ym is not { Length: 6 } || !int.TryParse(ym[..4], out var y) || !int.TryParse(ym[4..6], out var m))
+            return "15日〜翌月14日";
+        var start = new DateTime(y, m, 15);
+        var end = start.AddMonths(1).AddDays(-1);   // 翌月14日
+        return $"{start:yyyy年M月d日}〜{end:yyyy年M月d日}";
+    }
+}
