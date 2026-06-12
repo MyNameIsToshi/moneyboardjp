@@ -14,11 +14,11 @@
     }
 
     <div class="tabs">
-        <button class="tab @(ActiveTab == "monthly" ? "active" : "")" @onclick='() => SetTab("monthly")'>月次管理</button>
-        <button class="tab @(ActiveTab == "card" ? "active" : "")" @onclick='() => SetTab("card")'>カード</button>
-        <button class="tab @(ActiveTab == "fixed" ? "active" : "")" @onclick='() => SetTab("fixed")'>固定費設定</button>
-        <button class="tab @(ActiveTab == "accounts" ? "active" : "")" @onclick='() => SetTab("accounts")'>口座設定</button>
-        <button class="tab @(ActiveTab == "mypage" ? "active" : "")" @onclick='() => SetTab("mypage")'>マイページ</button>
+        <button class="tab @(ActiveTab == "monthly" ? "active" : "")" disabled="@TabDisabled" @onclick='() => SetTab("monthly")'>月次管理</button>
+        <button class="tab @(ActiveTab == "card" ? "active" : "")" disabled="@TabDisabled" @onclick='() => SetTab("card")'>カード</button>
+        <button class="tab @(ActiveTab == "fixed" ? "active" : "")" disabled="@TabDisabled" @onclick='() => SetTab("fixed")'>固定費設定</button>
+        <button class="tab @(ActiveTab == "accounts" ? "active" : "")" disabled="@TabDisabled" @onclick='() => SetTab("accounts")'>口座設定</button>
+        <button class="tab @(ActiveTab == "mypage" ? "active" : "")" disabled="@TabDisabled" @onclick='() => SetTab("mypage")'>マイページ</button>
     </div>
 
     @if (LoadFailed)
@@ -31,7 +31,10 @@
     }
     else if (!Loaded)
     {
-        <div class="loading">読み込み中…</div>
+        <div class="loading">
+            <div class="spinner"></div>
+            読み込み中…
+        </div>
     }
     else
     {
@@ -48,6 +51,9 @@
     private bool Loaded = false;
     private bool LoadFailed = false;
     private bool ShowConflictNotice = false;
+
+    // 読み込み完了までタブ操作を無効化（空状態のタブを触らせない）
+    private bool TabDisabled => !Loaded;
     private int ReloadKey = 0;
 
     protected override async Task OnInitializedAsync()
