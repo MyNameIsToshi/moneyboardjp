@@ -32,7 +32,7 @@
         {
             var details = DetailsFor(card.Id);
             var collapsed = IsCollapsed(card.Id);
-            <div class="card-panel">
+            <div class="card-panel" id="card-@card.Id">
                 <div class="card-panel-head">
                     <button class="card-collapse" @onclick="() => ToggleCollapse(card.Id)"
                             title="@(collapsed ? "開く" : "たたむ")">@(collapsed ? "▶" : "▼")</button>
@@ -152,6 +152,21 @@
     private MonthData Mo = new();
 
     protected override void OnInitialized() => Mo = Svc.EnsureMonth(Svc.CardMonth);
+
+    // 月次タブから遷移したとき：対象カードだけ展開し他は畳んで、その位置までスクロールする。
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        var target = Svc.ScrollToCardId;
+        if (target == null) return;
+        Svc.ScrollToCardId = null;            // 一度きりで消費
+
+        _collapsed.Clear();
+        foreach (var c in Svc.CardsOrdered)
+            if (c.Id != target) _collapsed.Add(c.Id);   // 対象以外を畳む
+        StateHasChanged();
+
+        await JS.InvokeVoidAsync("scrollToElementId", $"card-{target}");
+    }
 
     private List<CardDetail> DetailsFor(string cardId)
     {

@@ -26,6 +26,9 @@ public class LedgerService(AppStateStore store)
     public string CurrentMonth { get; set; } = CurrentCycleStartYm();
     public string CardMonth { get; set; } = CurrentCycleStartYm();
 
+    // 月次→カードタブ遷移時にスクロール＆展開したい対象カードId（カードタブ側が消費）。
+    public string? ScrollToCardId { get; set; }
+
     // ── 年月・給料日サイクル ─────────────────────────
     public static string PrevYm(string ym) => Ym.Parse(ym).Prev().ToString();
     public static string NextYm(string ym) => Ym.Parse(ym).Next().ToString();
