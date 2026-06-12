@@ -1324,7 +1324,7 @@ input.num:focus,
   display: grid;
   grid-template-columns: minmax(260px, 1fr) 1fr;
   gap: 20px;
-  align-items: center;
+  align-items: start;
 }
 
 @media (max-width: 760px) {
@@ -1366,6 +1366,77 @@ input.num:focus,
   font-weight: 700;
   border-bottom: none;
   border-top: 2px solid var(--line);
+}
+
+.spend-row-click {
+  cursor: pointer;
+}
+
+.spend-row-click:hover {
+  background: var(--paper);
+}
+
+.spend-chevron {
+  color: var(--sub);
+  font-size: 13px;
+  margin-left: 2px;
+}
+
+/* カテゴリ別支出ドリルダウン（モーダル） */
+.cat-detail-box {
+  max-width: 520px;
+  width: 92vw;
+}
+
+.cat-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cat-detail-head h4 {
+  margin: 0;
+  flex: 1;
+}
+
+.cat-detail-sub {
+  color: var(--sub);
+  font-size: 12px;
+  margin: 4px 0 10px;
+}
+
+.cat-detail-list {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.spend-detail-row {
+  display: grid;
+  grid-template-columns: 40px 1fr auto 90px;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 0;
+  font-size: 13px;
+  color: var(--sub);
+  border-bottom: 1px dashed var(--line);
+}
+
+.sd-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sd-card {
+  font-size: 11px;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.sd-amt {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
 }
 
 /* =====================================================

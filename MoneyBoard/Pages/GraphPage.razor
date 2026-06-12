@@ -123,7 +123,8 @@
             {
                 <div class="spend">
                     <div class="spend-chart">
-                        <ApexChart TItem="CategorySlice" Options="DonutOptions" @key="@($"cat-{SelectedPeriod}")">
+                        <ApexChart TItem="CategorySlice" Options="DonutOptions" @key="@($"cat-{SelectedPeriod}")"
+                                   OnDataPointSelection="OnSliceSelected">
                             <ApexPointSeries TItem="CategorySlice"
                                              Items="CategorySpendData"
                                              SeriesType="SeriesType.Donut"
@@ -138,12 +139,12 @@
                         </div>
                         @foreach (var s in CategorySpendData)
                         {
-                            <div class="spend-row">
+                            <div class="spend-row spend-row-click" @onclick="() => OpenCatDetail(s.Key)" title="明細を表示">
                                 <span class="color-dot" style="background:@s.Color"></span>
                                 <span class="spend-name">@s.Label</span>
                                 <span class="spend-amt">@Yen(s.Value)</span>
                                 <span class="spend-pct">@Pct(s.Value)</span>
-                                <span class="spend-cnt">@s.Count 件</span>
+                                <span class="spend-cnt">@s.Count 件 <span class="spend-chevron">›</span></span>
                             </div>
                         }
                         <div class="spend-row spend-total">
@@ -165,7 +166,8 @@
             {
                 <div class="spend">
                     <div class="spend-chart">
-                        <ApexChart TItem="CardSlice" Options="CardDonutOptions" @key="@($"card-{SelectedPeriod}")">
+                        <ApexChart TItem="CardSlice" Options="CardDonutOptions" @key="@($"card-{SelectedPeriod}")"
+                                   OnDataPointSelection="OnCardSliceSelected">
                             <ApexPointSeries TItem="CardSlice"
                                              Items="CardSpendData"
                                              SeriesType="SeriesType.Donut"
@@ -180,12 +182,12 @@
                         </div>
                         @foreach (var s in CardSpendData)
                         {
-                            <div class="spend-row">
+                            <div class="spend-row spend-row-click" @onclick="() => OpenCardDetail(s.Key)" title="明細を表示">
                                 <span class="color-dot" style="background:@s.Color"></span>
                                 <span class="spend-name">@s.Label</span>
                                 <span class="spend-amt">@Yen(s.Value)</span>
                                 <span class="spend-pct">@PctOf(s.Value, CardTotal)</span>
-                                <span class="spend-cnt">@s.Count 件</span>
+                                <span class="spend-cnt">@s.Count 件 <span class="spend-chevron">›</span></span>
                             </div>
                         }
                         <div class="spend-row spend-total">
@@ -201,6 +203,33 @@
         </div>
 
     </div>
+
+    @if (_detail is not null)
+    {
+        <div class="dialog-overlay" @onclick="CloseDetail">
+            <div class="dialog-box cat-detail-box" @onclick:stopPropagation="true">
+                <div class="cat-detail-head">
+                    <span class="color-dot" style="background:@_detail.Color"></span>
+                    <h4>@_detail.Title の明細</h4>
+                    <button class="x" @onclick="CloseDetail">✕</button>
+                </div>
+                <div class="cat-detail-sub">
+                    @Periods[SelectedPeriod] ・ @_detail.Count 件 ・ 合計 @Yen(_detail.Total)
+                </div>
+                <div class="cat-detail-list">
+                    @foreach (var r in _detail.Rows)
+                    {
+                        <div class="spend-detail-row">
+                            <span class="sd-date">@FmtDate(r.Date)</span>
+                            <span class="sd-name" title="@r.Store">@r.Store</span>
+                            <span class="sd-card">@r.Sub</span>
+                            <span class="sd-amt">@Yen(r.Amount)</span>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
 </div>
 
 @code {
@@ -247,6 +276,38 @@
     private List<CategorySlice> CategorySpendData = new();
     private decimal CategoryTotal => CategorySpendData.Sum(s => s.Value);
 
+    // ドリルダウン（カテゴリ別／カード別 共通モーダル）。明細は日付降順で保持する。
+    private Dictionary<string, List<DetailRow>> CategoryDetails = new();   // カテゴリキー → 明細（3列目=カード名）
+    private Dictionary<string, List<DetailRow>> CardDetails = new();       // カードキー   → 明細（3列目=カテゴリ名）
+    private DetailModal? _detail;   // 開いているモーダル（null=閉）
+
+    private void OpenCatDetail(string key)
+    {
+        var s = CategorySpendData.FirstOrDefault(x => x.Key == key);
+        if (s != null) _detail = new(s.Label, s.Color, s.Count, s.Value, CategoryDetails.GetValueOrDefault(key) ?? new());
+    }
+    private void OpenCardDetail(string key)
+    {
+        var s = CardSpendData.FirstOrDefault(x => x.Key == key);
+        if (s != null) _detail = new(s.Label, s.Color, s.Count, s.Value, CardDetails.GetValueOrDefault(key) ?? new());
+    }
+    private void CloseDetail() => _detail = null;
+
+    // ドーナツのスライス選択でも同じモーダルを開く（スライス順=各 SpendData 順）
+    private void OnSliceSelected(SelectedData<CategorySlice> sel)
+    {
+        if (sel.DataPointIndex >= 0 && sel.DataPointIndex < CategorySpendData.Count)
+            OpenCatDetail(CategorySpendData[sel.DataPointIndex].Key);
+    }
+    private void OnCardSliceSelected(SelectedData<CardSlice> sel)
+    {
+        if (sel.DataPointIndex >= 0 && sel.DataPointIndex < CardSpendData.Count)
+            OpenCardDetail(CardSpendData[sel.DataPointIndex].Key);
+    }
+
+    public record DetailRow(string Date, string Store, string Sub, decimal Amount);
+    public record DetailModal(string Title, string Color, int Count, decimal Total, List<DetailRow> Rows);
+
     private List<CardSlice> CardSpendData = new();
     private decimal CardTotal => CardSpendData.Sum(s => s.Value);
 
@@ -285,7 +346,7 @@
         BuildChartData();
     }
 
-    private void SetPeriod(string p) { SelectedPeriod = p; BuildChartData(); }
+    private void SetPeriod(string p) { SelectedPeriod = p; _detail = null; BuildChartData(); }
     private void GoBack() => Nav.NavigateTo("/");
 
     private List<string> GetTargetYms()
@@ -327,16 +388,20 @@
     // 期間中の全カード明細を CategoryId で集計（未分類はまとめて末尾の色なし扱い）
     private void BuildCategorySpend(List<string> yms)
     {
-        var details = yms.SelectMany(ym =>
-            Svc.State.Months.GetValueOrDefault(ym)?.CardDetails ?? Enumerable.Empty<CardDetail>());
+        // 月をまたいで明細を集める（ドリルダウン表示用に日付降順で保持）
+        var details = yms
+            .SelectMany(ym => Svc.State.Months.GetValueOrDefault(ym)?.CardDetails ?? Enumerable.Empty<CardDetail>())
+            .ToList();
 
-        CategorySpendData = details
-            .GroupBy(d => d.CategoryId ?? "")
+        var groups = details.GroupBy(d => d.CategoryId ?? "").ToList();
+
+        CategorySpendData = groups
             .Select(g =>
             {
                 var cat = Svc.CategoryById(g.Key);
                 return new CategorySlice
                 {
+                    Key = g.Key,
                     Label = cat?.Name ?? "未分類",
                     Value = g.Sum(d => d.Amount),
                     Color = cat?.Color ?? "#bdbdbd",
@@ -346,6 +411,13 @@
             .OrderByDescending(s => s.Value)
             .ToList();
 
+        // ドリルダウン用：カテゴリごとの明細（日付降順）
+        CategoryDetails = groups.ToDictionary(
+            g => g.Key,
+            g => g.OrderByDescending(d => d.Date)
+                  .Select(d => new DetailRow(d.Date, d.Name, Svc.CardById(d.CardId)?.Name ?? "", d.Amount))
+                  .ToList());
+
         // スライス色をカテゴリ設定色に合わせる（データ並びと同順）
         DonutOptions.Colors = CategorySpendData.Select(s => s.Color).ToList();
     }
@@ -354,19 +426,29 @@
     // 残るため名前を引けて、自身のスライスとして表示される。
     private void BuildCardSpend(List<string> yms)
     {
-        var details = yms.SelectMany(ym =>
-            Svc.State.Months.GetValueOrDefault(ym)?.CardDetails ?? Enumerable.Empty<CardDetail>());
+        var details = yms
+            .SelectMany(ym => Svc.State.Months.GetValueOrDefault(ym)?.CardDetails ?? Enumerable.Empty<CardDetail>())
+            .ToList();
 
-        CardSpendData = details
-            .GroupBy(d => d.CardId ?? "")
+        var groups = details.GroupBy(d => d.CardId ?? "").ToList();
+
+        CardSpendData = groups
             .Select(g => new CardSlice
             {
+                Key = g.Key,
                 Label = Svc.CardById(g.Key)?.Name is { Length: > 0 } n ? n : "（不明）",
                 Value = g.Sum(d => d.Amount),
                 Count = g.Count()
             })
             .OrderByDescending(s => s.Value)
             .ToList();
+
+        // ドリルダウン用：カードごとの明細（日付降順・3列目はカテゴリ名）
+        CardDetails = groups.ToDictionary(
+            g => g.Key,
+            g => g.OrderByDescending(d => d.Date)
+                  .Select(d => new DetailRow(d.Date, d.Name, Svc.CategoryById(d.CategoryId)?.Name ?? "未分類", d.Amount))
+                  .ToList());
 
         // 表示順にパレット色を割り当て、スライス色と一覧ドットを揃える。
         for (int i = 0; i < CardSpendData.Count; i++)
@@ -404,6 +486,9 @@
     private static string IncomeName(IncomeItem i) => string.IsNullOrWhiteSpace(i.Name) ? "その他収入" : i.Name;
 
     private static string Yen(decimal v) => "¥" + v.ToString("#,0");
+    // "yyyy-MM-dd" → "M/d"（不正な値はそのまま返す）
+    private static string FmtDate(string d) =>
+        DateTime.TryParse(d, out var dt) ? dt.ToString("M/d") : d;
     private string Pct(decimal v) => PctOf(v, CategoryTotal);
     private static string PctOf(decimal v, decimal total) => total == 0 ? "0%" : (v / total * 100).ToString("0.0") + "%";
 
@@ -423,6 +508,7 @@
 
     public class CategorySlice
     {
+        public string Key { get; set; } = "";   // CategoryId（未分類は ""）
         public string Label { get; set; } = "";
         public decimal Value { get; set; }
         public string Color { get; set; } = "";
@@ -431,6 +517,7 @@
 
     public class CardSlice
     {
+        public string Key { get; set; } = "";   // CardId（不明は ""）
         public string Label { get; set; } = "";
         public decimal Value { get; set; }
         public string Color { get; set; } = "";
