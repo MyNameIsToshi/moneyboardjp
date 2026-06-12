@@ -111,6 +111,16 @@ public class LedgerService(AppStateStore store)
         }
     }
 
+    // カード削除で消える対象（当月以降の明細）の件数と合計。削除確認の明示用。
+    public (int count, decimal total) CardDeletionImpact(string cardId)
+    {
+        var details = State.Months
+            .Where(kv => IsCurrentOrFutureCycle(kv.Key))
+            .SelectMany(kv => kv.Value.CardDetails.Where(d => d.CardId == cardId))
+            .ToList();
+        return (details.Count, details.Sum(d => d.Amount));
+    }
+
     // カード削除：ソフト削除（IsDeleted）し、当月以降の月から該当カードの明細を除去して
     // カード Debit を作り直す。過去月の明細・Debit は履歴として凍結し、レコードは残すため
     // 統計の名前引き（CardById）は機能し続ける。

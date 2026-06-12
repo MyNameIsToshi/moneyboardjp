@@ -29,7 +29,7 @@ else
                     <option value="@a.Id">@a.Name</option>
                 }
             </select>
-            <button class="x" @onclick="() => Remove(card.Id)">✕</button>
+            <button class="x" @onclick="() => AskDelete(card)">✕</button>
         </div>
     }
 }
@@ -37,6 +37,13 @@ else
 <div class="foot" style="text-align:left;margin-top:10px">
     カードの利用明細合計が、選択した口座のその月の引き落としに反映されます（明細機能は今後追加）。
 </div>
+
+<ConfirmDialog IsVisible="@ShowConfirm"
+               Title="カードを削除しますか？"
+               Message="@ConfirmMessage"
+               ConfirmText="削除する"
+               OnConfirm="ExecuteDelete"
+               OnCancel="CancelDelete" />
 
 @code {
     private IEnumerable<Card> Ordered => Svc.State.Cards.Where(c => !c.IsDeleted).OrderBy(c => c.SortOrder);
@@ -55,8 +62,35 @@ else
         Save();
     }
 
+    // ── 削除（確認ダイアログで消えるデータを明示）──
+    private bool ShowConfirm;
+    private string? PendingDeleteId;
+    private string ConfirmMessage = "";
+
+    private void AskDelete(Card card)
+    {
+        var (count, total) = Svc.CardDeletionImpact(card.Id);
+        var lines = $"「{card.Name}」を削除します。\n\n";
+        lines += count > 0
+            ? $"・当月以降の明細 {count} 件（¥{total:#,0}）と、口座への引き落とし反映が削除されます。\n"
+            : "・当月以降に削除される明細はありません。\n";
+        lines += "・過去の明細は履歴として残ります（統計のカード名も保持されます）。\n\n";
+        lines += "この操作は取り消せません。";
+
+        ConfirmMessage = lines;
+        PendingDeleteId = card.Id;
+        ShowConfirm = true;
+    }
+
     // 当月以降の明細を除去しカード Debit を作り直す（過去月は履歴として凍結）。
-    private void Remove(string id) { Svc.DeleteCard(id); _ = Svc.SaveAsync(); }
+    private void ExecuteDelete()
+    {
+        if (PendingDeleteId != null) { Svc.DeleteCard(PendingDeleteId); _ = Svc.SaveAsync(); }
+        PendingDeleteId = null;
+        ShowConfirm = false;
+    }
+
+    private void CancelDelete() { PendingDeleteId = null; ShowConfirm = false; }
 
     // ── ドラッグ＆ドロップ並び替え ──────────────────
     private string? DragSourceId;
