@@ -3,20 +3,62 @@
 @using ApexCharts
 
 <div class="wrap">
-    <div class="graph-header">
-        <button class="btn" @onclick="GoBack">← 戻る</button>
-        <div class="app-title">統計</div>
-    </div>
+    <div class="graph-sticky">
+        <div class="graph-header">
+            <div class="app-title">統計</div>
+            <button class="btn" disabled="@IsLoading" @onclick="GoBack">← 戻る</button>
+        </div>
 
-    <!-- 期間選択 -->
-    <div class="period-select">
-        @foreach (var p in Periods)
+        @if (Loaded)
         {
-            <button class="period-btn @(SelectedPeriod == p.Key ? "active" : "")"
-                    @onclick="() => SetPeriod(p.Key)">@p.Value</button>
+            <!-- 期間選択 -->
+            <div class="period-select">
+                @foreach (var p in Periods)
+                {
+                    <button class="period-btn @(SelectedPeriod == p.Key ? "active" : "")"
+                            @onclick="() => SetPeriod(p.Key)">@p.Value</button>
+                }
+                <button class="period-btn @(SelectedPeriod == "custom" ? "active" : "")"
+                        @onclick='() => SetPeriod("custom")'>期間指定</button>
+            </div>
+
+            @if (SelectedPeriod == "custom")
+            {
+                <div class="period-custom">
+                    <select @bind="_customStart" @bind:after="OnCustomChanged">
+                        @foreach (var ym in AllYmsAsc)
+                        {
+                            <option value="@ym">@LedgerService.Label(ym)</option>
+                        }
+                    </select>
+                    <span>〜</span>
+                    <select @bind="_customEnd" @bind:after="OnCustomChanged">
+                        @foreach (var ym in AllYmsAsc)
+                        {
+                            <option value="@ym">@LedgerService.Label(ym)</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            <div class="period-range">対象期間：@RangeLabel</div>
         }
     </div>
 
+    @if (LoadFailed)
+    {
+        <div class="loading">
+            データの読み込みに失敗しました。<br />
+            ネットワーク接続を確認して、再度お試しください。<br />
+            <button class="btn" style="margin-top:12px" @onclick="Load">再読み込み</button>
+        </div>
+    }
+    else if (!Loaded)
+    {
+        <div class="loading"><div class="spinner"></div>読み込み中…</div>
+    }
+    else
+    {
     <div class="graph-grid">
 
         <!-- ① 月別支出合計推移 -->
@@ -203,6 +245,7 @@
         </div>
 
     </div>
+    }
 
     @if (_detail is not null)
     {
@@ -214,7 +257,7 @@
                     <button class="x" @onclick="CloseDetail">✕</button>
                 </div>
                 <div class="cat-detail-sub">
-                    @Periods[SelectedPeriod] ・ @_detail.Count 件 ・ 合計 @Yen(_detail.Total)
+                    @RangeLabel ・ @_detail.Count 件 ・ 合計 @Yen(_detail.Total)
                 </div>
                 <div class="cat-detail-list">
                     @foreach (var r in _detail.Rows)
@@ -336,25 +379,76 @@
     private readonly ApexChartOptions<CategorySlice> DonutOptions = NewDonutOptions<CategorySlice>();
     private readonly ApexChartOptions<CardSlice> CardDonutOptions = NewDonutOptions<CardSlice>();
 
-    protected override async Task OnInitializedAsync()
+    // 読み込み完了まで操作不可（/graph を直接リロードしたケースに対応）
+    private bool Loaded;
+    private bool LoadFailed;
+    private bool IsLoading => !Loaded && !LoadFailed;   // 読込中は戻るも無効（失敗時は戻れる）
+
+    // 期間指定（月単位）の開始・終了 ym
+    private string _customStart = "";
+    private string _customEnd = "";
+
+    private List<string> AllYmsAsc => Svc.State.Months.Keys.OrderBy(x => x).ToList();
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
     {
-        // State はアプリ起動時(Home)にメモリへ読込済み。/graph を開くたびに
-        // 再取得すると無駄な往復＋未保存のメモリ状態破棄になるため、未ロード
-        // （直接ディープリンク等）のときだけ読み込む。
-        if (!Svc.IsLoaded)
-            await Svc.LoadAsync();
+        Loaded = false;
+        LoadFailed = false;
+        // State はアプリ起動時(Home)にメモリへ読込済み。未ロード（直接リロード等）のときだけ取得。
+        if (Svc.IsLoaded || await Svc.LoadAsync())
+            Loaded = true;
+        else
+        {
+            LoadFailed = true;
+            return;
+        }
         BuildChartData();
     }
 
-    private void SetPeriod(string p) { SelectedPeriod = p; _detail = null; BuildChartData(); }
+    private void SetPeriod(string p)
+    {
+        SelectedPeriod = p;
+        _detail = null;
+        // 期間指定に切替時、未設定なら全期間の端を初期値にする
+        if (p == "custom" && string.IsNullOrEmpty(_customStart))
+        {
+            var yms = AllYmsAsc;
+            if (yms.Count > 0) { _customStart = yms.First(); _customEnd = yms.Last(); }
+        }
+        BuildChartData();
+    }
+
+    private void OnCustomChanged() { _detail = null; BuildChartData(); }
+
     private void GoBack() => Nav.NavigateTo("/");
 
     private List<string> GetTargetYms()
     {
-        var allYms = Svc.State.Months.Keys.OrderBy(x => x).ToList();
+        var allYms = AllYmsAsc;
         if (SelectedPeriod == "all") return allYms;
+        if (SelectedPeriod == "custom")
+        {
+            var (s, e) = (_customStart, _customEnd);
+            if (string.Compare(s, e) > 0) (s, e) = (e, s);   // 逆指定の保険
+            return allYms.Where(ym => string.Compare(ym, s) >= 0 && string.Compare(ym, e) <= 0).ToList();
+        }
         int count = int.Parse(SelectedPeriod);
         return allYms.TakeLast(count).ToList();
+    }
+
+    // 現在の対象期間を実際の月で明記する（例: 2026年3月 〜 2026年6月（4ヶ月））
+    private string RangeLabel
+    {
+        get
+        {
+            var yms = GetTargetYms();
+            if (yms.Count == 0) return "対象データなし";
+            var first = LedgerService.Label(yms.First());
+            var last = LedgerService.Label(yms.Last());
+            return first == last ? $"{first}（1ヶ月）" : $"{first} 〜 {last}（{yms.Count}ヶ月）";
+        }
     }
 
     private void BuildChartData()

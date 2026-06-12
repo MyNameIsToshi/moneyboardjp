@@ -166,8 +166,13 @@ body {
   cursor: pointer;
 }
 
-.btn:hover {
+.btn:not(:disabled):hover {
   background: #f3f5f8
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .btn.danger {
@@ -182,7 +187,7 @@ body {
   border-color: var(--accent);
 }
 
-.btn.primary:hover {
+.btn.primary:not(:disabled):hover {
   opacity: 0.88
 }
 
@@ -1288,11 +1293,50 @@ input.num:focus,
   border-color: var(--accent);
 }
 
+/* タイトル＋期間セレクタをスクロール追従の固定ヘッダーにする */
+.graph-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--paper);
+  padding-top: 8px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
 .graph-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 20px;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+/* 統計タイトルは MoneyBoard と同じ左位置、戻るはその右 */
+.graph-header .app-title {
+  margin-bottom: 0;
+}
+
+.period-custom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.period-custom select {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 5px 10px;
+  font: inherit;
+  font-size: 13px;
+  background: #fff;
+}
+
+.period-range {
+  font-size: 13px;
+  color: var(--sub);
+  margin-bottom: 16px;
 }
 
 .graph-grid {
