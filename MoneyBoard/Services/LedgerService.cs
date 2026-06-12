@@ -193,7 +193,9 @@ public class LedgerService(AppStateStore store)
         if (!mo.Ledgers.TryGetValue(accountId, out var l)) return 0;
         var account = State.Accounts.FirstOrDefault(a => a.Id == accountId);
         decimal bonus = (account?.IsBonusAccount == true) ? l.Bonus : 0;
-        decimal v = l.Confirmed + l.Salary + bonus - l.Debits.Sum(d => d.Amount);
+        // 臨時収入と ATM 入出金も実際の口座残高を増減させる（ATM は資産移動だが残高には効く）
+        decimal v = l.Confirmed + l.Salary + bonus + l.Incomes.Sum(i => i.Amount) + l.AtmDeposit
+                    - l.Debits.Sum(d => d.Amount) - l.AtmWithdraw;
         foreach (var t in mo.Transfers)
         {
             if (t.To == accountId) v += t.Amount;

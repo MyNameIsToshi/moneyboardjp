@@ -35,7 +35,7 @@ else
 }
 
 <div class="foot" style="text-align:left;margin-top:10px">
-    カードの利用明細合計が、選択した口座のその月の引き落としに反映されます（明細機能は今後追加）。
+    カードの利用明細合計が、選択した口座のその月の支出に反映されます（明細機能は今後追加）。
 </div>
 
 <ConfirmDialog IsVisible="@ShowConfirm"
@@ -72,7 +72,7 @@ else
         var (count, total) = Svc.CardDeletionImpact(card.Id);
         var lines = $"「{card.Name}」を削除します。\n\n";
         lines += count > 0
-            ? $"・当月以降の明細 {count} 件（¥{total:#,0}）と、口座への引き落とし反映が削除されます。\n"
+            ? $"・当月以降の明細 {count} 件（¥{total:#,0}）と、口座の支出への反映が削除されます。\n"
             : "・当月以降に削除される明細はありません。\n";
         lines += "・過去の明細は履歴として残ります（統計のカード名も保持されます）。\n\n";
         lines += "この操作は取り消せません。";

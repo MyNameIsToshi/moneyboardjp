@@ -111,6 +111,17 @@ public class Ledger
     public decimal Salary { get; set; }
     public decimal Bonus { get; set; }
     public List<Debit> Debits { get; set; } = new();
+    public List<IncomeItem> Incomes { get; set; } = new();   // 臨時収入（給料/ボーナスとは別。統計の収入総額には別系列で反映）
+    public decimal AtmDeposit { get; set; }                  // ATM入金（口座増・資産移動のため統計には含めない）
+    public decimal AtmWithdraw { get; set; }                 // ATM出金（口座減・資産移動のため統計には含めない）
+}
+
+// 臨時収入の明細（給料・ボーナス以外の収入。入力名ごとに統計へ内訳表示）
+public class IncomeItem
+{
+    public string Id { get; set; } = Util.NewId();
+    public string Name { get; set; } = "";
+    public decimal Amount { get; set; }
 }
 
 public class Debit

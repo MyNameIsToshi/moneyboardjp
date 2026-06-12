@@ -19,16 +19,16 @@
 
     <div class="graph-grid">
 
-        <!-- ① 月別引き落とし合計推移 -->
+        <!-- ① 月別支出合計推移 -->
         <div class="graph-card">
-            <h4>月別 引き落とし合計推移</h4>
+            <h4>月別 支出合計推移</h4>
             @if (MonthlyDebitData.Any())
             {
                 <ApexChart TItem="ChartPoint" Options="DebitLineOptions">
                     <ApexPointSeries TItem="ChartPoint"
                                      Items="MonthlyDebitData"
                                      SeriesType="SeriesType.Line"
-                                     Name="引き落とし合計"
+                                     Name="支出合計"
                                      XValue="@(e => e.Label)"
                                      YValue="@(e => e.Value)" />
                 </ApexChart>
@@ -56,32 +56,29 @@
             else { <div class="graph-placeholder">データなし</div> }
         </div>
 
-        <!-- ③ 給料・ボーナス推移 -->
+        <!-- ③ 収入の内訳推移（給料・ボーナス・臨時収入を入力名ごとに積み上げ） -->
         <div class="graph-card">
-            <h4>給料・ボーナス推移</h4>
-            @if (SalaryData.Any())
+            <h4>収入の内訳推移</h4>
+            @if (IncomeBreakdown.Any())
             {
-                <ApexChart TItem="ChartPoint" Options="SalaryBarOptions">
-                    <ApexPointSeries TItem="ChartPoint"
-                                     Items="SalaryData"
-                                     SeriesType="SeriesType.Bar"
-                                     Name="給料"
-                                     XValue="@(e => e.Label)"
-                                     YValue="@(e => e.Value)" />
-                    <ApexPointSeries TItem="ChartPoint"
-                                     Items="BonusData"
-                                     SeriesType="SeriesType.Bar"
-                                     Name="ボーナス"
-                                     XValue="@(e => e.Label)"
-                                     YValue="@(e => e.Value)" />
+                <ApexChart TItem="ChartPoint" Options="IncomeBreakdownOptions" @key="@($"inc-{SelectedPeriod}")">
+                    @foreach (var s in IncomeBreakdown)
+                    {
+                        <ApexPointSeries TItem="ChartPoint"
+                                         Items="s.Data"
+                                         SeriesType="SeriesType.Bar"
+                                         Name="@s.Name"
+                                         XValue="@(e => e.Label)"
+                                         YValue="@(e => e.Value)" />
+                    }
                 </ApexChart>
             }
             else { <div class="graph-placeholder">データなし</div> }
         </div>
 
-        <!-- ④ 収入 vs 引き落とし -->
+        <!-- ④ 収入 vs 支出 -->
         <div class="graph-card">
-            <h4>収入 vs 引き落とし比較</h4>
+            <h4>収入 vs 支出比較</h4>
             @if (IncomeData.Any())
             {
                 <ApexChart TItem="ChartPoint" Options="IncomeBarOptions">
@@ -94,7 +91,7 @@
                     <ApexPointSeries TItem="ChartPoint"
                                      Items="MonthlyDebitData"
                                      SeriesType="SeriesType.Bar"
-                                     Name="引き落とし"
+                                     Name="支出"
                                      XValue="@(e => e.Label)"
                                      YValue="@(e => e.Value)" />
                 </ApexChart>
@@ -222,6 +219,10 @@
     private List<ChartPoint> IncomeData = new();
     private List<ChartPoint> FixedCostData = new();
 
+    // ③ 収入の内訳系列（給料・ボーナス・各臨時収入名）。積み上げ棒で表示。
+    private List<IncomeSeries> IncomeBreakdown = new();
+    private record IncomeSeries(string Name, List<ChartPoint> Data);
+
     // ApexChartOptions はチャート固有の状態を書き込むため、1インスタンスを複数の
     // <ApexChart> で共有すると最初の1つしか描画されない。チャートごとに専用インスタンスを持つ。
     private static ApexChartOptions<ChartPoint> NewLineOptions() => new()
@@ -231,15 +232,15 @@
         Yaxis = new List<YAxis> { new YAxis { Labels = new YAxisLabels { Formatter = "function(v){return '¥'+v.toLocaleString()}" } } }
     };
 
-    private static ApexChartOptions<ChartPoint> NewBarOptions() => new()
+    private static ApexChartOptions<ChartPoint> NewBarOptions(bool stacked = false) => new()
     {
-        Chart = new Chart { Height = 200, Toolbar = new Toolbar { Show = false } },
+        Chart = new Chart { Height = 200, Stacked = stacked, Toolbar = new Toolbar { Show = false } },
         Yaxis = new List<YAxis> { new YAxis { Labels = new YAxisLabels { Formatter = "function(v){return '¥'+v.toLocaleString()}" } } }
     };
 
     private readonly ApexChartOptions<ChartPoint> DebitLineOptions = NewLineOptions();
     private readonly ApexChartOptions<ChartPoint> BalanceLineOptions = NewLineOptions();
-    private readonly ApexChartOptions<ChartPoint> SalaryBarOptions = NewBarOptions();
+    private readonly ApexChartOptions<ChartPoint> IncomeBreakdownOptions = NewBarOptions(stacked: true);
     private readonly ApexChartOptions<ChartPoint> IncomeBarOptions = NewBarOptions();
     private readonly ApexChartOptions<ChartPoint> FixedBarOptions = NewBarOptions();
 
@@ -299,10 +300,13 @@
     {
         var yms = GetTargetYms();
 
+        // 支出合計は Debits のみ（ATM出金は AtmWithdraw フィールドで別管理＝統計から自動除外）
         MonthlyDebitData = BuildSeries(yms, ym => MonthSum(ym, l => l.Debits.Sum(d => d.Amount)));
         SalaryData       = BuildSeries(yms, ym => MonthSum(ym, l => l.Salary));
         BonusData        = BuildSeries(yms, ym => MonthSum(ym, l => l.Bonus));
-        IncomeData       = BuildSeries(yms, ym => MonthSum(ym, l => l.Salary + l.Bonus));
+        // ④ 収入総額は給料＋ボーナス＋臨時収入（ATM入金は資産移動のため含めない）
+        IncomeData       = BuildSeries(yms, ym => MonthSum(ym, l => l.Salary + l.Bonus + l.Incomes.Sum(i => i.Amount)));
+        BuildIncomeBreakdown(yms);
 
         BalanceSeriesData = Svc.ActiveAccounts.ToDictionary(
             a => a.Name,
@@ -369,6 +373,35 @@
             CardSpendData[i].Color = CardPalette[i % CardPalette.Length];
         CardDonutOptions.Colors = CardSpendData.Select(s => s.Color).ToList();
     }
+
+    // ③ 給料・ボーナスに加え、期間中に登場する臨時収入を入力名ごとの系列にする。
+    private void BuildIncomeBreakdown(List<string> yms)
+    {
+        var series = new List<IncomeSeries>
+        {
+            new("給料", SalaryData),
+            new("ボーナス", BonusData),
+        };
+
+        // 期間中の臨時収入の入力名（空名は「その他収入」にまとめる）を出現順で収集
+        var names = yms
+            .SelectMany(ym => Svc.State.Months.GetValueOrDefault(ym)?.Ledgers.Values ?? Enumerable.Empty<Ledger>())
+            .SelectMany(l => l.Incomes)
+            .Select(IncomeName)
+            .Distinct()
+            .ToList();
+
+        foreach (var name in names)
+        {
+            series.Add(new(name, BuildSeries(yms, ym =>
+                MonthSum(ym, l => l.Incomes.Where(i => IncomeName(i) == name).Sum(i => i.Amount)))));
+        }
+
+        // すべて 0 の系列しかない（=収入が一切ない）場合は空にしてプレースホルダ表示
+        IncomeBreakdown = series.Any(s => s.Data.Any(p => p.Value != 0)) ? series : new();
+    }
+
+    private static string IncomeName(IncomeItem i) => string.IsNullOrWhiteSpace(i.Name) ? "その他収入" : i.Name;
 
     private static string Yen(decimal v) => "¥" + v.ToString("#,0");
     private string Pct(decimal v) => PctOf(v, CategoryTotal);

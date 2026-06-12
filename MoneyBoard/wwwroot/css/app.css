@@ -788,6 +788,12 @@ input.num:focus,
    カードタブ (CardTab) ＋ 月次のカード行 (MonthlyTab)
    ===================================================== */
 /* 月次管理のカード由来 Debit 行（読み取り専用・クリックで遷移） */
+.atm-label {
+  flex: 1;
+  color: var(--sub);
+  font-size: 13px;
+}
+
 .row.card-row {
   cursor: pointer;
   border-radius: 7px;

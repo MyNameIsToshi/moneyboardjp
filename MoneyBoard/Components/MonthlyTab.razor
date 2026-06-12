@@ -58,29 +58,48 @@
                 }
 
                 <div class="sec">
-                    <h4>引き落とし <button class="add-line" @onclick="() => AddDebit(a.Id)">＋追加</button></h4>
-                    @* カード由来の項目を先頭に表示 *@
-                    @foreach (var d in l.Debits.OrderBy(d => d.CardId != null ? 0 : 1))
+                    <h4>収入（給料・ボーナス以外） <button class="add-line" @onclick="() => AddIncome(a.Id)">＋追加</button></h4>
+                    @* ATM入金（一番上に固定・資産移動のため統計には含めない） *@
+                    <div class="row atm-row">
+                        <span class="atm-label">🏧 ATM入金</span>
+                        <AmountInput CssClass="amt" Value="@l.AtmDeposit" ValueChanged="v => { l.AtmDeposit = v; Svc.RequestSave(); }" />
+                    </div>
+                    @foreach (var inc in l.Incomes)
                     {
-                        @if (d.CardId != null)
-                        {
-                            <div class="row card-row" @onclick="() => GoToCard(d.CardId)" title="カードタブで明細を編集">
-                                <span class="name card-name">💳 @d.Name</span>
-                                <span class="amt card-amt">@Yen(d.Amount)</span>
-                                <span class="card-arrow">›</span>
-                            </div>
-                        }
-                        else
-                        {
-                            <div class="row">
-                                <input class="name" @bind="d.Name" @bind:after="Save" placeholder="項目" />
-                                @if (d.IsFixed) { <span class="lock" title="固定費マスタから展開">🔒</span> }
-                                <AmountInput CssClass="amt" Value="@d.Amount" ValueChanged="v => { d.Amount = v; Svc.RequestSave(); }" />
-                                <button class="x" @onclick="() => RemoveDebit(a.Id, d.Id)">✕</button>
-                            </div>
-                        }
+                        <div class="row">
+                            <input class="name" @bind="inc.Name" @bind:after="Save" placeholder="収入名（例：副業・還付金）" />
+                            <AmountInput CssClass="amt" Value="@inc.Amount" ValueChanged="v => { inc.Amount = v; Svc.RequestSave(); }" />
+                            <button class="x" @onclick="() => RemoveIncome(a.Id, inc.Id)">✕</button>
+                        </div>
                     }
+                </div>
 
+                <div class="sec">
+                    <h4>支出 <button class="add-line" @onclick="() => AddDebit(a.Id)">＋追加</button></h4>
+                    @* カード由来の項目を先頭に表示（読み取り専用） *@
+                    @foreach (var d in l.Debits.Where(d => d.CardId != null))
+                    {
+                        <div class="row card-row" @onclick="() => GoToCard(d.CardId)" title="カードタブで明細を編集">
+                            <span class="name card-name">💳 @d.Name</span>
+                            <span class="amt card-amt">@Yen(d.Amount)</span>
+                            <span class="card-arrow">›</span>
+                        </div>
+                    }
+                    @* ATM出金（カードの下に固定・資産移動のため統計には含めない） *@
+                    <div class="row atm-row">
+                        <span class="atm-label">🏧 ATM出金</span>
+                        <AmountInput CssClass="amt" Value="@l.AtmWithdraw" ValueChanged="v => { l.AtmWithdraw = v; Svc.RequestSave(); }" />
+                    </div>
+                    @* 手入力の支出 *@
+                    @foreach (var d in l.Debits.Where(d => d.CardId == null))
+                    {
+                        <div class="row">
+                            <input class="name" @bind="d.Name" @bind:after="Save" placeholder="項目" />
+                            @if (d.IsFixed) { <span class="lock" title="固定費マスタから展開">🔒</span> }
+                            <AmountInput CssClass="amt" Value="@d.Amount" ValueChanged="v => { d.Amount = v; Svc.RequestSave(); }" />
+                            <button class="x" @onclick="() => RemoveDebit(a.Id, d.Id)">✕</button>
+                        </div>
+                    }
                 </div>
 
                 <div class="sec">
@@ -189,6 +208,9 @@
 
     private void AddDebit(string aid) { Mo.Ledgers[aid].Debits.Add(new Debit()); Save(); }
     private void RemoveDebit(string aid, string did) { Mo.Ledgers[aid].Debits.RemoveAll(d => d.Id == did); Save(); }
+
+    private void AddIncome(string aid) { Mo.Ledgers[aid].Incomes.Add(new IncomeItem()); Save(); }
+    private void RemoveIncome(string aid, string iid) { Mo.Ledgers[aid].Incomes.RemoveAll(i => i.Id == iid); Save(); }
 
     private void AddTransfer(string aid)
     {
