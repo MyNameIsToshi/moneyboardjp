@@ -566,6 +566,11 @@ input.num:focus,
   border-radius: 4px;
 }
 
+/* inline 既定のベースライン揃えを避け、じょうごを「口座」と上下中央に揃える */
+.fc-filter-btn svg {
+  display: block;
+}
+
 .fc-filter-btn.active {
   color: var(--accent);
   background: var(--okbg);
@@ -589,8 +594,8 @@ input.num:focus,
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 5px 6px;
-  font-size: 13px;
+  padding: 6px 8px;
+  font-size: 14.5px;
   color: var(--ink);
   font-weight: 400;
   cursor: pointer;
