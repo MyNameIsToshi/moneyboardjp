@@ -16,21 +16,33 @@
 </div>
 
 <div class="mypage-section">
-    <CategorySettings />
+    <button class="mypage-collapse" @onclick='() => ToggleSection("category")'>
+        <span>カード明細カテゴリ</span>
+        <span class="mypage-chevron">@(IsOpen("category") ? "▼" : "▶")</span>
+    </button>
+    @if (IsOpen("category"))
+    {
+        <div class="mypage-collapse-body"><CategorySettings /></div>
+    }
 </div>
 
 <div class="mypage-section">
-    <CardSettings />
-</div>
-
-<div class="mypage-section">
-    <h3>メニュー</h3>
-    <div class="mypage-link">
-        <span>統計を見る</span><span>→</span>
-    </div>
+    <button class="mypage-collapse" @onclick='() => ToggleSection("card")'>
+        <span>カード設定</span>
+        <span class="mypage-chevron">@(IsOpen("card") ? "▼" : "▶")</span>
+    </button>
+    @if (IsOpen("card"))
+    {
+        <div class="mypage-collapse-body"><CardSettings /></div>
+    }
 </div>
 
 @code {
+    // カテゴリ/カード設定は折りたたみ式（既定は畳んだ状態）
+    private readonly HashSet<string> _open = new();
+    private bool IsOpen(string key) => _open.Contains(key);
+    private void ToggleSection(string key) { if (!_open.Remove(key)) _open.Add(key); }
+
     private void ExportCsv()
     {
         // Phase 1 では未実装（後で実装）

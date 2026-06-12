@@ -1229,6 +1229,30 @@ input.num:focus,
   font-weight: 600;
 }
 
+.mypage-collapse {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.mypage-chevron {
+  color: var(--sub);
+  font-size: 12px;
+}
+
+.mypage-collapse-body {
+  margin-top: 14px;
+}
+
 .mypage-row {
   display: flex;
   align-items: center;
