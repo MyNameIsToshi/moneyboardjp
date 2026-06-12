@@ -31,16 +31,30 @@
         @foreach (var card in Svc.CardsOrdered)
         {
             var details = DetailsFor(card.Id);
+            var collapsed = IsCollapsed(card.Id);
             <div class="card-panel">
                 <div class="card-panel-head">
-                    <span class="card-title">💳 @card.Name</span>
+                    <button class="card-collapse" @onclick="() => ToggleCollapse(card.Id)"
+                            title="@(collapsed ? "開く" : "たたむ")">@(collapsed ? "▶" : "▼")</button>
+                    <span class="card-title" @onclick="() => ToggleCollapse(card.Id)">💳 @card.Name</span>
                     <span class="card-acct-name">@Svc.AccountName(card.AccountId)</span>
+                    @if (collapsed)
+                    {
+                        <span class="card-collapse-count">@details.Count 件</span>
+                    }
                     <span class="card-total">@Yen(details.Sum(d => d.Amount))</span>
-                    <button class="add-line" @onclick="() => AddDetail(card.Id)">＋ 明細を追加</button>
-                    <label class="add-line import-label">📥 CSV取込<InputFile OnChange="@(e => OnCsvSelected(e, card.Id))" accept=".csv" class="import-input" /></label>
+                    @if (!collapsed)
+                    {
+                        <button class="add-line" @onclick="() => AddDetail(card.Id)">＋ 明細を追加</button>
+                        <label class="add-line import-label">📥 CSV取込<InputFile OnChange="@(e => OnCsvSelected(e, card.Id))" accept=".csv" class="import-input" /></label>
+                    }
                 </div>
 
-                @if (details.Count == 0)
+                @if (collapsed)
+                {
+                    // たたんでいる間は明細を描画しない（件数と合計だけヘッダに表示）
+                }
+                else if (details.Count == 0)
                 {
                     <div class="none">この月の明細はありません。</div>
                 }
@@ -146,6 +160,14 @@
     }
 
     private static string Yen(decimal v) => "¥" + v.ToString("#,0");
+
+    // ── カードパネルの折りたたみ（カードIdで保持・既定は展開）──
+    private readonly HashSet<string> _collapsed = new();
+    private bool IsCollapsed(string cardId) => _collapsed.Contains(cardId);
+    private void ToggleCollapse(string cardId)
+    {
+        if (!_collapsed.Add(cardId)) _collapsed.Remove(cardId);
+    }
 
     // ── 明細の並び替え（利用日/利用先/カテゴリ/金額）。全カードパネル共通 ──
     private string _sortKey = "date";

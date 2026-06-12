@@ -812,9 +812,25 @@ input.num:focus,
   flex-wrap: wrap;
 }
 
+.card-collapse {
+  border: none;
+  background: none;
+  color: var(--sub);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 2px 4px;
+  line-height: 1;
+}
+
 .card-title {
   font-weight: 600;
   font-size: 15px;
+  cursor: pointer;
+}
+
+.card-collapse-count {
+  font-size: 12px;
+  color: var(--sub);
 }
 
 .card-acct-name {
