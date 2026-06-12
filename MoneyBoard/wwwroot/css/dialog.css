@@ -1,0 +1,80 @@
+/* =====================================================
+   ダイアログ共通 (ConfirmDialog / WarnDialog / 追加ダイアログ)
+   ===================================================== */
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .35);
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.dialog-box {
+  background: var(--card);
+  border-radius: var(--r);
+  padding: 20px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, .18);
+}
+
+.dialog-box h4 {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.dialog-message {
+  font-size: 13px;
+  color: var(--sub);
+  margin-bottom: 12px;
+}
+
+.dialog-btns {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.dialog-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.dialog-form label {
+  font-size: 12px;
+  color: var(--sub);
+  font-weight: 600;
+  margin-bottom: -4px;
+}
+
+.dialog-form input,
+.dialog-form select {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 6px 9px;
+  font: inherit;
+  background: #fff;
+}
+
+.dialog-error {
+  color: var(--bad);
+  font-size: 12px;
+  margin-bottom: 10px;
+}
+
+.warn-inline {
+  font-size: 13px;
+  color: var(--bad);
+  background: var(--badbg);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+}

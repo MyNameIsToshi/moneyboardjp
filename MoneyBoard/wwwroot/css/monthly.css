@@ -1,0 +1,330 @@
+/* =====================================================
+   月次管理タブ (MonthlyTab.razor)
+   ===================================================== */
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.topright {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.monthnav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.monthnav button {
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink);
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.monthnav .m {
+  min-width: 120px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.cycle-info {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 34px;            /* ‹ › ボタンと高さを揃えて上下中央に */
+  color: var(--sub);
+  cursor: help;
+}
+
+.cycle-info-icon {
+  display: block;          /* inline 既定のベースライン揃えを避け、確実に中央へ */
+}
+
+.cycle-tip {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  width: 250px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.6;
+  text-align: left;
+  padding: 9px 11px;
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .18);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .15s;
+}
+
+.cycle-info:hover .cycle-tip,
+.cycle-info:focus-within .cycle-tip {
+  opacity: 1;
+  visibility: visible;
+}
+
+.summary {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 0 18px;
+}
+
+.stat {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 10px 14px;
+  min-width: 150px;
+  flex: 1;
+}
+
+.stat .lab {
+  font-size: 11.5px;
+  color: var(--sub);
+  letter-spacing: .04em
+}
+
+.stat .val {
+  font-size: 20px;
+  font-weight: 600;
+  margin-top: 2px
+}
+
+.stat.warn .val {
+  color: var(--bad)
+}
+
+.stat-btn {
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--accent);
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+  gap: 14px;
+}
+
+.acct {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+}
+
+.acct.bad {
+  border-color: #e7c4bf
+}
+
+.ahead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.aname {
+  font-weight: 600;
+  font-size: 16px
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 0;
+}
+
+.field label {
+  font-size: 13px;
+  color: var(--sub)
+}
+
+input.num {
+  width: 128px;
+  text-align: right;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 9px;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  background: #fff;
+}
+
+input.num:focus,
+.row input:focus,
+.row select:focus,
+.fc-row input:focus,
+.fc-row select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(31, 58, 95, .08);
+}
+
+.sec {
+  margin-top: 8px;
+  border-top: 1px dashed var(--line);
+  padding-top: 8px;
+}
+
+.sec h4 {
+  margin: 0 0 4px;
+  font-size: 11.5px;
+  color: var(--sub);
+  font-weight: 600;
+  letter-spacing: .04em;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+}
+
+.row input.name,
+.row select.name {
+  flex: 1;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 5px 8px;
+  font: inherit;
+  background: #fff;
+}
+
+.row input.amt {
+  width: 96px;
+  text-align: right;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 5px 8px;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  background: #fff;
+}
+
+.row .x,
+.fc-row .x,
+.acct-table .x {
+  border: none;
+  background: none;
+  color: var(--sub);
+  cursor: pointer;
+  font-size: 14px;
+  opacity: .5;
+  padding: 2px 4px;
+}
+
+.row .x:hover,
+.fc-row .x:hover,
+.acct-table .x:hover {
+  opacity: 1;
+  color: var(--bad);
+}
+
+.xfer-line {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12.5px;
+  color: var(--sub);
+  padding: 2px 0;
+}
+
+.xfer-line .in {
+  color: var(--ok)
+}
+
+.close {
+  margin-top: auto;
+  padding-top: 12px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.close .lab {
+  font-size: 12px;
+  color: var(--sub)
+}
+
+.close .amt {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--ok);
+}
+
+.acct.bad .close .amt {
+  color: var(--bad)
+}
+
+.badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 9px;
+  border-radius: 20px;
+  background: var(--okbg);
+  color: var(--ok);
+  display: inline-block;
+  margin-bottom: 2px;
+}
+
+.acct.bad .badge {
+  background: var(--badbg);
+  color: var(--bad)
+}
+
+.bonus-tag {
+  font-size: 10px;
+  background: #fef3c7;
+  color: #92400e;
+  border-radius: 20px;
+  padding: 1px 7px;
+  font-weight: 600;
+}
+
+.lock {
+  font-size: 12px;
+  opacity: .4
+}
+
+/* =====================================================
+   レスポンシブ（月次サマリー）
+   ===================================================== */
+@media (max-width: 520px) {
+  .summary .stat {
+    min-width: 120px
+  }
+}

@@ -1,0 +1,126 @@
+/* =====================================================
+   口座設定タブ (AccountsTab.razor / MyPage内)
+   ===================================================== */
+.acct-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.acct-table th {
+  font-size: 11.5px;
+  color: var(--sub);
+  font-weight: 600;
+  padding: 6px 10px;
+  border-bottom: 2px solid var(--line);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.acct-table td {
+  padding: 8px 10px;
+  border-bottom: 1px dashed var(--line);
+  font-size: 14px;
+  vertical-align: middle;
+}
+
+.acct-table input.tinput {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 5px 8px;
+  font: inherit;
+  background: #fff;
+  width: 100%;
+}
+
+.radio-bonus {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+/* =====================================================
+   カテゴリ設定 (CategorySettings / MyPage内)
+   ===================================================== */
+.cat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.cat-head span {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.cat-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px dashed var(--line);
+  flex-wrap: wrap;
+}
+
+.cat-row:last-child {
+  border-bottom: none;
+}
+
+.cat-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  flex-shrink: 0;
+  border: 1px solid rgba(0, 0, 0, .12);
+}
+
+.cat-name {
+  flex: 1;
+  min-width: 120px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 5px 8px;
+  font: inherit;
+  background: #fff;
+}
+
+.cat-name:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(31, 58, 95, .08);
+}
+
+.cat-palette {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.cat-color {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.cat-color.sel {
+  border-color: var(--ink);
+}
+
+.card-acct {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 5px 8px;
+  font: inherit;
+  background: #fff;
+  min-width: 160px;
+}
+
+.card-acct:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(31, 58, 95, .08);
+}

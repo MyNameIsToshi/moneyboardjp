@@ -1,0 +1,282 @@
+/* =====================================================
+   カードタブ (CardTab) ＋ 月次のカード行 (MonthlyTab)
+   ===================================================== */
+/* 月次管理のカード由来 Debit 行（読み取り専用・クリックで遷移） */
+.atm-label {
+  flex: 1;
+  color: var(--sub);
+  font-size: 13px;
+}
+
+.row.card-row {
+  cursor: pointer;
+  border-radius: 7px;
+  padding: 4px 6px;
+}
+
+.row.card-row:hover {
+  background: #f3f5f8;
+}
+
+.card-name {
+  flex: 1;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.card-amt {
+  width: 96px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.card-arrow {
+  color: var(--sub);
+}
+
+/* カードタブの明細パネル */
+.card-panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 14px;
+  margin-bottom: 12px;
+}
+
+.card-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.card-collapse {
+  border: none;
+  background: none;
+  color: var(--sub);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 2px 4px;
+  line-height: 1;
+}
+
+.card-title {
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.card-collapse-count {
+  font-size: 12px;
+  color: var(--sub);
+}
+
+.card-acct-name {
+  font-size: 12px;
+  color: var(--sub);
+}
+
+.card-total {
+  margin-left: auto;
+  font-weight: 700;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.cd-head,
+.cd-row {
+  display: grid;
+  grid-template-columns: 140px 1fr 130px 110px 32px;
+  gap: 8px;
+  align-items: center;
+}
+
+.cd-head {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.cd-head span {
+  font-size: 11px;
+  color: var(--sub);
+  font-weight: 600;
+}
+
+.cd-row {
+  padding: 3px 0;
+}
+
+.cd-row input,
+.cd-row select {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 5px 8px;
+  font: inherit;
+  background: #fff;
+  width: 100%;
+}
+
+.cd-row .cd-amt {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* カテゴリ列：色ドット＋select */
+.cd-cat-cell,
+.bulk-cat-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.cd-cat-cell select,
+.bulk-cat-cell select {
+  flex: 1;
+  min-width: 0;
+}
+
+.color-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  flex: none;
+  border: 1px solid var(--line);
+}
+
+/* 並び替え可能な見出し */
+.cd-head .sortable,
+.bulk-head .sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.cd-head .sortable:hover,
+.bulk-head .sortable:hover {
+  color: var(--accent);
+}
+
+.cd-row input:focus,
+.cd-row select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(31, 58, 95, .08);
+}
+
+/* CSV取込ボタン（隠しファイル入力をラベルで包む）＋取込結果メッセージ */
+.import-label {
+  cursor: pointer;
+}
+
+.import-input {
+  display: none;
+}
+
+.import-msg {
+  background: var(--okbg);
+  border: 1px solid #b7dccd;
+  color: var(--ok);
+  border-radius: 7px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+/* 一括カテゴリ ダイアログ */
+/* .dialog-box(max-width:420px)より後に定義されるため、複合セレクタで確実に上書きする */
+.dialog-box.bulk-box {
+  max-width: 760px;
+}
+
+.bulk-list {
+  max-height: 60vh;
+  overflow-y: auto;
+  margin-bottom: 8px;
+}
+
+.bulk-batch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--sub);
+}
+
+.bulk-batch-cat {
+  width: 180px;
+}
+
+.bulk-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bulk-check input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.bulk-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 56px 100px 160px;
+  gap: 12px;
+  align-items: center;
+  padding: 7px 0;
+  border-bottom: 1px dashed var(--line);
+}
+
+.bulk-head {
+  font-size: 13px;
+  color: var(--sub);
+  font-weight: 600;
+  border-bottom: 1px solid var(--line);
+}
+
+.bulk-store {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 15px;
+}
+
+.bulk-count,
+.bulk-total {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+}
+
+.bulk-row select,
+.bulk-batch select {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 14px;
+  background: #fff;
+  width: 100%;
+}
+
+.bulk-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.bulk-filter select {
+  width: 140px;
+}
