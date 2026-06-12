@@ -1483,6 +1483,40 @@ input.num:focus,
   color: var(--ink);
 }
 
+/* 収入/支出の項目別内訳（モーダル） */
+.breakdown-row {
+  display: grid;
+  grid-template-columns: 1fr auto 56px;
+  gap: 12px;
+  align-items: center;
+  padding: 7px 0;
+  font-size: 14px;
+  border-bottom: 1px dashed var(--line);
+}
+
+.bd-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bd-amt {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.bd-pct {
+  text-align: right;
+  font-size: 12px;
+  color: var(--sub);
+}
+
+.breakdown-total {
+  font-weight: 700;
+  border-bottom: none;
+  border-top: 2px solid var(--line);
+}
+
 /* =====================================================
    マイページタブ (MyPageTab.razor)
    ===================================================== */

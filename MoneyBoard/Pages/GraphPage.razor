@@ -123,7 +123,8 @@
             <h4>収入 vs 支出比較</h4>
             @if (IncomeData.Any())
             {
-                <ApexChart TItem="ChartPoint" Options="IncomeBarOptions">
+                <ApexChart TItem="ChartPoint" Options="IncomeBarOptions"
+                           OnDataPointSelection="OnIncomeVsExpenseSelected">
                     <ApexPointSeries TItem="ChartPoint"
                                      Items="IncomeData"
                                      SeriesType="SeriesType.Bar"
@@ -141,12 +142,13 @@
             else { <div class="graph-placeholder">データなし</div> }
         </div>
 
-        <!-- ⑤ 固定費年間合計 -->
+        <!-- ⑤ 月別 固定費合計推移 -->
         <div class="graph-card">
-            <h4>固定費 年間合計</h4>
+            <h4>月別 固定費合計推移</h4>
             @if (FixedCostData.Any())
             {
-                <ApexChart TItem="ChartPoint" Options="FixedBarOptions">
+                <ApexChart TItem="ChartPoint" Options="FixedBarOptions"
+                           OnDataPointSelection="OnFixedSelected">
                     <ApexPointSeries TItem="ChartPoint"
                                      Items="FixedCostData"
                                      SeriesType="SeriesType.Bar"
@@ -273,6 +275,34 @@
             </div>
         </div>
     }
+
+    @if (_breakdown is not null)
+    {
+        <div class="dialog-overlay" @onclick="CloseBreakdown">
+            <div class="dialog-box cat-detail-box" @onclick:stopPropagation="true">
+                <div class="cat-detail-head">
+                    <h4>@_breakdown.Title</h4>
+                    <button class="x" @onclick="CloseBreakdown">✕</button>
+                </div>
+                <div class="cat-detail-sub">@RangeLabel ・ 合計 @Yen(_breakdown.Total)</div>
+                <div class="cat-detail-list">
+                    @foreach (var it in _breakdown.Items)
+                    {
+                        <div class="breakdown-row">
+                            <span class="bd-name" title="@it.Name">@it.Name</span>
+                            <span class="bd-amt">@Yen(it.Amount)</span>
+                            <span class="bd-pct">@PctOf(it.Amount, _breakdown.Total)</span>
+                        </div>
+                    }
+                    <div class="breakdown-row breakdown-total">
+                        <span class="bd-name">合計</span>
+                        <span class="bd-amt">@Yen(_breakdown.Total)</span>
+                        <span></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
 </div>
 
 @code {
@@ -351,6 +381,77 @@
     public record DetailRow(string Date, string Store, string Sub, decimal Amount);
     public record DetailModal(string Title, string Color, int Count, decimal Total, List<DetailRow> Rows);
 
+    // ── 収入/支出の項目別内訳モーダル（③・④から起動。期間合計で集計）──
+    public record BreakdownItem(string Name, decimal Amount);
+    public record BreakdownModal(string Title, decimal Total, List<BreakdownItem> Items);
+    private BreakdownModal? _breakdown;
+    private void CloseBreakdown() => _breakdown = null;
+
+    // ④の収入棒→収入内訳、支出棒→支出内訳（系列0=収入, 1=支出）
+    private void OnIncomeVsExpenseSelected(SelectedData<ChartPoint> sel)
+    {
+        if (sel.SeriesIndex == 0) OpenIncomeBreakdown();
+        else OpenExpenseBreakdown();
+    }
+    // ⑤固定費年間合計→固定費の項目別内訳
+    private void OnFixedSelected(SelectedData<ChartPoint> sel) => OpenFixedBreakdown();
+
+    // 対象期間の収入を項目（給料/ボーナス/各臨時収入名）で合算
+    private void OpenIncomeBreakdown()
+    {
+        var yms = GetTargetYms();
+        var items = new List<BreakdownItem>
+        {
+            new("給料", yms.Sum(ym => MonthSum(ym, l => l.Salary))),
+            new("ボーナス", yms.Sum(ym => MonthSum(ym, l => l.Bonus))),
+        };
+        items.AddRange(yms
+            .SelectMany(ym => Svc.State.Months.GetValueOrDefault(ym)?.Ledgers.Values ?? Enumerable.Empty<Ledger>())
+            .SelectMany(l => l.Incomes)
+            .GroupBy(IncomeName)
+            .Select(g => new BreakdownItem(g.Key, g.Sum(i => i.Amount))));
+
+        items = items.Where(x => x.Amount != 0).OrderByDescending(x => x.Amount).ToList();
+        _breakdown = new("収入の内訳", items.Sum(x => x.Amount), items);
+    }
+
+    // 対象期間の支出を項目（月次の Debit 名。カードはカード名で1項目・ATMは対象外）で合算
+    private void OpenExpenseBreakdown()
+    {
+        var yms = GetTargetYms();
+        var items = yms
+            .SelectMany(ym => Svc.State.Months.GetValueOrDefault(ym)?.Ledgers.Values ?? Enumerable.Empty<Ledger>())
+            .SelectMany(l => l.Debits)
+            .GroupBy(d => string.IsNullOrWhiteSpace(d.Name) ? "（名称なし）" : d.Name)
+            .Select(g => new BreakdownItem(g.Key, g.Sum(d => d.Amount)))
+            .Where(x => x.Amount != 0)
+            .OrderByDescending(x => x.Amount)
+            .ToList();
+        _breakdown = new("支出の内訳", items.Sum(x => x.Amount), items);
+    }
+
+    // 対象期間の固定費を項目（固定費マスタ）ごとに合算（各月の有効分・ボーナス払い込み）
+    private void OpenFixedBreakdown()
+    {
+        var yms = GetTargetYms();
+        var byId = new Dictionary<string, (string Name, decimal Amount)>();
+        foreach (var ym in yms)
+        {
+            var month = Ym.Parse(ym).Month;
+            foreach (var fc in Svc.State.FixedCosts.Where(fc => LedgerService.IsFixedCostActive(fc, ym)))
+            {
+                var cur = byId.GetValueOrDefault(fc.Id);
+                byId[fc.Id] = (fc.Name, cur.Amount + LedgerService.GetFixedCostAmount(fc, month));
+            }
+        }
+        var items = byId.Values
+            .Select(v => new BreakdownItem(v.Name, v.Amount))
+            .Where(x => x.Amount != 0)
+            .OrderByDescending(x => x.Amount)
+            .ToList();
+        _breakdown = new("固定費の内訳", items.Sum(x => x.Amount), items);
+    }
+
     private List<CardSlice> CardSpendData = new();
     private decimal CardTotal => CardSpendData.Sum(s => s.Value);
 
@@ -411,6 +512,7 @@
     {
         SelectedPeriod = p;
         _detail = null;
+        _breakdown = null;
         // 期間指定に切替時、未設定なら全期間の端を初期値にする
         if (p == "custom" && string.IsNullOrEmpty(_customStart))
         {
@@ -420,7 +522,7 @@
         BuildChartData();
     }
 
-    private void OnCustomChanged() { _detail = null; BuildChartData(); }
+    private void OnCustomChanged() { _detail = null; _breakdown = null; BuildChartData(); }
 
     private void GoBack() => Nav.NavigateTo("/");
 
