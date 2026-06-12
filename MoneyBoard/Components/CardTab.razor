@@ -99,7 +99,7 @@
 
 @if (ShowBulk)
 {
-    <div class="dialog-overlay" @onclick="() => ShowBulk = false">
+    <div class="dialog-overlay" @onclick="RequestCloseBulk">
         <div class="dialog-box bulk-box" @onclick:stopPropagation="true">
             <h4>一括カテゴリ設定（@LedgerService.Label(Svc.CardMonth)）</h4>
             @if (BulkGroups.Count == 0)
@@ -108,23 +108,56 @@
             }
             else
             {
+                <div class="bulk-batch">
+                    <span>選択した利用先に一括設定:</span>
+                    <div class="bulk-cat-cell bulk-batch-cat">
+                        <span class="color-dot" style="background:@DotColor(_batchCat)"></span>
+                        <select @bind="_batchCat">
+                            <option value="">未分類</option>
+                            @foreach (var c in Svc.CategoriesOrdered)
+                            {
+                                <option value="@c.Id">@c.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <button class="btn" disabled="@(_bulkChecked.Count == 0)" @onclick="ApplyBatchToChecked">
+                        選択（@_bulkChecked.Count）に設定
+                    </button>
+                    <label class="bulk-filter">カテゴリ絞り込み
+                        <select @bind="_bulkCatFilter">
+                            <option value="@AllFilter">すべて</option>
+                            <option value="">未分類</option>
+                            @foreach (var c in Svc.CategoriesOrdered)
+                            {
+                                <option value="@c.Id">@c.Name</option>
+                            }
+                        </select>
+                    </label>
+                </div>
+
                 <div class="bulk-list">
                     <div class="bulk-row bulk-head">
+                        <span class="bulk-check"><input type="checkbox" checked="@AllChecked" @onchange="ToggleAll" /></span>
                         <span class="sortable" @onclick="@(() => SetBulkSort("store"))">@BulkHead("store", "利用先")</span>
                         <span class="sortable" @onclick="@(() => SetBulkSort("count"))">@BulkHead("count", "件数")</span>
                         <span class="sortable" @onclick="@(() => SetBulkSort("total"))">@BulkHead("total", "金額")</span>
                         <span class="sortable" @onclick="@(() => SetBulkSort("category"))">@BulkHead("category", "カテゴリ")</span>
                     </div>
-                    @foreach (var g in BulkGroups)
+                    @if (DisplayedBulkGroups.Count == 0)
+                    {
+                        <div class="none">該当する利用先がありません。</div>
+                    }
+                    @foreach (var g in DisplayedBulkGroups)
                     {
                         <div class="bulk-row">
+                            <span class="bulk-check"><input type="checkbox" checked="@_bulkChecked.Contains(g.Store)" @onchange="() => ToggleBulkCheck(g.Store)" /></span>
                             <span class="bulk-store" title="@g.Store">@g.Store</span>
                             <span class="bulk-count">@g.Count 件</span>
                             <span class="bulk-total">@Yen(g.Total)</span>
                             <div class="bulk-cat-cell">
                                 <span class="color-dot" style="background:@DotColor(BulkSelection.GetValueOrDefault(g.Store))"></span>
                                 <select value="@BulkSelection[g.Store]"
-                                        @onchange="e => BulkSelection[g.Store] = e.Value?.ToString() ?? KeepSentinel">
+                                        @onchange="e => SetRowCategory(g.Store, e.Value?.ToString())">
                                     <option value="@KeepSentinel">変更しない</option>
                                     <option value="">未分類</option>
                                     @foreach (var c in Svc.CategoriesOrdered)
@@ -141,12 +174,19 @@
                 </div>
             }
             <div class="dialog-btns">
-                <button class="btn" @onclick="() => ShowBulk = false">キャンセル</button>
+                <button class="btn" @onclick="RequestCloseBulk">キャンセル</button>
                 <button class="btn primary" @onclick="ApplyBulk">適用</button>
             </div>
         </div>
     </div>
 }
+
+<ConfirmDialog IsVisible="@_bulkConfirmCancel"
+               Title="編集を破棄しますか？"
+               Message="@("一括カテゴリの変更はまだ適用されていません。\n破棄して閉じてもよろしいですか？")"
+               ConfirmText="破棄して閉じる"
+               OnConfirm="DiscardBulk"
+               OnCancel="KeepEditingBulk" />
 
 @code {
     private MonthData Mo = new();
@@ -286,6 +326,57 @@
     private List<StoreGroup> BulkGroups = new();
     private Dictionary<string, string> BulkSelection = new();
 
+    // 複数の利用先を選んでまとめて同じカテゴリを設定する（チェック＋一括設定）
+    private const string AllFilter = "__all__";
+    private HashSet<string> _bulkChecked = new();
+    private string _batchCat = "";          // 一括設定で選ぶカテゴリ（""=未分類）
+    private string _bulkCatFilter = AllFilter;   // 表示の絞り込み（カテゴリ。AllFilter=すべて）
+    private bool _bulkDirty;                // 未適用の変更があるか（キャンセル時の警告用）
+    private bool _bulkConfirmCancel;
+
+    // カテゴリで絞り込んだ表示用の利用先一覧（チェック状態はフィルターと独立に保持）
+    private List<StoreGroup> DisplayedBulkGroups =>
+        _bulkCatFilter == AllFilter
+            ? BulkGroups
+            : BulkGroups.Where(g => BulkSelection.GetValueOrDefault(g.Store, KeepSentinel) == _bulkCatFilter).ToList();
+
+    private bool AllChecked => DisplayedBulkGroups.Count > 0 && DisplayedBulkGroups.All(g => _bulkChecked.Contains(g.Store));
+    private void ToggleAll()
+    {
+        var disp = DisplayedBulkGroups;
+        if (disp.All(g => _bulkChecked.Contains(g.Store)))
+            foreach (var g in disp) _bulkChecked.Remove(g.Store);
+        else
+            foreach (var g in disp) _bulkChecked.Add(g.Store);
+    }
+    private void ToggleBulkCheck(string store)
+    {
+        if (!_bulkChecked.Remove(store)) _bulkChecked.Add(store);
+    }
+    // 行ごとのカテゴリ変更（未適用の編集として記録）
+    private void SetRowCategory(string store, string? val)
+    {
+        BulkSelection[store] = val ?? KeepSentinel;
+        _bulkDirty = true;
+    }
+    // チェックした利用先に _batchCat をまとめて設定し、設定後はチェックを外す
+    private void ApplyBatchToChecked()
+    {
+        foreach (var store in _bulkChecked)
+            BulkSelection[store] = _batchCat;
+        _bulkChecked.Clear();
+        _bulkDirty = true;
+    }
+
+    // キャンセル/オーバーレイ閉じ：未適用の編集があれば破棄確認を出す
+    private void RequestCloseBulk()
+    {
+        if (_bulkDirty) _bulkConfirmCancel = true;
+        else ShowBulk = false;
+    }
+    private void DiscardBulk() { _bulkConfirmCancel = false; ShowBulk = false; }
+    private void KeepEditingBulk() => _bulkConfirmCancel = false;
+
     private void OpenBulk()
     {
         BulkGroups = Mo.CardDetails
@@ -293,6 +384,11 @@
             .Select(g => new StoreGroup(g.Key, g.Count(), g.Sum(d => d.Amount)))
             .ToList();
 
+        _bulkChecked.Clear();
+        _batchCat = "";
+        _bulkCatFilter = AllFilter;
+        _bulkDirty = false;
+        _bulkConfirmCancel = false;
         BulkSelection = new();
         foreach (var g in BulkGroups)
         {
@@ -345,6 +441,7 @@
             if (string.IsNullOrEmpty(sel)) Svc.State.CategoryRules.Remove(g.Store);
             else Svc.State.CategoryRules[g.Store] = sel;
         }
+        _bulkDirty = false;
         ShowBulk = false;
         Save();
     }

@@ -1059,9 +1059,39 @@ input.num:focus,
   margin-bottom: 8px;
 }
 
+.bulk-batch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--sub);
+}
+
+.bulk-batch-cat {
+  width: 180px;
+}
+
+.bulk-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bulk-check input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
 .bulk-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 56px 100px 160px;
+  grid-template-columns: 28px minmax(0, 1fr) 56px 100px 160px;
   gap: 12px;
   align-items: center;
   padding: 7px 0;
@@ -1089,7 +1119,8 @@ input.num:focus,
   font-size: 15px;
 }
 
-.bulk-row select {
+.bulk-row select,
+.bulk-batch select {
   border: 1px solid var(--line);
   border-radius: 7px;
   padding: 6px 8px;
@@ -1097,6 +1128,18 @@ input.num:focus,
   font-size: 14px;
   background: #fff;
   width: 100%;
+}
+
+.bulk-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.bulk-filter select {
+  width: 140px;
 }
 
 /* =====================================================
