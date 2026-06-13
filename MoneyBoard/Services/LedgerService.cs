@@ -178,6 +178,46 @@ public class LedgerService(AppStateStore store)
                 d.CategoryId = catId;
     }
 
+    // 取込明細のうち、同一カードでより早い月に既出（利用日・請求先(正規化)・金額が一致）の行を除外する。
+    // リボ/分割は完済まで毎月CSVに同じ明細が再掲されるため、初出月だけ残して二重計上を防ぐ。
+    // 照合は ym より前の月のみ（＝最初の出現を残す。月をまたぐ取込は時系列順が前提）。
+    public (List<CardDetail> kept, int excluded) DedupAgainstEarlierMonths(string ym, string cardId, List<CardDetail> parsed)
+    {
+        var earlier = new HashSet<string>();
+        foreach (var (m, mo) in State.Months)
+        {
+            if (string.Compare(m, ym) >= 0) continue;   // ym 以降は対象外（初出を残すため過去のみ照合）
+            foreach (var d in mo.CardDetails.Where(d => d.CardId == cardId))
+                earlier.Add(DetailKey(d));
+        }
+
+        var kept = new List<CardDetail>();
+        int excluded = 0;
+        foreach (var d in parsed)
+        {
+            if (earlier.Contains(DetailKey(d))) { excluded++; continue; }
+            kept.Add(d);
+        }
+        return (kept, excluded);
+    }
+
+    private static string DetailKey(CardDetail d) => $"{d.Date}|{NormalizeStore(d.Name)}|{d.Amount}";
+
+    // 請求先の表記ゆれ吸収：全角ASCII・全角空白を半角化し、前後/連続空白を正規化する。
+    // String.Normalize は WASM(browser) 非対応のため、globalization API を使わず手動変換する。
+    private static string NormalizeStore(string? s)
+    {
+        if (string.IsNullOrEmpty(s)) return "";
+        var sb = new System.Text.StringBuilder(s.Length);
+        foreach (var ch in s)
+        {
+            if (ch >= '！' && ch <= '～') sb.Append((char)(ch - 0xFEE0));  // 全角ASCII→半角
+            else if (ch == '　') sb.Append(' ');                                // 全角空白→半角
+            else sb.Append(ch);
+        }
+        return string.Join(' ', sb.ToString().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+    }
+
     // ── カテゴリ/カード参照 ──────────────────────────
     public List<Category> CategoriesOrdered => State.Categories.OrderBy(c => c.SortOrder).ToList();
     public Category? CategoryById(string? id) => string.IsNullOrEmpty(id) ? null : State.Categories.FirstOrDefault(c => c.Id == id);

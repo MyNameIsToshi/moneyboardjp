@@ -345,13 +345,20 @@
             var parsed = JcbCsvParser.Parse(text, cardId);
             Svc.ApplyCategoryRules(parsed);   // 記憶済みの店名→カテゴリを自動適用
 
+            // リボ/分割で過去月に既出の明細（再掲）は除外し、二重計上を防ぐ
+            var (kept, excluded) = Svc.DedupAgainstEarlierMonths(Svc.CardMonth, cardId, parsed);
+
             // 全置換：このカードの当月明細を消して入れ直す
             Mo.CardDetails.RemoveAll(d => d.CardId == cardId);
-            Mo.CardDetails.AddRange(parsed);
+            Mo.CardDetails.AddRange(kept);
             Svc.RecalcCards(Svc.CardMonth);
             Save();
 
-            ImportMessage = $"「{Svc.CardById(cardId)?.Name}」に {parsed.Count} 件を取り込みました（{LedgerService.Label(Svc.CardMonth)}・全置換）";
+            var name = Svc.CardById(cardId)?.Name;
+            var label = LedgerService.Label(Svc.CardMonth);
+            ImportMessage = excluded > 0
+                ? $"「{name}」に {kept.Count} 件を取り込みました（{label}・全置換／過去月と重複の {excluded} 件を除外）"
+                : $"「{name}」に {kept.Count} 件を取り込みました（{label}・全置換）";
         }
         catch (Exception ex)
         {
