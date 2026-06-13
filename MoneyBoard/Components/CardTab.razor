@@ -63,10 +63,10 @@
                         @if (HasBilled(card.Id))
                         {
                             <div class="cb-fields">
-                                <span class="cb-lab">今月の請求額</span>
+                                <span class="cb-lab">今月の請求額（口座引落）</span>
                                 <AmountInput CssClass="cb-input" Value="@(BilledOf(card.Id) ?? 0)"
                                              ValueChanged="v => OnBilledChanged(card.Id, v)" />
-                                <span class="cb-carry">利用額 @Yen(used) ／ 繰越 @Yen(used - (BilledOf(card.Id) ?? 0))</span>
+                                <span class="cb-carry">利用額（統計）@Yen(used)</span>
                             </div>
                         }
                     </div>

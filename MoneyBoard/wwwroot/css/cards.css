@@ -128,7 +128,7 @@
 }
 
 .cb-carry {
-  color: var(--accent);
+  color: var(--sub);
   font-variant-numeric: tabular-nums;
 }
 
