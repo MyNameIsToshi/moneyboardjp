@@ -137,7 +137,8 @@ public class AppStateStore(StorageService storage)
     {
         Ledgers = mo.Ledgers,
         Transfers = mo.Transfers,
-        CardDetails = mo.CardDetails
+        CardDetails = mo.CardDetails,
+        CardBilled = mo.CardBilled
     };
 
     private string SerializeSettings() => JsonSerializer.Serialize(BuildSettingsPart());

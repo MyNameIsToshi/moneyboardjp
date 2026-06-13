@@ -77,7 +77,8 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos)
                         Etag = d.Etag,
                         Ledgers = d.Ledgers ?? new(),
                         Transfers = d.Transfers ?? new(),
-                        CardDetails = d.CardDetails ?? new()
+                        CardDetails = d.CardDetails ?? new(),
+                        CardBilled = d.CardBilled ?? new()
                     };
                 }
             }
@@ -137,7 +138,7 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos)
                 var doc = new MonthDoc
                 {
                     Id = MonthId(ym), UserId = UserId, Type = "month", Ym = ym,
-                    Ledgers = m.Ledgers, Transfers = m.Transfers, CardDetails = m.CardDetails
+                    Ledgers = m.Ledgers, Transfers = m.Transfers, CardDetails = m.CardDetails, CardBilled = m.CardBilled
                 };
                 batch.UpsertItem(doc, BatchOptions(m.Etag));
                 ops.Add(("month", ym));
@@ -248,6 +249,7 @@ public class MonthDoc
     public Dictionary<string, Ledger> Ledgers { get; set; } = new();
     public List<Transfer> Transfers { get; set; } = new();
     public List<CardDetail> CardDetails { get; set; } = new();
+    public Dictionary<string, decimal> CardBilled { get; set; } = new();
 }
 
 // 月次クエリ読み取り専用（_etag を本文から取得するため）
@@ -257,5 +259,6 @@ public class MonthReadDoc
     public Dictionary<string, Ledger>? Ledgers { get; set; }
     public List<Transfer>? Transfers { get; set; }
     public List<CardDetail>? CardDetails { get; set; }
+    public Dictionary<string, decimal>? CardBilled { get; set; }
     [Newtonsoft.Json.JsonProperty("_etag")] public string? Etag { get; set; }
 }

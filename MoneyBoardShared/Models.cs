@@ -92,6 +92,11 @@ public class MonthData
     public Dictionary<string, Ledger> Ledgers { get; set; } = new();
     public List<Transfer> Transfers { get; set; } = new();
     public List<CardDetail> CardDetails { get; set; } = new();   // この月に計上するカード利用明細
+
+    // カード×月の「実請求額」（口座引き落とし額）。リボ・分割で利用額と引き落とし額が
+    // 異なる場合に設定する。未設定のカードは明細合計（＝一括払い）を引き落とし額とみなす。
+    // 明細合計は消費＝統計用としてそのまま残し、口座末残高だけをこの額で補正する。
+    public Dictionary<string, decimal> CardBilled { get; set; } = new();
 }
 
 // カード利用明細（合計が ExpandCards で月次 Debit に反映される）
@@ -107,6 +112,8 @@ public class CardDetail
 
 public class Ledger
 {
+    // 月初残高の起点（開始残高）。前月の同口座台帳が無い「起点月」でのみ使う。
+    // それ以外の月は前月末から自動計算するため、この値は参照されない。
     public decimal Confirmed { get; set; }
     public decimal Salary { get; set; }
     public decimal Bonus { get; set; }

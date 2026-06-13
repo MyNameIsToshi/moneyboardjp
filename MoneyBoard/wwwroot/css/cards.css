@@ -84,6 +84,54 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* 今月の請求額（リボ・分割の補正） */
+.card-billing {
+  margin: 2px 0 8px;
+  font-size: 13px;
+  color: var(--sub);
+}
+
+.cb-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.cb-toggle input {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+}
+
+.cb-fields {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 7px 0 0 21px;
+  flex-wrap: wrap;
+}
+
+.cb-lab {
+  font-weight: 600;
+}
+
+.cb-input {
+  width: 120px;
+  text-align: right;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 5px 8px;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  background: #fff;
+}
+
+.cb-carry {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
 .cd-head,
 .cd-row {
   display: grid;

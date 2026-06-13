@@ -30,19 +30,21 @@
             var outgoing = Mo.Transfers.Where(t => t.From == a.Id).ToList();
             var incoming = Mo.Transfers.Where(t => t.To == a.Id).ToList();
             var others = ActiveAccountsForMonth.Where(x => x.Id != a.Id).ToList();
-            decimal? prevClose = HasPrev ? Svc.CloseOf(PrevMonth, a.Id) : (decimal?)null;
+            var isAnchor = Svc.IsOpeningAnchor(Svc.CurrentMonth, a.Id);
 
             <div class="acct @(bad ? "bad" : "")">
                 <div class="ahead"><span class="aname">@a.Name</span></div>
 
                 <div class="field">
-                    <label>確認時点
-                        @if (prevClose is not null)
-                        {
-                            <span class="hint">前月末 @Yen(prevClose.Value)</span>
-                        }
-                    </label>
-                    <AmountInput Value="@l.Confirmed" ValueChanged="v => { l.Confirmed = v; Svc.RequestSave(); }" />
+                    <label>月初残高 <span class="hint">@(isAnchor ? "開始残高（起点）" : "前月末より自動")</span></label>
+                    @if (isAnchor)
+                    {
+                        <AmountInput Value="@l.Confirmed" ValueChanged="v => { l.Confirmed = v; Svc.RequestSave(); }" />
+                    }
+                    else
+                    {
+                        <span class="opening-auto">@Yen(Svc.OpeningOf(Svc.CurrentMonth, a.Id))</span>
+                    }
                 </div>
 
                 <div class="field">
@@ -155,9 +157,6 @@
 
 @code {
     private MonthData Mo = new();
-
-    private string PrevMonth => LedgerService.PrevYm(Svc.CurrentMonth);
-    private bool HasPrev => Svc.State.Months.ContainsKey(PrevMonth);
 
     // 現在月以降は IsDeleted の口座を非表示、過去月はキープ
     private List<Account> ActiveAccountsForMonth

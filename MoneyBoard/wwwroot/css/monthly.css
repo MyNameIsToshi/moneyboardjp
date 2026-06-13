@@ -33,6 +33,11 @@
   cursor: pointer;
 }
 
+.monthnav button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .monthnav .m {
   min-width: 120px;
   text-align: center;
@@ -189,6 +194,14 @@ input.num:focus,
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(31, 58, 95, .08);
+}
+
+/* 月初残高：起点月以外は前月末から自動計算した値を読み取り専用で表示 */
+.opening-auto {
+  min-width: 128px;
+  text-align: right;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 .sec {

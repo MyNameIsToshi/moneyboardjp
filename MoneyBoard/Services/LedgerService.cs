@@ -60,6 +60,7 @@ public class LedgerService(AppStateStore store)
         foreach (var a in activeAccounts)
         {
             if (!mo.Ledgers.ContainsKey(a.Id))
+                // 前月ありは前月末から自動連鎖（Confirmed は参照されない）。起点月は開始残高0で作成。
                 mo.Ledgers[a.Id] = new Ledger { Confirmed = hasPrev ? CloseOf(prev, a.Id) : 0 };
         }
         ExpandFixedCosts(ym, mo);
@@ -104,11 +105,26 @@ public class LedgerService(AppStateStore store)
         {
             if (!mo.Ledgers.TryGetValue(card.AccountId, out var ledger)) continue;
             var sum = mo.CardDetails.Where(d => d.CardId == card.Id).Sum(d => d.Amount);
+            // 請求額が設定されていれば口座引き落としはその額（リボ・分割）。未設定なら明細合計＝一括。
+            var amount = mo.CardBilled.TryGetValue(card.Id, out var billed) ? billed : sum;
             var debit = ledger.Debits.FirstOrDefault(d => d.CardId == card.Id);
             if (debit == null)
-                ledger.Debits.Add(new Debit { Name = card.Name, Amount = sum, CardId = card.Id });
-            else { debit.Name = card.Name; debit.Amount = sum; }
+                ledger.Debits.Add(new Debit { Name = card.Name, Amount = amount, CardId = card.Id });
+            else { debit.Name = card.Name; debit.Amount = amount; }
         }
+    }
+
+    // カードの「今月の請求額」を取得（null=未設定＝一括払い）。
+    public decimal? CardBilledOf(string ym, string cardId) =>
+        State.Months.TryGetValue(ym, out var mo) && mo.CardBilled.TryGetValue(cardId, out var b) ? b : null;
+
+    // カードの「今月の請求額」を設定（null で解除＝明細合計に戻す）。当月のカード Debit を再計算する。
+    public void SetCardBilled(string ym, string cardId, decimal? billed)
+    {
+        if (!State.Months.TryGetValue(ym, out var mo)) return;
+        if (billed is null) mo.CardBilled.Remove(cardId);
+        else mo.CardBilled[cardId] = billed.Value;
+        ExpandCards(ym, mo);
     }
 
     // カード削除で消える対象（当月以降の明細）の件数と合計。削除確認の明示用。
@@ -129,7 +145,10 @@ public class LedgerService(AppStateStore store)
         var card = State.Cards.FirstOrDefault(c => c.Id == id);
         if (card != null) card.IsDeleted = true;
         foreach (var ym in State.Months.Keys.Where(IsCurrentOrFutureCycle).ToList())
+        {
             State.Months[ym].CardDetails.RemoveAll(d => d.CardId == id);
+            State.Months[ym].CardBilled.Remove(id);
+        }
         OnCardsChanged();
     }
 
@@ -187,21 +206,30 @@ public class LedgerService(AppStateStore store)
     }
 
     // ── 残高計算 ─────────────────────────────────────
-    public decimal CloseOf(string ym, string accountId)
+    // 月初残高 = 前月末から自動連鎖。前月の同口座台帳が無い「起点月」のみ開始残高(Confirmed)を使う。
+    public decimal OpeningOf(string ym, string accountId)
     {
         if (!State.Months.TryGetValue(ym, out var mo)) return 0;
         if (!mo.Ledgers.TryGetValue(accountId, out var l)) return 0;
+        var prev = PrevYm(ym);
+        return State.Months.TryGetValue(prev, out var pm) && pm.Ledgers.ContainsKey(accountId)
+            ? CloseOf(prev, accountId)
+            : l.Confirmed;
+    }
+
+    // 起点月（前月の同口座台帳が無い）か。起点月だけ開始残高を手入力できる。
+    public bool IsOpeningAnchor(string ym, string accountId)
+    {
+        var prev = PrevYm(ym);
+        return !(State.Months.TryGetValue(prev, out var pm) && pm.Ledgers.ContainsKey(accountId));
+    }
+
+    public decimal CloseOf(string ym, string accountId)
+    {
+        if (!State.Months.TryGetValue(ym, out var mo)) return 0;
+        if (!mo.Ledgers.ContainsKey(accountId)) return 0;
         var account = State.Accounts.FirstOrDefault(a => a.Id == accountId);
-        decimal bonus = (account?.IsBonusAccount == true) ? l.Bonus : 0;
-        // 臨時収入と ATM 入出金も実際の口座残高を増減させる（ATM は資産移動だが残高には効く）
-        decimal v = l.Confirmed + l.Salary + bonus + l.Incomes.Sum(i => i.Amount) + l.AtmDeposit
-                    - l.Debits.Sum(d => d.Amount) - l.AtmWithdraw;
-        foreach (var t in mo.Transfers)
-        {
-            if (t.To == accountId) v += t.Amount;
-            if (t.From == accountId) v -= t.Amount;
-        }
-        return v;
+        return LedgerMath.Close(mo, accountId, OpeningOf(ym, accountId), account?.IsBonusAccount == true);
     }
 
     // ── 口座/固定費の参照・操作 ──────────────────────
