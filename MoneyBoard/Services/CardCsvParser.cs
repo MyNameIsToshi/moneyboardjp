@@ -4,27 +4,50 @@ using MoneyBoardShared;
 
 namespace MoneyBoard.Services;
 
+/// <summary>取り込めるカード明細 CSV の種別。</summary>
+public enum CardCsvFormat { Jcb, Amazon, PayPay, AuPay }
+
 /// <summary>
-/// JCB のご利用明細 CSV をパースして CardDetail のリストにする。
-/// 列: [0]利用者 [1]区分 [2]利用日 [3]利用先 [4]金額 ...（摘要列に改行を含むため引用符対応が必要）。
-/// ヘッダ/サマリ行は「利用日(列2)が日付として解釈できない」ことで自動的に除外される。
+/// カード明細 CSV を種別ごとの列マッピングでパースして CardDetail のリストにする。
+/// どの種別も「日付列・利用先列・金額列」を指定するだけの同じ骨格で、
+/// 日付列が日付として解釈できない行（ヘッダ・合計・カード情報行）は自動的に除外される。
 /// </summary>
-public static class JcbCsvParser
+public static class CardCsvParser
 {
-    public static List<CardDetail> Parse(string text, string cardId)
+    /// <param name="Label">UI 表示名</param>
+    /// <param name="IsUtf8">true=UTF-8(BOM可) / false=Shift-JIS（JS でデコード）</param>
+    public record FormatSpec(string Label, bool IsUtf8, int DateCol, int NameCol, int AmountCol);
+
+    public static readonly IReadOnlyDictionary<CardCsvFormat, FormatSpec> Specs =
+        new Dictionary<CardCsvFormat, FormatSpec>
+        {
+            // JCB:    [2]利用日 [3]利用先 [4]金額（先頭にカード情報・末尾に合計）
+            [CardCsvFormat.Jcb]    = new("JCB",           IsUtf8: false, DateCol: 2, NameCol: 3, AmountCol: 4),
+            // Amazon Mastercard: [0]利用日 [1]利用先 [2]金額（1行目=カード情報・末尾=合計行）
+            [CardCsvFormat.Amazon] = new("Amazon Master", IsUtf8: false, DateCol: 0, NameCol: 1, AmountCol: 2),
+            // PayPay(UTF-8): [0]利用日 [1]利用店名 [5]利用金額（ヘッダ行あり）
+            [CardCsvFormat.PayPay] = new("PayPay",        IsUtf8: true,  DateCol: 0, NameCol: 1, AmountCol: 5),
+            // au PAY: [2]ご利用日 [3]ご利用店名 [4]ご利用金額（ヘッダ行あり）
+            [CardCsvFormat.AuPay]  = new("au PAY",        IsUtf8: false, DateCol: 2, NameCol: 3, AmountCol: 4),
+        };
+
+    public static List<CardDetail> Parse(CardCsvFormat format, string text, string cardId)
     {
+        var spec = Specs[format];
+        int need = Math.Max(spec.DateCol, Math.Max(spec.NameCol, spec.AmountCol)) + 1;
+
         var list = new List<CardDetail>();
         foreach (var row in ReadCsv(text))
         {
-            if (row.Count < 5) continue;
-            if (!TryParseDate(row[2].Trim(), out var date)) continue;
-            var amountRaw = row[4].Replace(",", "").Trim();
+            if (row.Count < need) continue;
+            if (!TryParseDate(row[spec.DateCol].Trim(), out var date)) continue;   // ヘッダ/合計/情報行を自動除外
+            var amountRaw = row[spec.AmountCol].Replace(",", "").Trim();
             if (!decimal.TryParse(amountRaw, NumberStyles.Number, CultureInfo.InvariantCulture, out var amount)) continue;
             list.Add(new CardDetail
             {
                 CardId = cardId,
                 Date = date,
-                Name = row[3].Trim(),
+                Name = row[spec.NameCol].Trim(),
                 Amount = amount
             });
         }
