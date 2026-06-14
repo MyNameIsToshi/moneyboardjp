@@ -18,7 +18,10 @@ public partial class DataApi
     private async Task<(string? userId, bool isOwner, IActionResult? error)> AuthorizeAsync(Container container, HttpRequest req)
     {
         var principal = await auth.GetPrincipalAsync(req);
-        if (principal is null) return (null, false, new UnauthorizedResult());
+        if (principal is null)
+            // 一時計測：401 の理由を本文に載せて DevTools で直接読めるようにする（原因特定後に戻す）。
+            return (null, false, new ObjectResult(new { error = "unauthorized", reason = auth.LastError })
+            { StatusCode = StatusCodes.Status401Unauthorized });
         if (auth.IsBypass) return (principal.Uid, true, null);   // ローカル開発はオーナー扱い
 
         // オーナー（OwnerEmail と一致・メール確認済み）は常に許可。
