@@ -1,9 +1,19 @@
 @page "/"
 @implements IDisposable
 @inject LedgerService Svc
+@inject AuthService Auth
 
 <div class="wrap">
-    <div class="app-title">MoneyBoard</div>
+    <div class="home-head">
+        <div class="app-title">MoneyBoard</div>
+        @if (!Auth.IsBypass && Auth.User is not null)
+        {
+            <div class="account">
+                <span class="account-email" title="@Auth.User.Email">@Auth.User.Email</span>
+                <button class="add-line" @onclick="Auth.SignOutAsync">ログアウト</button>
+            </div>
+        }
+    </div>
 
     @if (ShowConflictNotice)
     {

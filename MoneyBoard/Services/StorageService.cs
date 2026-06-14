@@ -6,7 +6,7 @@ namespace MoneyBoard.Services;
 
 public enum SaveResult { Ok, Conflict, Error }
 
-public class StorageService(HttpClient http)
+public class StorageService(HttpClient http, AuthService auth)
 {
     private const string ApiPath = "api/data";
 
@@ -14,10 +14,19 @@ public class StorageService(HttpClient http)
     private string? _settingsEtag;
     private readonly Dictionary<string, string> _monthEtags = new();
 
+    // Firebase ID トークンを Authorization: Bearer で添付（バイパス時は null＝付与しない）。
+    private async Task ApplyAuthAsync()
+    {
+        var token = await auth.GetTokenAsync();
+        http.DefaultRequestHeaders.Authorization =
+            token is null ? null : new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+    }
+
     // 取得失敗（通信エラー・500 等）は例外として呼び出し元へ伝播させる
     // （失敗を「データなし」と誤認して実データを空で上書きするのを防ぐため）。
     public async Task<AppState?> LoadAsync()
     {
+        await ApplyAuthAsync();
         using var resp = await http.GetAsync(ApiPath);
         resp.EnsureSuccessStatusCode();
         var env = await resp.Content.ReadFromJsonAsync<DataEnvelope>();
@@ -48,6 +57,7 @@ public class StorageService(HttpClient http)
     {
         try
         {
+            await ApplyAuthAsync();
             if (changes.Settings != null)
                 changes.Settings.Etag = _settingsEtag;
             foreach (var (ym, m) in changes.Months)
