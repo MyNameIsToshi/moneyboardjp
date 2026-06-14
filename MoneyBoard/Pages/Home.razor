@@ -1,11 +1,12 @@
 @page "/"
 @implements IDisposable
+@using System.Reflection
 @inject LedgerService Svc
 @inject AuthService Auth
 
 <div class="wrap">
     <div class="home-head">
-        <div class="app-title">MoneyBoard</div>
+        <div class="app-title">MoneyBoard@if (!string.IsNullOrEmpty(BuildId)) {<span class="app-ver">build @BuildId</span>}</div>
         @if (!Auth.IsBypass && Auth.User is not null)
         {
             <div class="account">
@@ -70,6 +71,7 @@
     private bool Loaded = false;
     private bool LoadFailed = false;
     private bool ShowConflictNotice = false;
+    private string BuildId = "";
 
     // 読み込み完了までタブ操作を無効化（空状態のタブを触らせない）
     private bool TabDisabled => !Loaded;
@@ -77,6 +79,9 @@
 
     protected override async Task OnInitializedAsync()
     {
+        BuildId = typeof(Home).Assembly
+            .GetCustomAttributes<AssemblyMetadataAttribute>()
+            .FirstOrDefault(a => a.Key == "BuildId")?.Value ?? "";
         Svc.StateReloadedExternally += OnExternalReload;
         await Load();
     }

@@ -3,7 +3,13 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- ビルド時刻(JST)を版表示として埋め込む。CI の clean build ごとに更新され、
+         ヘッダーの版を見ればどのデプロイが反映済みかが一目で分かる。 -->
+    <BuildId>$([System.DateTime]::UtcNow.AddHours(9).ToString("yyyy-MM-dd HH:mm"))</BuildId>
   </PropertyGroup>
+  <ItemGroup>
+    <AssemblyMetadata Include="BuildId" Value="$(BuildId)" />
+  </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Blazor-ApexCharts" Version="6.1.0" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.*" />

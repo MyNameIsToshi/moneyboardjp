@@ -98,6 +98,16 @@ body {
   margin-bottom: 14px;
 }
 
+/* タイトル右の版表示（ビルド時刻＝デプロイ確認用の灰色サブ） */
+.app-ver {
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--sub);
+  vertical-align: middle;
+}
+
 .home-head {
   display: flex;
   align-items: center;
