@@ -56,12 +56,17 @@ public class AuthService : IAsyncDisposable
     public async Task<string?> GetTokenAsync()
         => IsBypass ? null : await _js.InvokeAsync<string?>("mbAuth.getToken");
 
-    // HttpClient に Authorization: Bearer を設定（バイパス時はヘッダーなし）。
+    // ID トークンを API に添付（バイパス時はヘッダーなし）。
+    // SWA(マネージド関数)は Authorization ヘッダーを自前トークンで上書きするため、Firebase トークンは
+    // 独自ヘッダー X-Firebase-Token で渡す。Authorization も残す（ローカル等 SWA を経由しない経路のフォールバック）。
     public async Task ApplyTokenAsync(HttpClient http)
     {
         var token = await GetTokenAsync();
+        http.DefaultRequestHeaders.Remove("X-Firebase-Token");
         http.DefaultRequestHeaders.Authorization =
             token is null ? null : new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        if (token is not null)
+            http.DefaultRequestHeaders.Add("X-Firebase-Token", token);
     }
 
     public ValueTask DisposeAsync()
