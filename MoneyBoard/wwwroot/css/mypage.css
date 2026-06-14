@@ -38,3 +38,54 @@
 .mypage-collapse-body {
   margin-top: 14px;
 }
+
+/* アクセス管理（オーナー向け） */
+.access-sub {
+  margin: 14px 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sub);
+  letter-spacing: .04em;
+}
+
+.access-sub:first-child {
+  margin-top: 0;
+}
+
+.access-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--line);
+}
+
+.access-row:last-child {
+  border-bottom: none;
+}
+
+.access-id {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.access-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.access-email {
+  font-size: 12px;
+  color: var(--sub);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.access-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}

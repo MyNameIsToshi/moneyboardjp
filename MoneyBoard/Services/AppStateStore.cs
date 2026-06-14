@@ -13,6 +13,7 @@ public class AppStateStore(StorageService storage)
     public AppState State { get; private set; } = new();
     public bool IsLoaded { get; private set; }
     public bool IsPending { get; private set; }   // サインイン済みだが未承認（承認待ち）
+    public bool IsOwner => storage.IsOwner;        // 現在のユーザーがオーナーか
 
     /// <summary>保存が競合し、最新状態を読み込み直したときに発火（UI 再描画用）。</summary>
     public event Action? StateReloadedExternally;

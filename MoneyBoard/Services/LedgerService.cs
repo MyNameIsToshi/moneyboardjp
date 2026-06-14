@@ -12,6 +12,7 @@ public class LedgerService(AppStateStore store)
     public AppState State => store.State;
     public bool IsLoaded => store.IsLoaded;
     public bool IsPending => store.IsPending;   // 承認待ち（未承認サインイン）
+    public bool IsOwner => store.IsOwner;       // オーナー（承認管理UIの出し分け用）
 
     public event Action? StateReloadedExternally
     {

@@ -17,19 +17,14 @@ public class StorageService(HttpClient http, AuthService auth)
     private string? _settingsEtag;
     private readonly Dictionary<string, string> _monthEtags = new();
 
-    // Firebase ID トークンを Authorization: Bearer で添付（バイパス時は null＝付与しない）。
-    private async Task ApplyAuthAsync()
-    {
-        var token = await auth.GetTokenAsync();
-        http.DefaultRequestHeaders.Authorization =
-            token is null ? null : new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-    }
+    // 直近の GET で判明した、現在のユーザーがオーナーか（承認管理UIの出し分け用）。
+    public bool IsOwner { get; private set; }
 
     // 取得失敗（通信エラー・500 等）は例外として呼び出し元へ伝播させる
     // （失敗を「データなし」と誤認して実データを空で上書きするのを防ぐため）。
     public async Task<AppState?> LoadAsync()
     {
-        await ApplyAuthAsync();
+        await auth.ApplyTokenAsync(http);
         using var resp = await http.GetAsync(ApiPath);
         if (resp.StatusCode == HttpStatusCode.Forbidden)
             throw new AccessPendingException();   // 未承認＝承認待ち
@@ -37,6 +32,7 @@ public class StorageService(HttpClient http, AuthService auth)
         var env = await resp.Content.ReadFromJsonAsync<DataEnvelope>();
         if (env == null) return null;
 
+        IsOwner = env.IsOwner;
         _settingsEtag = env.Settings?.Etag;
         _monthEtags.Clear();
 
@@ -62,7 +58,7 @@ public class StorageService(HttpClient http, AuthService auth)
     {
         try
         {
-            await ApplyAuthAsync();
+            await auth.ApplyTokenAsync(http);
             if (changes.Settings != null)
                 changes.Settings.Etag = _settingsEtag;
             foreach (var (ym, m) in changes.Months)

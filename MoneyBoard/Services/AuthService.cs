@@ -56,6 +56,14 @@ public class AuthService : IAsyncDisposable
     public async Task<string?> GetTokenAsync()
         => IsBypass ? null : await _js.InvokeAsync<string?>("mbAuth.getToken");
 
+    // HttpClient に Authorization: Bearer を設定（バイパス時はヘッダーなし）。
+    public async Task ApplyTokenAsync(HttpClient http)
+    {
+        var token = await GetTokenAsync();
+        http.DefaultRequestHeaders.Authorization =
+            token is null ? null : new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+    }
+
     public ValueTask DisposeAsync()
     {
         _ref?.Dispose();

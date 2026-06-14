@@ -8,6 +8,7 @@ public class DataEnvelope
 {
     public SettingsPart? Settings { get; set; }
     public Dictionary<string, MonthPart> Months { get; set; } = new();
+    public bool IsOwner { get; set; }   // GET レスポンスのみ：現在のユーザーがオーナーか（承認管理UIの出し分け用）
 }
 
 /// <summary>設定ドキュメント（口座・固定費）に対応するパート。</summary>
