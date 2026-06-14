@@ -9,9 +9,8 @@ using MoneyBoardShared;
 
 namespace MoneyBoardApi;
 
-public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos)
+public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos, FirebaseAuth auth)
 {
-    private const string UserId = "default"; // Google認証実装後にヘッダーから取得
     private const string SettingsId = "settings";
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
@@ -38,8 +37,10 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos)
     {
         try
         {
+            var userId = await auth.GetUserIdAsync(req);
+            if (userId is null) return new UnauthorizedResult();
             var container = GetContainer();
-            var pk = new PartitionKey(UserId);
+            var pk = new PartitionKey(userId);
             var env = new DataEnvelope { Settings = new SettingsPart() };
 
             // 設定（ポイント読み取り）。無ければ新規ユーザーとして空の設定。
@@ -64,7 +65,7 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos)
 
             // 月次（クエリ）。_etag はドキュメント本文から取得する。
             var query = new QueryDefinition("SELECT * FROM c WHERE c.userId = @u AND c.type = 'month'")
-                .WithParameter("@u", UserId);
+                .WithParameter("@u", userId);
             using var it = container.GetItemQueryIterator<MonthReadDoc>(query,
                 requestOptions: new QueryRequestOptions { PartitionKey = pk });
             while (it.HasMoreResults)
@@ -113,8 +114,10 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos)
                 return new BadRequestResult();
             }
 
+            var userId = await auth.GetUserIdAsync(req);
+            if (userId is null) return new UnauthorizedResult();
             var container = GetContainer();
-            var pk = new PartitionKey(UserId);
+            var pk = new PartitionKey(userId);
             var batch = container.CreateTransactionalBatch(pk);
             var ops = new List<(string kind, string ym)>();
 
@@ -122,7 +125,7 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos)
             {
                 var doc = new SettingsDoc
                 {
-                    Id = SettingsId, UserId = UserId, Type = "settings",
+                    Id = SettingsId, UserId = userId, Type = "settings",
                     SchemaVersion = env.Settings.SchemaVersion,
                     Accounts = env.Settings.Accounts,
                     FixedCosts = env.Settings.FixedCosts,
@@ -137,7 +140,7 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos)
             {
                 var doc = new MonthDoc
                 {
-                    Id = MonthId(ym), UserId = UserId, Type = "month", Ym = ym,
+                    Id = MonthId(ym), UserId = userId, Type = "month", Ym = ym,
                     Ledgers = m.Ledgers, Transfers = m.Transfers, CardDetails = m.CardDetails, CardBilled = m.CardBilled
                 };
                 batch.UpsertItem(doc, BatchOptions(m.Etag));
