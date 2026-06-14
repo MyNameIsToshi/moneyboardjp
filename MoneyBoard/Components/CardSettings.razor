@@ -45,14 +45,24 @@ else
                OnConfirm="ExecuteDelete"
                OnCancel="CancelDelete" />
 
+<WarnDialog IsVisible="@ShowNoAccountWarn"
+            Title="口座が登録されていません"
+            Messages="@(new List<string> { "カードを追加するには、先に口座を登録してください。" })"
+            SubMessage=""
+            OnClose="() => ShowNoAccountWarn = false" />
+
 @code {
     private IEnumerable<Card> Ordered => Svc.State.Cards.Where(c => !c.IsDeleted).OrderBy(c => c.SortOrder);
 
     // カード変更は当月以降の月次カード Debit を作り直してから保存する
     private void Save() { Svc.OnCardsChanged(); _ = Svc.SaveAsync(); }
 
+    private bool ShowNoAccountWarn;
+
     private void Add()
     {
+        // 口座が1件も無いとカードの引き落とし先が決められないため、先に口座登録を促す。
+        if (!Svc.ActiveAccounts.Any()) { ShowNoAccountWarn = true; return; }
         Svc.State.Cards.Add(new Card
         {
             Name = "",
