@@ -84,7 +84,7 @@ public class FirebaseAuth
             var result = await new JsonWebTokenHandler().ValidateTokenAsync(token, parameters);
             if (!result.IsValid)
             {
-                LastError = await BuildDiagAsync(token, result.Exception);
+                LastError = await BuildDiagAsync(header, token, result.Exception);
                 _logger.LogWarning("Firebase token invalid: {Err}", LastError);
                 return null;
             }
@@ -108,18 +108,23 @@ public class FirebaseAuth
         }
         catch (Exception ex)
         {
-            LastError = await BuildDiagAsync(token, ex);
+            LastError = await BuildDiagAsync(header, token, ex);
             _logger.LogError(ex, "Firebase token validation threw");
             return null;
         }
     }
 
-    // 検証失敗時の精密診断（原因特定の一時計測）。トークンの kid と、関数が実際に握っている
+    // 検証失敗時の精密診断（原因特定の一時計測）。関数が実際に受け取った Authorization ヘッダー／
+    // トークン文字列の形（長さ・セグメント数・デコードした1セグメント目＝JWTヘッダー）と、握っている
     // 署名鍵の kid 一覧・期待 iss/aud・内側例外を1行にまとめる。原因確定後に簡素化する。
-    private async Task<string> BuildDiagAsync(string token, Exception? inner)
+    private async Task<string> BuildDiagAsync(string rawHeader, string token, Exception? inner)
     {
         string tokenKid = "?";
         try { tokenKid = new JsonWebToken(token).Kid; } catch { /* ignore */ }
+
+        string hdr0 = "?";
+        try { hdr0 = Base64UrlEncoder.Decode(token.Split('.')[0]); }
+        catch (Exception e) { hdr0 = $"decode-failed:{e.Message}"; }
 
         string cfgKids;
         try
@@ -132,7 +137,9 @@ public class FirebaseAuth
             cfgKids = $"cfg-fetch-failed: {e.GetType().Name}: {e.Message}";
         }
 
-        return $"tokenKid={tokenKid}; expIss={_issuer}; expAud={_projectId}; cfgKids=[{cfgKids}]; "
+        string rawPrefix = rawHeader.Length >= 15 ? rawHeader[..15] : rawHeader;
+        return $"rawLen={rawHeader.Length}; rawPrefix='{rawPrefix}'; tokLen={token.Length}; segs={token.Split('.').Length}; "
+             + $"hdr0={hdr0}; tokenKidProp={tokenKid}; expIss={_issuer}; expAud={_projectId}; cfgKids=[{cfgKids}]; "
              + $"inner={inner?.GetType().Name}: {inner?.Message}";
     }
 }
