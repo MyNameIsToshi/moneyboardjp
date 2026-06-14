@@ -6,7 +6,13 @@
 
 <div class="wrap">
     <div class="home-head">
-        <div class="app-title">MoneyBoard@if (!string.IsNullOrEmpty(BuildId)) {<span class="app-ver">build @BuildId</span>}</div>
+        <div class="app-title">
+            MoneyBoard
+            @if (!string.IsNullOrEmpty(BuildId))
+            {
+                <span class="app-ver">build @BuildId</span>
+            }
+        </div>
         @if (!Auth.IsBypass && Auth.User is not null)
         {
             <div class="account">
