@@ -69,12 +69,13 @@ public class FirebaseAuth
 
         try
         {
-            var config = await _config!.GetConfigurationAsync(CancellationToken.None);
+            // ConfigurationManager を TVP に渡すと、kid 不一致時に JWKS を自動リフレッシュ＆再試行する。
+            // Firebase の securetoken 署名鍵はほぼ毎日ローテーションするため、鍵スナップショットの固定は不可。
             var parameters = new TokenValidationParameters
             {
                 ValidIssuer = _issuer,
                 ValidAudience = _projectId,
-                IssuerSigningKeys = config.SigningKeys,
+                ConfigurationManager = _config!,
                 ValidateIssuer = true,
                 ValidateAudience = true,
                 ValidateLifetime = true,
