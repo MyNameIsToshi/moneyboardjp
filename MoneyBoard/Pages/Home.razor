@@ -18,16 +18,16 @@
     @if (Svc.IsPending)
     {
         <div class="loading">
-            <p style="font-size:15px;color:var(--ink);font-weight:600">アクセス承認待ちです</p>
-            <p style="font-size:13px">オーナーの承認後にご利用いただけます。<br />承認されたら下のボタンで再読み込みしてください。</p>
-            <button class="btn" style="margin-top:12px" @onclick="Load">再読み込み</button>
+            <p class="pending-title">アクセス承認待ちです</p>
+            <p class="pending-note">オーナーの承認後にご利用いただけます。<br />承認されたら下のボタンで再読み込みしてください。</p>
+            <button class="btn" @onclick="Load">再読み込み</button>
         </div>
     }
     else
     {
         @if (ShowConflictNotice)
         {
-            <div style="background:#fff3cd;border:1px solid #ffe69c;color:#664d03;padding:10px 14px;border-radius:6px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:12px">
+            <div class="notice">
                 <span>別の場所でデータが更新されたため、最新の内容を再読み込みしました。</span>
                 <button class="x" @onclick="() => ShowConflictNotice = false">✕</button>
             </div>
@@ -45,7 +45,7 @@
             <div class="loading">
                 データの読み込みに失敗しました。<br />
                 ネットワーク接続を確認して、再度お試しください。<br />
-                <button class="btn" style="margin-top:12px" @onclick="Load">再読み込み</button>
+                <button class="btn" @onclick="Load">再読み込み</button>
             </div>
         }
         else if (!Loaded)

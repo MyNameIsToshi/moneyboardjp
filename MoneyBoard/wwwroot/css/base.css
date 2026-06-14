@@ -60,6 +60,20 @@ body {
   color: var(--sub);
 }
 
+.loading .btn {
+  margin-top: 12px;
+}
+
+.pending-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.pending-note {
+  font-size: 13px;
+}
+
 .spinner {
   width: 32px;
   height: 32px;
@@ -109,6 +123,25 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.account-note {
+  font-size: 13px;
+  color: var(--sub);
+}
+
+/* データ競合での再読み込み通知（黄色バナー） */
+.notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #fff3cd;
+  border: 1px solid #ffe69c;
+  color: #664d03;
+  padding: 10px 14px;
+  border-radius: 6px;
+  margin-bottom: 12px;
 }
 
 /* =====================================================
