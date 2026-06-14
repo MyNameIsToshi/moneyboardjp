@@ -10,7 +10,7 @@
             MoneyBoard
             @if (!string.IsNullOrEmpty(AppVersion))
             {
-                <span class="app-ver">v@AppVersion</span>
+                <span class="app-ver">@AppVersion</span>
             }
         </div>
         @if (!Auth.IsBypass && Auth.User is not null)
@@ -89,7 +89,8 @@
         // ビルドメタ('+'以降)は落として "v0.9.0" の形で表示する。
         var info = typeof(Home).Assembly
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
-        AppVersion = string.IsNullOrEmpty(info) ? "" : info.Split('+')[0];
+        // "v" を値側に含める（マークアップで v@AppVersion と書くと Razor がメール誤認してリテラル化するため）。
+        AppVersion = string.IsNullOrEmpty(info) ? "" : "v" + info.Split('+')[0];
         Svc.StateReloadedExternally += OnExternalReload;
         await Load();
     }
