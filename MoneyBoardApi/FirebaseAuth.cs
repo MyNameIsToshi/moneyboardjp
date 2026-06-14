@@ -7,6 +7,9 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace MoneyBoardApi;
 
+/// <summary>検証済みトークンから取り出したユーザー情報。</summary>
+public record AuthPrincipal(string Uid, string? Email, string? Name, bool EmailVerified);
+
 /// <summary>
 /// Firebase Authentication の ID トークン（JWT・RS256）を検証して uid を取り出す。
 /// 署名鍵は securetoken の OIDC 構成から取得し ConfigurationManager がキャッシュ＋自動更新する。
@@ -19,6 +22,8 @@ public class FirebaseAuth
     private readonly bool _bypass;
     private readonly string _bypassUserId;
     private readonly ConfigurationManager<OpenIdConnectConfiguration>? _config;
+
+    public bool IsBypass => _bypass;
 
     public FirebaseAuth()
     {
@@ -35,10 +40,10 @@ public class FirebaseAuth
         }
     }
 
-    /// <summary>認証済みユーザーの uid を返す。未認証・検証失敗は null。</summary>
-    public async Task<string?> GetUserIdAsync(HttpRequest req)
+    /// <summary>認証済みユーザーの情報を返す。未認証・検証失敗は null。</summary>
+    public async Task<AuthPrincipal?> GetPrincipalAsync(HttpRequest req)
     {
-        if (_bypass) return _bypassUserId;
+        if (_bypass) return new AuthPrincipal(_bypassUserId, "dev@local", "ローカル開発", true);
 
         string header = req.Headers.Authorization.ToString();
         if (string.IsNullOrEmpty(header) || !header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
@@ -62,10 +67,16 @@ public class FirebaseAuth
             if (!result.IsValid) return null;
 
             // Firebase の uid は user_id / sub クレーム（既定マッピングで NameIdentifier にもなる）。
-            var uid = result.ClaimsIdentity.FindFirst("user_id")?.Value
-                      ?? result.ClaimsIdentity.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                      ?? result.ClaimsIdentity.FindFirst("sub")?.Value;
-            return string.IsNullOrEmpty(uid) ? null : uid;
+            var id = result.ClaimsIdentity;
+            var uid = id.FindFirst("user_id")?.Value
+                      ?? id.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                      ?? id.FindFirst("sub")?.Value;
+            if (string.IsNullOrEmpty(uid)) return null;
+
+            var email = id.FindFirst("email")?.Value;
+            var name = id.FindFirst("name")?.Value;
+            var emailVerified = string.Equals(id.FindFirst("email_verified")?.Value, "true", StringComparison.OrdinalIgnoreCase);
+            return new AuthPrincipal(uid, email, name, emailVerified);
         }
         catch
         {

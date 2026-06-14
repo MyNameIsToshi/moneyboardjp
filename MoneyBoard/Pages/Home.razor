@@ -15,42 +15,53 @@
         }
     </div>
 
-    @if (ShowConflictNotice)
-    {
-        <div style="background:#fff3cd;border:1px solid #ffe69c;color:#664d03;padding:10px 14px;border-radius:6px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:12px">
-            <span>別の場所でデータが更新されたため、最新の内容を再読み込みしました。</span>
-            <button class="x" @onclick="() => ShowConflictNotice = false">✕</button>
-        </div>
-    }
-
-    <div class="tabs">
-        <button class="tab @(ActiveTab == "monthly" ? "active" : "")" disabled="@TabDisabled" @onclick='() => SetTab("monthly")'>月次管理</button>
-        <button class="tab @(ActiveTab == "card" ? "active" : "")" disabled="@TabDisabled" @onclick='() => SetTab("card")'>カード</button>
-        <button class="tab @(ActiveTab == "fixed" ? "active" : "")" disabled="@TabDisabled" @onclick='() => SetTab("fixed")'>固定費設定</button>
-        <button class="tab @(ActiveTab == "mypage" ? "active" : "")" disabled="@TabDisabled" @onclick='() => SetTab("mypage")'>マイページ</button>
-    </div>
-
-    @if (LoadFailed)
+    @if (Svc.IsPending)
     {
         <div class="loading">
-            データの読み込みに失敗しました。<br />
-            ネットワーク接続を確認して、再度お試しください。<br />
+            <p style="font-size:15px;color:var(--ink);font-weight:600">アクセス承認待ちです</p>
+            <p style="font-size:13px">オーナーの承認後にご利用いただけます。<br />承認されたら下のボタンで再読み込みしてください。</p>
             <button class="btn" style="margin-top:12px" @onclick="Load">再読み込み</button>
-        </div>
-    }
-    else if (!Loaded)
-    {
-        <div class="loading">
-            <div class="spinner"></div>
-            読み込み中…
         </div>
     }
     else
     {
-        @if (ActiveTab == "monthly")  { <MonthlyTab @key="ReloadKey" RequestTab="SetTab" /> }
-        @if (ActiveTab == "card")     { <CardTab @key="ReloadKey" /> }
-        @if (ActiveTab == "fixed")    { <FixedCostTab @key="ReloadKey" /> }
-        @if (ActiveTab == "mypage")   { <MyPageTab @key="ReloadKey" /> }
+        @if (ShowConflictNotice)
+        {
+            <div style="background:#fff3cd;border:1px solid #ffe69c;color:#664d03;padding:10px 14px;border-radius:6px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:12px">
+                <span>別の場所でデータが更新されたため、最新の内容を再読み込みしました。</span>
+                <button class="x" @onclick="() => ShowConflictNotice = false">✕</button>
+            </div>
+        }
+
+        <div class="tabs">
+            <button class="tab @(ActiveTab == "monthly" ? "active" : "")" disabled="@TabDisabled" @onclick='() => SetTab("monthly")'>月次管理</button>
+            <button class="tab @(ActiveTab == "card" ? "active" : "")" disabled="@TabDisabled" @onclick='() => SetTab("card")'>カード</button>
+            <button class="tab @(ActiveTab == "fixed" ? "active" : "")" disabled="@TabDisabled" @onclick='() => SetTab("fixed")'>固定費設定</button>
+            <button class="tab @(ActiveTab == "mypage" ? "active" : "")" disabled="@TabDisabled" @onclick='() => SetTab("mypage")'>マイページ</button>
+        </div>
+
+        @if (LoadFailed)
+        {
+            <div class="loading">
+                データの読み込みに失敗しました。<br />
+                ネットワーク接続を確認して、再度お試しください。<br />
+                <button class="btn" style="margin-top:12px" @onclick="Load">再読み込み</button>
+            </div>
+        }
+        else if (!Loaded)
+        {
+            <div class="loading">
+                <div class="spinner"></div>
+                読み込み中…
+            </div>
+        }
+        else
+        {
+            @if (ActiveTab == "monthly")  { <MonthlyTab @key="ReloadKey" RequestTab="SetTab" /> }
+            @if (ActiveTab == "card")     { <CardTab @key="ReloadKey" /> }
+            @if (ActiveTab == "fixed")    { <FixedCostTab @key="ReloadKey" /> }
+            @if (ActiveTab == "mypage")   { <MyPageTab @key="ReloadKey" /> }
+        }
     }
 </div>
 

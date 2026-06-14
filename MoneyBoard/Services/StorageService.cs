@@ -6,6 +6,9 @@ namespace MoneyBoard.Services;
 
 public enum SaveResult { Ok, Conflict, Error }
 
+/// <summary>サインイン済みだが未承認（オーナーの承認待ち）。サーバーが 403 を返したときに送出。</summary>
+public class AccessPendingException : Exception { }
+
 public class StorageService(HttpClient http, AuthService auth)
 {
     private const string ApiPath = "api/data";
@@ -28,6 +31,8 @@ public class StorageService(HttpClient http, AuthService auth)
     {
         await ApplyAuthAsync();
         using var resp = await http.GetAsync(ApiPath);
+        if (resp.StatusCode == HttpStatusCode.Forbidden)
+            throw new AccessPendingException();   // 未承認＝承認待ち
         resp.EnsureSuccessStatusCode();
         var env = await resp.Content.ReadFromJsonAsync<DataEnvelope>();
         if (env == null) return null;

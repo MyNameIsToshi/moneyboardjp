@@ -30,6 +30,54 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos, FirebaseAuth 
 
     private static string MonthId(string ym) => $"month:{ym}";
 
+    // ── 認証＋アクセス承認 ───────────────────────────────
+    private const string SystemPartition = "__system__";
+    private const string AccessDocId = "access-control";
+
+    // 認証＋承認を行い、許可なら userId、未認証は401、未承認は pending 記録＋403 を返す。
+    private async Task<(string? userId, IActionResult? error)> AuthorizeAsync(Container container, HttpRequest req)
+    {
+        var principal = await auth.GetPrincipalAsync(req);
+        if (principal is null) return (null, new UnauthorizedResult());
+        if (auth.IsBypass) return (principal.Uid, null);   // ローカル開発は承認不要
+
+        // オーナー（OwnerEmail と一致・メール確認済み）は常に許可。
+        var ownerEmail = Environment.GetEnvironmentVariable("OwnerEmail");
+        if (!string.IsNullOrEmpty(ownerEmail) && principal.EmailVerified
+            && string.Equals(principal.Email, ownerEmail, StringComparison.OrdinalIgnoreCase))
+            return (principal.Uid, null);
+
+        var access = await ReadAccessAsync(container);
+        if (access.Approved.Contains(principal.Uid)) return (principal.Uid, null);
+
+        // 未承認：pending に未登録なら記録して保存（オーナーが後で承認）。
+        if (!access.Pending.Any(p => p.Uid == principal.Uid))
+        {
+            access.Pending.Add(new PendingUser
+            {
+                Uid = principal.Uid,
+                Email = principal.Email,
+                Name = principal.Name,
+                RequestedAt = DateTime.UtcNow.ToString("o")
+            });
+            await container.UpsertItemAsync(access, new PartitionKey(SystemPartition));
+        }
+        return (null, new ObjectResult(new { status = "pending" }) { StatusCode = StatusCodes.Status403Forbidden });
+    }
+
+    private async Task<AccessDoc> ReadAccessAsync(Container container)
+    {
+        try
+        {
+            var r = await container.ReadItemAsync<AccessDoc>(AccessDocId, new PartitionKey(SystemPartition));
+            return r.Resource;
+        }
+        catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)
+        {
+            return new AccessDoc();
+        }
+    }
+
     // GET /api/data → 設定ドキュメント＋全月次ドキュメントを集約して返す
     [Function("GetData")]
     public async Task<IActionResult> GetData(
@@ -37,10 +85,10 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos, FirebaseAuth 
     {
         try
         {
-            var userId = await auth.GetUserIdAsync(req);
-            if (userId is null) return new UnauthorizedResult();
             var container = GetContainer();
-            var pk = new PartitionKey(userId);
+            var (userId, authError) = await AuthorizeAsync(container, req);
+            if (authError is not null) return authError;
+            var pk = new PartitionKey(userId!);
             var env = new DataEnvelope { Settings = new SettingsPart() };
 
             // 設定（ポイント読み取り）。無ければ新規ユーザーとして空の設定。
@@ -114,10 +162,10 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos, FirebaseAuth 
                 return new BadRequestResult();
             }
 
-            var userId = await auth.GetUserIdAsync(req);
-            if (userId is null) return new UnauthorizedResult();
             var container = GetContainer();
-            var pk = new PartitionKey(userId);
+            var (userId, authError) = await AuthorizeAsync(container, req);
+            if (authError is not null) return authError;
+            var pk = new PartitionKey(userId!);
             var batch = container.CreateTransactionalBatch(pk);
             var ops = new List<(string kind, string ym)>();
 
@@ -125,7 +173,7 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos, FirebaseAuth 
             {
                 var doc = new SettingsDoc
                 {
-                    Id = SettingsId, UserId = userId, Type = "settings",
+                    Id = SettingsId, UserId = userId!, Type = "settings",
                     SchemaVersion = env.Settings.SchemaVersion,
                     Accounts = env.Settings.Accounts,
                     FixedCosts = env.Settings.FixedCosts,
@@ -140,7 +188,7 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos, FirebaseAuth 
             {
                 var doc = new MonthDoc
                 {
-                    Id = MonthId(ym), UserId = userId, Type = "month", Ym = ym,
+                    Id = MonthId(ym), UserId = userId!, Type = "month", Ym = ym,
                     Ledgers = m.Ledgers, Transfers = m.Transfers, CardDetails = m.CardDetails, CardBilled = m.CardBilled
                 };
                 batch.UpsertItem(doc, BatchOptions(m.Etag));
@@ -253,6 +301,24 @@ public class MonthDoc
     public List<Transfer> Transfers { get; set; } = new();
     public List<CardDetail> CardDetails { get; set; } = new();
     public Dictionary<string, decimal> CardBilled { get; set; } = new();
+}
+
+// アクセス承認の管理ドキュメント（partition=__system__・id=access-control）。
+public class AccessDoc
+{
+    [Newtonsoft.Json.JsonProperty("id")] public string Id { get; set; } = "access-control";
+    public string UserId { get; set; } = "__system__";
+    public string Type { get; set; } = "access";
+    public List<string> Approved { get; set; } = new();      // 承認済み uid
+    public List<PendingUser> Pending { get; set; } = new();  // 承認待ち
+}
+
+public class PendingUser
+{
+    public string Uid { get; set; } = "";
+    public string? Email { get; set; }
+    public string? Name { get; set; }
+    public string RequestedAt { get; set; } = "";
 }
 
 // 月次クエリ読み取り専用（_etag を本文から取得するため）
