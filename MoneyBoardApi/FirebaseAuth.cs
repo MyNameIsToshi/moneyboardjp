@@ -84,7 +84,7 @@ public class FirebaseAuth
             var result = await new JsonWebTokenHandler().ValidateTokenAsync(token, parameters);
             if (!result.IsValid)
             {
-                LastError = $"invalid: {result.Exception?.GetType().Name}: {result.Exception?.Message}";
+                LastError = await BuildDiagAsync(token, result.Exception);
                 _logger.LogWarning("Firebase token invalid: {Err}", LastError);
                 return null;
             }
@@ -108,9 +108,31 @@ public class FirebaseAuth
         }
         catch (Exception ex)
         {
-            LastError = $"exception: {ex.GetType().FullName}: {ex.Message}";
+            LastError = await BuildDiagAsync(token, ex);
             _logger.LogError(ex, "Firebase token validation threw");
             return null;
         }
+    }
+
+    // 検証失敗時の精密診断（原因特定の一時計測）。トークンの kid と、関数が実際に握っている
+    // 署名鍵の kid 一覧・期待 iss/aud・内側例外を1行にまとめる。原因確定後に簡素化する。
+    private async Task<string> BuildDiagAsync(string token, Exception? inner)
+    {
+        string tokenKid = "?";
+        try { tokenKid = new JsonWebToken(token).Kid; } catch { /* ignore */ }
+
+        string cfgKids;
+        try
+        {
+            var c = await _config!.GetConfigurationAsync(CancellationToken.None);
+            cfgKids = string.Join(",", c.SigningKeys.Select(k => k.KeyId));
+        }
+        catch (Exception e)
+        {
+            cfgKids = $"cfg-fetch-failed: {e.GetType().Name}: {e.Message}";
+        }
+
+        return $"tokenKid={tokenKid}; expIss={_issuer}; expAud={_projectId}; cfgKids=[{cfgKids}]; "
+             + $"inner={inner?.GetType().Name}: {inner?.Message}";
     }
 }
