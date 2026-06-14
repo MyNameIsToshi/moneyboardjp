@@ -1,0 +1,155 @@
+@page "/portfolio"
+@implements IDisposable
+@inject PortfolioStore Store
+@inject NavigationManager Nav
+
+<div class="wrap">
+    <div class="pf-head">
+        <div class="app-title">ポートフォリオ</div>
+        <button class="btn" @onclick='() => Nav.NavigateTo("/")'>← 戻る</button>
+    </div>
+
+    @if (Store.IsPending)
+    {
+        <div class="loading"><p class="pending-title">アクセス承認待ちです</p></div>
+    }
+    else if (LoadFailed)
+    {
+        <div class="loading">
+            データの読み込みに失敗しました。<br />
+            ネットワーク接続を確認して、再度お試しください。<br />
+            <button class="btn" @onclick="Load">再読み込み</button>
+        </div>
+    }
+    else if (!Loaded)
+    {
+        <div class="loading"><div class="spinner"></div>読み込み中…</div>
+    }
+    else
+    {
+        <div class="cat-head">
+            <span>保有銘柄</span>
+            <button class="btn" @onclick="AddHolding">＋ 追加</button>
+        </div>
+
+        @if (!Ordered.Any())
+        {
+            <div class="none">銘柄が登録されていません。「＋ 追加」から登録してください。</div>
+        }
+        else
+        {
+            <div class="pf-grid pf-grid-head">
+                <span>銘柄名</span><span>資産クラス</span><span>口座区分</span><span>建て通貨</span><span>シンボル（株のみ）</span><span></span>
+            </div>
+            @foreach (var h in Ordered)
+            {
+                <div class="pf-grid pf-row">
+                    <input class="pf-name" @bind="h.Name" @bind:after="Save" placeholder="銘柄名" />
+                    <select class="pf-sel" @bind="h.Class" @bind:after="() => OnClassChanged(h)">
+                        <option value="@AssetClass.Fund">投資信託</option>
+                        <option value="@AssetClass.JpStock">日本株</option>
+                        <option value="@AssetClass.UsStock">米国株</option>
+                    </select>
+                    <select class="pf-sel" @bind="h.Account" @bind:after="Save">
+                        <option value="@AccountKind.Nisa">NISA</option>
+                        <option value="@AccountKind.Tokutei">特定</option>
+                        <option value="@AccountKind.General">一般</option>
+                    </select>
+                    @if (h.Class == AssetClass.UsStock)
+                    {
+                        <select class="pf-sel" @bind="h.CostCurrency" @bind:after="Save">
+                            <option value="@Currency.Jpy">円建て</option>
+                            <option value="@Currency.Usd">ドル建て</option>
+                        </select>
+                    }
+                    else
+                    {
+                        <span class="pf-fixed">円</span>
+                    }
+                    @if (h.Class == AssetClass.Fund)
+                    {
+                        <span class="pf-muted">—</span>
+                    }
+                    else
+                    {
+                        <input class="pf-sym" @bind="h.Symbol" @bind:after="Save" placeholder="例 7203.JP / AAPL.US" />
+                    }
+                    <button class="x" @onclick="() => AskDelete(h)">✕</button>
+                </div>
+            }
+        }
+
+        <div class="foot" style="text-align:left;margin-top:10px">
+            まず保有銘柄を登録します。買付・売却・配当の入力、評価額・損益、価格の自動取得は次の段階で追加します。<br />
+            投資信託は基準価額（1万口あたり）を手入力、個別株はシンボルで自動取得する想定です。
+        </div>
+    }
+</div>
+
+<ConfirmDialog IsVisible="@ShowConfirm"
+               Title="銘柄を削除しますか？"
+               Message="@ConfirmMessage"
+               ConfirmText="削除する"
+               OnConfirm="ExecuteDelete"
+               OnCancel="() => ShowConfirm = false" />
+
+@code {
+    private bool Loaded;
+    private bool LoadFailed;
+
+    private IEnumerable<Holding> Ordered =>
+        Store.Data.Holdings.Where(h => !h.IsDeleted).OrderBy(h => h.SortOrder);
+
+    protected override async Task OnInitializedAsync()
+    {
+        Store.StateReloadedExternally += OnReload;
+        await Load();
+    }
+
+    public void Dispose() => Store.StateReloadedExternally -= OnReload;
+    private void OnReload() => InvokeAsync(StateHasChanged);
+
+    private async Task Load()
+    {
+        Loaded = false;
+        LoadFailed = false;
+        if (await Store.LoadAsync()) Loaded = true;
+        else if (!Store.IsPending) LoadFailed = true;
+    }
+
+    private void Save() => Store.RequestSave();
+
+    private void AddHolding()
+    {
+        Store.Data.Holdings.Add(new Holding { SortOrder = Store.Data.Holdings.Count });
+        Save();
+    }
+
+    // 米国株以外は常に円建て。投信はシンボルを持たない（価格は手入力）。
+    private void OnClassChanged(Holding h)
+    {
+        if (h.Class != AssetClass.UsStock) h.CostCurrency = Currency.Jpy;
+        if (h.Class == AssetClass.Fund) h.Symbol = "";
+        Save();
+    }
+
+    private bool ShowConfirm;
+    private string? _deleteId;
+    private string ConfirmMessage = "";
+
+    private void AskDelete(Holding h)
+    {
+        var name = string.IsNullOrEmpty(h.Name) ? "(名称未設定)" : h.Name;
+        ConfirmMessage = $"「{name}」を削除します。\nこの操作は取り消せません。";
+        _deleteId = h.Id;
+        ShowConfirm = true;
+    }
+
+    private void ExecuteDelete()
+    {
+        if (_deleteId != null) Store.Data.Holdings.RemoveAll(h => h.Id == _deleteId);
+        _deleteId = null;
+        ShowConfirm = false;
+        Save();
+    }
+}

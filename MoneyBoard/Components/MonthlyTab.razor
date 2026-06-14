@@ -6,6 +6,7 @@
         <div></div>
         <div class="topright">
             <button class="stat-btn" @onclick="GoToGraph" title="統計">📊</button>
+            <button class="stat-btn" @onclick="GoToPortfolio" title="ポートフォリオ">💹</button>
             <div class="monthnav">
                 <button @onclick="Prev" disabled="@IsPrevDisabled">‹</button>
                 <div class="m">@LedgerService.Label(Svc.CurrentMonth)</div>
@@ -192,6 +193,8 @@
     [Inject] NavigationManager Nav { get; set; } = default!;
     // 保留中のデバウンス保存をフラッシュしてから遷移（グラフ側の再読込が最新を取得できるように）
     private async Task GoToGraph() { await Svc.SaveAsync(); Nav.NavigateTo("/graph"); }
+
+    private void GoToPortfolio() => Nav.NavigateTo("/portfolio");
 
     // カード明細はカードタブで編集する。月次の月をカードタブへ引き継いでから切替。
     [Parameter] public EventCallback<string> RequestTab { get; set; }

@@ -19,6 +19,8 @@ builder.Services.AddScoped<AccessService>();
 builder.Services.AddScoped<StorageService>();
 builder.Services.AddScoped<AppStateStore>();
 builder.Services.AddScoped<LedgerService>();
+builder.Services.AddScoped<PortfolioService>();
+builder.Services.AddScoped<PortfolioStore>();
 builder.Services.AddApexCharts();
 
 await builder.Build().RunAsync();
