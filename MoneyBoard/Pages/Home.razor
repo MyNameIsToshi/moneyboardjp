@@ -1,43 +1,67 @@
 @page "/"
 @implements IDisposable
 @inject LedgerService Svc
+@inject AuthService Auth
 
 <div class="wrap">
-    <div class="app-title">生計 <small>口座別 引き落とし管理</small></div>
-
-    @if (ShowConflictNotice)
-    {
-        <div style="background:#fff3cd;border:1px solid #ffe69c;color:#664d03;padding:10px 14px;border-radius:6px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:12px">
-            <span>別の場所でデータが更新されたため、最新の内容を再読み込みしました。</span>
-            <button class="x" @onclick="() => ShowConflictNotice = false">✕</button>
-        </div>
-    }
-
-    <div class="tabs">
-        <button class="tab @(ActiveTab == "monthly" ? "active" : "")" @onclick='() => SetTab("monthly")'>月次管理</button>
-        <button class="tab @(ActiveTab == "fixed" ? "active" : "")" @onclick='() => SetTab("fixed")'>固定費設定</button>
-        <button class="tab @(ActiveTab == "accounts" ? "active" : "")" @onclick='() => SetTab("accounts")'>口座設定</button>
-        <button class="tab @(ActiveTab == "mypage" ? "active" : "")" @onclick='() => SetTab("mypage")'>マイページ</button>
+    <div class="home-head">
+        <div class="app-title">MoneyBoard</div>
+        @if (!Auth.IsBypass && Auth.User is not null)
+        {
+            <div class="account">
+                <span class="account-email" title="@Auth.User.Email">@Auth.User.Email</span>
+                <button class="add-line" @onclick="Auth.SignOutAsync">ログアウト</button>
+            </div>
+        }
     </div>
 
-    @if (LoadFailed)
+    @if (Svc.IsPending)
     {
         <div class="loading">
-            データの読み込みに失敗しました。<br />
-            ネットワーク接続を確認して、再度お試しください。<br />
-            <button class="btn" style="margin-top:12px" @onclick="Load">再読み込み</button>
+            <p class="pending-title">アクセス承認待ちです</p>
+            <p class="pending-note">オーナーの承認後にご利用いただけます。<br />承認されたら下のボタンで再読み込みしてください。</p>
+            <button class="btn" @onclick="Load">再読み込み</button>
         </div>
-    }
-    else if (!Loaded)
-    {
-        <div class="loading">読み込み中…</div>
     }
     else
     {
-        @if (ActiveTab == "monthly")  { <MonthlyTab @key="ReloadKey" /> }
-        @if (ActiveTab == "fixed")    { <FixedCostTab @key="ReloadKey" /> }
-        @if (ActiveTab == "accounts") { <AccountsTab @key="ReloadKey" /> }
-        @if (ActiveTab == "mypage")   { <MyPageTab @key="ReloadKey" /> }
+        @if (ShowConflictNotice)
+        {
+            <div class="notice">
+                <span>別の場所でデータが更新されたため、最新の内容を再読み込みしました。</span>
+                <button class="x" @onclick="() => ShowConflictNotice = false">✕</button>
+            </div>
+        }
+
+        <div class="tabs">
+            <button class="tab @(ActiveTab == "monthly" ? "active" : "")" disabled="@TabDisabled" @onclick='() => SetTab("monthly")'>月次管理</button>
+            <button class="tab @(ActiveTab == "card" ? "active" : "")" disabled="@TabDisabled" @onclick='() => SetTab("card")'>カード</button>
+            <button class="tab @(ActiveTab == "fixed" ? "active" : "")" disabled="@TabDisabled" @onclick='() => SetTab("fixed")'>固定費設定</button>
+            <button class="tab @(ActiveTab == "mypage" ? "active" : "")" disabled="@TabDisabled" @onclick='() => SetTab("mypage")'>マイページ</button>
+        </div>
+
+        @if (LoadFailed)
+        {
+            <div class="loading">
+                データの読み込みに失敗しました。<br />
+                ネットワーク接続を確認して、再度お試しください。<br />
+                <button class="btn" @onclick="Load">再読み込み</button>
+            </div>
+        }
+        else if (!Loaded)
+        {
+            <div class="loading">
+                <div class="spinner"></div>
+                読み込み中…
+            </div>
+        }
+        else
+        {
+            @if (ActiveTab == "monthly")  { <MonthlyTab @key="ReloadKey" RequestTab="SetTab" /> }
+            @if (ActiveTab == "card")     { <CardTab @key="ReloadKey" /> }
+            @if (ActiveTab == "fixed")    { <FixedCostTab @key="ReloadKey" /> }
+            @if (ActiveTab == "mypage")   { <MyPageTab @key="ReloadKey" /> }
+        }
     }
 </div>
 
@@ -46,6 +70,9 @@
     private bool Loaded = false;
     private bool LoadFailed = false;
     private bool ShowConflictNotice = false;
+
+    // 読み込み完了までタブ操作を無効化（空状態のタブを触らせない）
+    private bool TabDisabled => !Loaded;
     private int ReloadKey = 0;
 
     protected override async Task OnInitializedAsync()

@@ -8,6 +8,7 @@ public class DataEnvelope
 {
     public SettingsPart? Settings { get; set; }
     public Dictionary<string, MonthPart> Months { get; set; } = new();
+    public bool IsOwner { get; set; }   // GET レスポンスのみ：現在のユーザーがオーナーか（承認管理UIの出し分け用）
 }
 
 /// <summary>設定ドキュメント（口座・固定費）に対応するパート。</summary>
@@ -17,6 +18,9 @@ public class SettingsPart
     public int SchemaVersion { get; set; } = 1;
     public List<Account> Accounts { get; set; } = new();
     public List<FixedCost> FixedCosts { get; set; } = new();
+    public List<Category> Categories { get; set; } = new();
+    public List<Card> Cards { get; set; } = new();
+    public Dictionary<string, string> CategoryRules { get; set; } = new();
 }
 
 /// <summary>月次ドキュメントに対応するパート。</summary>
@@ -25,6 +29,8 @@ public class MonthPart
     public string? Etag { get; set; }
     public Dictionary<string, Ledger> Ledgers { get; set; } = new();
     public List<Transfer> Transfers { get; set; } = new();
+    public List<CardDetail> CardDetails { get; set; } = new();
+    public Dictionary<string, decimal> CardBilled { get; set; } = new();
 }
 
 /// <summary>POST /api/data の成功レスポンス。保存後の新しい etag を返す。</summary>

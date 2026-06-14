@@ -1,12 +1,18 @@
 @* 金額入力の共通コンポーネント
    使い方: <AmountInput Value="@amount" ValueChanged="v => amount = v" />
+
+   フォーカス中はカンマ整形せず「入力内容そのもの」を value に出すため、
+   桁を途中挿入してもカーソルが末尾へ飛ばない。空欄も許可し 0 を出さない。
+   blur 時にカンマ整形＋空欄→0 で確定する。
 *@
 
 <input class="@CssClass"
        inputmode="numeric"
        placeholder="@Placeholder"
        value="@DisplayValue"
-       @oninput="OnInput" />
+       @onfocus="OnFocus"
+       @oninput="OnInput"
+       @onblur="OnBlur" />
 
 @code {
     [Parameter] public decimal Value { get; set; }
@@ -14,13 +20,37 @@
     [Parameter] public string CssClass { get; set; } = "num";
     [Parameter] public string Placeholder { get; set; } = "0";
 
-    private string DisplayValue => Value.ToString("#,0");
+    private bool _focused;
+    private string _editing = "";
+
+    // 非フォーカス時はカンマ整形して表示、フォーカス中は入力内容をそのまま返す。
+    private string DisplayValue => _focused ? _editing : Value.ToString("#,0");
+
+    private void OnFocus()
+    {
+        _focused = true;
+        // 0 のときは空欄から打ち始められるようにする（"0" を居座らせない）。
+        _editing = Value == 0 ? "" : Value.ToString("0");
+    }
 
     private async Task OnInput(ChangeEventArgs e)
     {
         var raw = e.Value?.ToString()?.Replace(",", "") ?? "";
+        _editing = raw;
         decimal.TryParse(raw, out var v);
         Value = v;
         await ValueChanged.InvokeAsync(v);
+    }
+
+    private async Task OnBlur()
+    {
+        _focused = false;
+        // 空欄やパース不能は 0 に確定。
+        if (!decimal.TryParse(_editing.Replace(",", ""), out var v)) v = 0;
+        if (v != Value)
+        {
+            Value = v;
+            await ValueChanged.InvokeAsync(v);
+        }
     }
 }

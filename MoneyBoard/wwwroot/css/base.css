@@ -1,0 +1,318 @@
+/* =====================================================
+   CSS変数・リセット
+   ===================================================== */
+:root {
+  --paper: #f6f4ee;
+  --ink: #21262e;
+  --sub: #6b7280;
+  --line: #e3ded2;
+  --card: #ffffff;
+  --ok: #0f6e56;
+  --okbg: #e6f1ec;
+  --bad: #a3261f;
+  --badbg: #f7e9e7;
+  --accent: #1f3a5f;
+  --r: 12px;
+}
+
+* {
+  box-sizing: border-box
+}
+
+/* フォーム部品はブラウザ既定で本文フォントを継承しないため明示的に統一する */
+input,
+select,
+textarea,
+button {
+  font-family: inherit;
+}
+
+html,
+body {
+  margin: 0
+}
+
+html {
+  overflow-y: scroll
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
+}
+
+/* =====================================================
+   レイアウト共通
+   ===================================================== */
+.wrap {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 20px 16px 64px;
+}
+
+.loading {
+  padding: 48px;
+  text-align: center;
+  color: var(--sub);
+}
+
+.loading .btn {
+  margin-top: 12px;
+}
+
+.pending-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.pending-note {
+  font-size: 13px;
+}
+
+.spinner {
+  width: 32px;
+  height: 32px;
+  margin: 0 auto 14px;
+  border: 3px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* =====================================================
+   アプリタイトル・タブナビ (Home.razor)
+   ===================================================== */
+.app-title {
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  margin-bottom: 14px;
+}
+
+.home-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.home-head .app-title {
+  margin-bottom: 14px;
+}
+
+.account {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.account-email {
+  font-size: 12px;
+  color: var(--sub);
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.account-note {
+  font-size: 13px;
+  color: var(--sub);
+}
+
+/* データ競合での再読み込み通知（黄色バナー） */
+.notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #fff3cd;
+  border: 1px solid #ffe69c;
+  color: #664d03;
+  padding: 10px 14px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+}
+
+/* =====================================================
+   ログイン画面 (App.razor)
+   ===================================================== */
+.auth-screen {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--sub);
+  padding: 24px;
+}
+
+.auth-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 32px 28px;
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, .08);
+}
+
+.auth-card .app-title {
+  margin-bottom: 6px;
+}
+
+.auth-lead {
+  font-size: 13px;
+  color: var(--sub);
+  margin: 0 0 20px;
+}
+
+.tabs {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 20px;
+  border-bottom: 2px solid var(--line);
+}
+
+.tab {
+  padding: 8px 20px;
+  border: none;
+  background: none;
+  color: var(--sub);
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+}
+
+.tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.tab:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+/* =====================================================
+   パネル共通 (各タブ)
+   ===================================================== */
+.panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.panel-head h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.none {
+  font-size: 12px;
+  color: #9aa0a6;
+  padding: 2px 0;
+}
+
+.foot {
+  margin-top: 22px;
+  font-size: 11.5px;
+  color: #9aa0a6;
+  text-align: center;
+  line-height: 1.7;
+}
+
+/* =====================================================
+   ボタン共通
+   ===================================================== */
+.btn {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--accent);
+  border-radius: 9px;
+  padding: 7px 14px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn:not(:disabled):hover {
+  background: #f3f5f8
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn.danger {
+  background: var(--bad);
+  color: #fff;
+  border-color: var(--bad);
+}
+
+.btn.primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.btn.primary:not(:disabled):hover {
+  opacity: 0.88
+}
+
+.add-line {
+  border: none;
+  background: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* =====================================================
+   Blazorエラー表示
+   ===================================================== */
+#blazor-error-ui {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--bad);
+  color: #fff;
+  padding: 8px 16px;
+  font-size: 13px;
+}
+
+#blazor-error-ui .dismiss {
+  cursor: pointer;
+  float: right
+}
+
+#blazor-error-ui a {
+  color: #fff
+}

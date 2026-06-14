@@ -1,0 +1,495 @@
+@inject LedgerService Svc
+@inject IJSRuntime JS
+
+<div>
+    <div class="top">
+        <div></div>
+        <div class="topright">
+            <button class="btn" @onclick="OpenBulk">一括カテゴリ</button>
+            <div class="monthnav">
+                <button @onclick="Prev">‹</button>
+                <div class="m">@LedgerService.Label(Svc.CardMonth)</div>
+                <button @onclick="Next">›</button>
+                <CycleInfo Ym="@Svc.CardMonth" />
+            </div>
+        </div>
+    </div>
+
+    @if (ImportMessage != null)
+    {
+        <div class="import-msg">
+            <span>@ImportMessage</span>
+            <button class="x" @onclick="() => ImportMessage = null">✕</button>
+        </div>
+    }
+
+    @if (Svc.CardsOrdered.Count == 0)
+    {
+        <div class="none">カードが登録されていません。マイページのカード設定で追加してください。</div>
+    }
+    else
+    {
+        @foreach (var card in Svc.CardsOrdered)
+        {
+            var details = DetailsFor(card.Id);
+            var collapsed = IsCollapsed(card.Id);
+            <div class="card-panel" id="card-@card.Id">
+                <div class="card-panel-head">
+                    <button class="card-collapse" @onclick="() => ToggleCollapse(card.Id)"
+                            title="@(collapsed ? "開く" : "たたむ")">@(collapsed ? "▶" : "▼")</button>
+                    <span class="card-title" @onclick="() => ToggleCollapse(card.Id)">💳 @card.Name</span>
+                    <span class="card-acct-name">@Svc.AccountName(card.AccountId)</span>
+                    @if (collapsed)
+                    {
+                        <span class="card-collapse-count">@details.Count 件</span>
+                    }
+                    <span class="card-total">@Yen(details.Sum(d => d.Amount))</span>
+                    @if (!collapsed)
+                    {
+                        <button class="add-line" @onclick="() => AddDetail(card.Id)">＋ 明細を追加</button>
+                        <label class="add-line import-label">📥 CSV取込<InputFile OnChange="@(e => OnCsvSelected(e, card.Id))" accept=".csv" class="import-input" /></label>
+                    }
+                </div>
+
+                @if (!collapsed)
+                {
+                    var used = details.Sum(d => d.Amount);
+                    <div class="card-billing">
+                        <label class="cb-toggle">
+                            <input type="checkbox" checked="@HasBilled(card.Id)"
+                                   @onchange="e => ToggleBilled(card.Id, (bool)(e.Value ?? false), used)" />
+                            <span>リボ・分割などで請求額が利用額と異なる</span>
+                        </label>
+                        @if (HasBilled(card.Id))
+                        {
+                            <div class="cb-fields">
+                                <span class="cb-lab">今月の請求額（口座引落）</span>
+                                <AmountInput CssClass="cb-input" Value="@(BilledOf(card.Id) ?? 0)"
+                                             ValueChanged="v => OnBilledChanged(card.Id, v)" />
+                                <span class="cb-carry">利用額（統計）@Yen(used)</span>
+                            </div>
+                        }
+                    </div>
+                }
+
+                @if (collapsed)
+                {
+                    // たたんでいる間は明細を描画しない（件数と合計だけヘッダに表示）
+                }
+                else if (details.Count == 0)
+                {
+                    <div class="none">この月の明細はありません。</div>
+                }
+                else
+                {
+                    <div class="cd-head">
+                        <span class="sortable" @onclick="@(() => SetSort("date"))">@SortHead("date", "利用日")</span>
+                        <span class="sortable" @onclick="@(() => SetSort("name"))">@SortHead("name", "利用先")</span>
+                        <span class="sortable" @onclick="@(() => SetSort("category"))">@SortHead("category", "カテゴリ")</span>
+                        <span class="sortable" @onclick="@(() => SetSort("amount"))">@SortHead("amount", "金額")</span>
+                        <span></span>
+                    </div>
+                    @foreach (var d in details)
+                    {
+                        <div class="cd-row">
+                            <input class="cd-date" type="date" value="@d.Date" @onchange="e => OnDateChange(d, e.Value)" />
+                            <input class="cd-name" @bind="d.Name" @bind:after="() => OnNameChanged(d)" placeholder="利用先" />
+                            <div class="cd-cat-cell">
+                                <span class="color-dot" style="background:@DotColor(d.CategoryId)"></span>
+                                <select class="cd-cat" @bind="d.CategoryId" @bind:after="Save">
+                                    <option value="">未分類</option>
+                                    @foreach (var c in Svc.CategoriesOrdered)
+                                    {
+                                        <option value="@c.Id">@c.Name</option>
+                                    }
+                                </select>
+                            </div>
+                            <AmountInput CssClass="cd-amt" Value="@d.Amount" ValueChanged="v => { d.Amount = v; OnAmountChanged(); }" />
+                            <button class="x" @onclick="() => RemoveDetail(d.Id)">✕</button>
+                        </div>
+                    }
+                }
+            </div>
+        }
+    }
+</div>
+
+<div class="foot">
+    明細の合計が、各カードに紐づく口座のその月の支出に反映されます。<br />
+    リボ・分割で引き落とし額が異なる場合は「今月の請求額」を設定すると、口座末残高はその額で計算されます（明細＝利用額は統計にそのまま残ります）。<br />
+    明細は表示中の月（@LedgerService.Label(Svc.CardMonth)）に計上されます。
+</div>
+
+@if (ShowBulk)
+{
+    <div class="dialog-overlay" @onclick="RequestCloseBulk">
+        <div class="dialog-box bulk-box" @onclick:stopPropagation="true">
+            <h4>一括カテゴリ設定（@LedgerService.Label(Svc.CardMonth)）</h4>
+            @if (BulkGroups.Count == 0)
+            {
+                <div class="none">この月の明細がありません。</div>
+            }
+            else
+            {
+                <div class="bulk-batch">
+                    <span>選択した利用先に一括設定:</span>
+                    <div class="bulk-cat-cell bulk-batch-cat">
+                        <span class="color-dot" style="background:@DotColor(_batchCat)"></span>
+                        <select @bind="_batchCat">
+                            <option value="">未分類</option>
+                            @foreach (var c in Svc.CategoriesOrdered)
+                            {
+                                <option value="@c.Id">@c.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <button class="btn" disabled="@(_bulkChecked.Count == 0)" @onclick="ApplyBatchToChecked">
+                        選択（@_bulkChecked.Count）に設定
+                    </button>
+                    <label class="bulk-filter">カテゴリ絞り込み
+                        <select @bind="_bulkCatFilter">
+                            <option value="@AllFilter">すべて</option>
+                            <option value="">未分類</option>
+                            @foreach (var c in Svc.CategoriesOrdered)
+                            {
+                                <option value="@c.Id">@c.Name</option>
+                            }
+                        </select>
+                    </label>
+                </div>
+
+                <div class="bulk-list">
+                    <div class="bulk-row bulk-head">
+                        <span class="bulk-check"><input type="checkbox" checked="@AllChecked" @onchange="ToggleAll" /></span>
+                        <span class="sortable" @onclick="@(() => SetBulkSort("store"))">@BulkHead("store", "利用先")</span>
+                        <span class="sortable" @onclick="@(() => SetBulkSort("count"))">@BulkHead("count", "件数")</span>
+                        <span class="sortable" @onclick="@(() => SetBulkSort("total"))">@BulkHead("total", "金額")</span>
+                        <span class="sortable" @onclick="@(() => SetBulkSort("category"))">@BulkHead("category", "カテゴリ")</span>
+                    </div>
+                    @if (DisplayedBulkGroups.Count == 0)
+                    {
+                        <div class="none">該当する利用先がありません。</div>
+                    }
+                    @foreach (var g in DisplayedBulkGroups)
+                    {
+                        <div class="bulk-row">
+                            <span class="bulk-check"><input type="checkbox" checked="@_bulkChecked.Contains(g.Store)" @onchange="() => ToggleBulkCheck(g.Store)" /></span>
+                            <span class="bulk-store" title="@g.Store">@g.Store</span>
+                            <span class="bulk-count">@g.Count 件</span>
+                            <span class="bulk-total">@Yen(g.Total)</span>
+                            <div class="bulk-cat-cell">
+                                <span class="color-dot" style="background:@DotColor(BulkSelection.GetValueOrDefault(g.Store))"></span>
+                                <select value="@BulkSelection[g.Store]"
+                                        @onchange="e => SetRowCategory(g.Store, e.Value?.ToString())">
+                                    <option value="@KeepSentinel">変更しない</option>
+                                    <option value="">未分類</option>
+                                    @foreach (var c in Svc.CategoriesOrdered)
+                                    {
+                                        <option value="@c.Id">@c.Name</option>
+                                    }
+                                </select>
+                            </div>
+                        </div>
+                    }
+                </div>
+                <div class="dialog-message">
+                    選んだ利用先のカテゴリを当月の明細にまとめて適用し、以降の取込でも自動分類します。「変更しない」はそのまま。
+                </div>
+            }
+            <div class="dialog-btns">
+                <button class="btn" @onclick="RequestCloseBulk">キャンセル</button>
+                <button class="btn primary" @onclick="ApplyBulk">適用</button>
+            </div>
+        </div>
+    </div>
+}
+
+<ConfirmDialog IsVisible="@_bulkConfirmCancel"
+               Title="編集を破棄しますか？"
+               Message="@("一括カテゴリの変更はまだ適用されていません。\n破棄して閉じてもよろしいですか？")"
+               ConfirmText="破棄して閉じる"
+               OnConfirm="DiscardBulk"
+               OnCancel="KeepEditingBulk" />
+
+@code {
+    private MonthData Mo = new();
+
+    protected override void OnInitialized() => Mo = Svc.EnsureMonth(Svc.CardMonth);
+
+    // 月次タブから遷移したとき：対象カードだけ展開し他は畳んで、その位置までスクロールする。
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        var target = Svc.ScrollToCardId;
+        if (target == null) return;
+        Svc.ScrollToCardId = null;            // 一度きりで消費
+
+        _collapsed.Clear();
+        foreach (var c in Svc.CardsOrdered)
+            if (c.Id != target) _collapsed.Add(c.Id);   // 対象以外を畳む
+        StateHasChanged();
+
+        await JS.InvokeVoidAsync("scrollToElementId", $"card-{target}");
+    }
+
+    private List<CardDetail> DetailsFor(string cardId)
+    {
+        var q = Mo.CardDetails.Where(d => d.CardId == cardId);
+        return (_sortAsc ? q.OrderBy(SortKey) : q.OrderByDescending(SortKey)).ToList();
+    }
+
+    private static string Yen(decimal v) => "¥" + v.ToString("#,0");
+
+    // ── カードパネルの折りたたみ（カードIdで保持・既定は展開）──
+    private readonly HashSet<string> _collapsed = new();
+    private bool IsCollapsed(string cardId) => _collapsed.Contains(cardId);
+    private void ToggleCollapse(string cardId)
+    {
+        if (!_collapsed.Add(cardId)) _collapsed.Remove(cardId);
+    }
+
+    // ── 明細の並び替え（利用日/利用先/カテゴリ/金額）。全カードパネル共通 ──
+    private string _sortKey = "date";
+    private bool _sortAsc = true;
+
+    private object SortKey(CardDetail d) => _sortKey switch
+    {
+        "name" => d.Name,
+        "category" => CategorySortKey(d.CategoryId),
+        "amount" => d.Amount,
+        _ => d.Date,
+    };
+
+    private void SetSort(string key)
+    {
+        if (_sortKey == key) _sortAsc = !_sortAsc;
+        else { _sortKey = key; _sortAsc = true; }
+    }
+
+    // ラベル＋並び替え矢印をまとめて返す（@の直前が文字だとRazorがメール扱いするのを回避）
+    private MarkupString SortHead(string key, string label) =>
+        new(label + (_sortKey == key ? (_sortAsc ? " ▲" : " ▼") : ""));
+
+    // カテゴリ設定の並び順（未分類・不明は末尾）
+    private int CategorySortKey(string? catId) =>
+        Svc.CategoryById(catId)?.SortOrder ?? int.MaxValue;
+
+    // カテゴリ設定の色（未分類・不明は透明＝空リング）
+    private string DotColor(string? catId) =>
+        Svc.CategoryById(catId)?.Color ?? "transparent";
+
+    // 手入力で利用先を確定したとき、未分類なら記憶済みルールで自動分類する
+    // （手動でカテゴリを選んだ行は上書きしない）。
+    private void OnNameChanged(CardDetail d)
+    {
+        if (string.IsNullOrEmpty(d.CategoryId)
+            && Svc.State.CategoryRules.TryGetValue(d.Name, out var catId))
+            d.CategoryId = catId;
+        Save();
+    }
+
+    private void Prev() { Svc.CardMonth = LedgerService.PrevYm(Svc.CardMonth); Mo = Svc.EnsureMonth(Svc.CardMonth); }
+    private void Next() { Svc.CardMonth = LedgerService.NextYm(Svc.CardMonth); Mo = Svc.EnsureMonth(Svc.CardMonth); }
+
+    private void Save() => _ = Svc.SaveAsync();
+
+    private void OnDateChange(CardDetail d, object? v) { d.Date = v?.ToString() ?? ""; Save(); }
+
+    // 金額変更時のみカード Debit 合計が変わるため再計算（デバウンス保存）
+    private void OnAmountChanged() { Svc.RecalcCards(Svc.CardMonth); Svc.RequestSave(); }
+
+    // ── 今月の請求額（リボ・分割で利用額≠引き落とし額のとき補正）──
+    private bool HasBilled(string cardId) => Svc.CardBilledOf(Svc.CardMonth, cardId) != null;
+    private decimal? BilledOf(string cardId) => Svc.CardBilledOf(Svc.CardMonth, cardId);
+
+    // トグルON時は既定で利用額（明細合計）を初期請求額に。OFFで解除し一括払いへ戻す。
+    private void ToggleBilled(string cardId, bool on, decimal used)
+    {
+        Svc.SetCardBilled(Svc.CardMonth, cardId, on ? used : null);
+        Svc.RequestSave();
+    }
+
+    private void OnBilledChanged(string cardId, decimal v)
+    {
+        Svc.SetCardBilled(Svc.CardMonth, cardId, v);
+        Svc.RequestSave();
+    }
+
+    private void AddDetail(string cardId)
+    {
+        Mo.CardDetails.Add(new CardDetail { CardId = cardId, Date = DateTime.Today.ToString("yyyy-MM-dd") });
+        Svc.RecalcCards(Svc.CardMonth);
+        Save();
+    }
+
+    private void RemoveDetail(string id)
+    {
+        Mo.CardDetails.RemoveAll(d => d.Id == id);
+        Svc.RecalcCards(Svc.CardMonth);
+        Save();
+    }
+
+    // ── JCB CSV 取込（表示中の月へ・そのカードを全置換）──
+    private string? ImportMessage;
+
+    private async Task OnCsvSelected(InputFileChangeEventArgs e, string cardId)
+    {
+        var file = e.File;
+        if (file == null) return;
+        try
+        {
+            using var stream = file.OpenReadStream(maxAllowedSize: 5_000_000);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            var text = await JS.InvokeAsync<string>("decodeShiftJis", ms.ToArray());
+
+            var parsed = JcbCsvParser.Parse(text, cardId);
+            Svc.ApplyCategoryRules(parsed);   // 記憶済みの店名→カテゴリを自動適用
+
+            // リボ/分割で過去月に既出の明細（再掲）は除外し、二重計上を防ぐ
+            var (kept, excluded) = Svc.DedupAgainstEarlierMonths(Svc.CardMonth, cardId, parsed);
+
+            // 全置換：このカードの当月明細を消して入れ直す
+            Mo.CardDetails.RemoveAll(d => d.CardId == cardId);
+            Mo.CardDetails.AddRange(kept);
+            Svc.RecalcCards(Svc.CardMonth);
+            Save();
+
+            var name = Svc.CardById(cardId)?.Name;
+            var label = LedgerService.Label(Svc.CardMonth);
+            ImportMessage = excluded > 0
+                ? $"「{name}」に {kept.Count} 件を取り込みました（{label}・全置換／過去月と重複の {excluded} 件を除外）"
+                : $"「{name}」に {kept.Count} 件を取り込みました（{label}・全置換）";
+        }
+        catch (Exception ex)
+        {
+            ImportMessage = $"取込に失敗しました: {ex.Message}";
+        }
+    }
+
+    // ── 一括カテゴリ（利用先ごと・当月適用＋ルール記憶）──
+    private const string KeepSentinel = "__keep__";
+    private bool ShowBulk;
+    private record StoreGroup(string Store, int Count, decimal Total);
+    private List<StoreGroup> BulkGroups = new();
+    private Dictionary<string, string> BulkSelection = new();
+
+    // 複数の利用先を選んでまとめて同じカテゴリを設定する（チェック＋一括設定）
+    private const string AllFilter = "__all__";
+    private HashSet<string> _bulkChecked = new();
+    private string _batchCat = "";          // 一括設定で選ぶカテゴリ（""=未分類）
+    private string _bulkCatFilter = AllFilter;   // 表示の絞り込み（カテゴリ。AllFilter=すべて）
+    private bool _bulkDirty;                // 未適用の変更があるか（キャンセル時の警告用）
+    private bool _bulkConfirmCancel;
+
+    // カテゴリで絞り込んだ表示用の利用先一覧（チェック状態はフィルターと独立に保持）
+    private List<StoreGroup> DisplayedBulkGroups =>
+        _bulkCatFilter == AllFilter
+            ? BulkGroups
+            : BulkGroups.Where(g => BulkSelection.GetValueOrDefault(g.Store, KeepSentinel) == _bulkCatFilter).ToList();
+
+    private bool AllChecked => DisplayedBulkGroups.Count > 0 && DisplayedBulkGroups.All(g => _bulkChecked.Contains(g.Store));
+    private void ToggleAll()
+    {
+        var disp = DisplayedBulkGroups;
+        if (disp.All(g => _bulkChecked.Contains(g.Store)))
+            foreach (var g in disp) _bulkChecked.Remove(g.Store);
+        else
+            foreach (var g in disp) _bulkChecked.Add(g.Store);
+    }
+    private void ToggleBulkCheck(string store)
+    {
+        if (!_bulkChecked.Remove(store)) _bulkChecked.Add(store);
+    }
+    // 行ごとのカテゴリ変更（未適用の編集として記録）
+    private void SetRowCategory(string store, string? val)
+    {
+        BulkSelection[store] = val ?? KeepSentinel;
+        _bulkDirty = true;
+    }
+    // チェックした利用先に _batchCat をまとめて設定し、設定後はチェックを外す
+    private void ApplyBatchToChecked()
+    {
+        foreach (var store in _bulkChecked)
+            BulkSelection[store] = _batchCat;
+        _bulkChecked.Clear();
+        _bulkDirty = true;
+    }
+
+    // キャンセル/オーバーレイ閉じ：未適用の編集があれば破棄確認を出す
+    private void RequestCloseBulk()
+    {
+        if (_bulkDirty) _bulkConfirmCancel = true;
+        else ShowBulk = false;
+    }
+    private void DiscardBulk() { _bulkConfirmCancel = false; ShowBulk = false; }
+    private void KeepEditingBulk() => _bulkConfirmCancel = false;
+
+    private void OpenBulk()
+    {
+        BulkGroups = Mo.CardDetails
+            .GroupBy(d => d.Name)
+            .Select(g => new StoreGroup(g.Key, g.Count(), g.Sum(d => d.Amount)))
+            .ToList();
+
+        _bulkChecked.Clear();
+        _batchCat = "";
+        _bulkCatFilter = AllFilter;
+        _bulkDirty = false;
+        _bulkConfirmCancel = false;
+        BulkSelection = new();
+        foreach (var g in BulkGroups)
+        {
+            // 当該店名の明細カテゴリが揃っていれば初期選択、混在なら「変更しない」
+            var cats = Mo.CardDetails.Where(d => d.Name == g.Store)
+                .Select(d => d.CategoryId ?? "").Distinct().ToList();
+            BulkSelection[g.Store] = cats.Count == 1 ? cats[0] : KeepSentinel;
+        }
+        SortBulk();   // BulkSelection 構築後に現在の並び順（既定は金額降順）を適用
+        ShowBulk = true;
+    }
+
+    // ── 一括ダイアログの並び替え（利用先/件数/金額）。既定は金額の降順 ──
+    private string _bulkSort = "total";
+    private bool _bulkAsc = false;
+
+    private void SetBulkSort(string key)
+    {
+        if (_bulkSort == key) _bulkAsc = !_bulkAsc;
+        else { _bulkSort = key; _bulkAsc = true; }   // 初回クリックは昇順で統一
+        SortBulk();
+    }
+
+    private void SortBulk()
+    {
+        Func<StoreGroup, object> key = _bulkSort switch
+        {
+            "store" => g => g.Store,
+            "count" => g => g.Count,
+            "category" => g => CategorySortKey(BulkSelection.GetValueOrDefault(g.Store)),
+            _ => g => g.Total,
+        };
+        BulkGroups = (_bulkAsc ? BulkGroups.OrderBy(key) : BulkGroups.OrderByDescending(key)).ToList();
+    }
+
+    private MarkupString BulkHead(string key, string label) =>
+        new(label + (_bulkSort == key ? (_bulkAsc ? " ▲" : " ▼") : ""));
+
+    private void ApplyBulk()
+    {
+        foreach (var g in BulkGroups)
+        {
+            var sel = BulkSelection.GetValueOrDefault(g.Store, KeepSentinel);
+            if (sel == KeepSentinel) continue;   // 変更しない
+
+            foreach (var d in Mo.CardDetails.Where(d => d.Name == g.Store))
+                d.CategoryId = string.IsNullOrEmpty(sel) ? null : sel;
+
+            // 店名→カテゴリのルールを記憶（未分類選択時は削除）
+            if (string.IsNullOrEmpty(sel)) Svc.State.CategoryRules.Remove(g.Store);
+            else Svc.State.CategoryRules[g.Store] = sel;
+        }
+        _bulkDirty = false;
+        ShowBulk = false;
+        Save();
+    }
+}

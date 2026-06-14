@@ -14,7 +14,30 @@ public class AppState
 
     public List<Account> Accounts { get; set; } = new();
     public List<FixedCost> FixedCosts { get; set; } = new();
+    public List<Category> Categories { get; set; } = new();
+    public List<Card> Cards { get; set; } = new();
+    // 利用先(店名) → カテゴリId。一括適用で記憶し、以降の取込で自動分類する。
+    public Dictionary<string, string> CategoryRules { get; set; } = new();
     public Dictionary<string, MonthData> Months { get; set; } = new();
+}
+
+// ── カテゴリ ──────────────────────────────────────
+public class Category
+{
+    public string Id { get; set; } = Util.NewId();
+    public string Name { get; set; } = "";
+    public string Color { get; set; } = "";   // パレットの16進カラー
+    public int SortOrder { get; set; }
+}
+
+// ── カード ──────────────────────────────────────
+public class Card
+{
+    public string Id { get; set; } = Util.NewId();
+    public string Name { get; set; } = "";
+    public string AccountId { get; set; } = "";   // 引き落とし口座
+    public int SortOrder { get; set; }
+    public bool IsDeleted { get; set; }            // ソフト削除（過去明細の名前引きのため残す）
 }
 
 // ── 口座 ──────────────────────────────────────────
@@ -68,14 +91,44 @@ public class MonthData
 {
     public Dictionary<string, Ledger> Ledgers { get; set; } = new();
     public List<Transfer> Transfers { get; set; } = new();
+    public List<CardDetail> CardDetails { get; set; } = new();   // この月に計上するカード利用明細
+
+    // カード×月の「実請求額」（口座引き落とし額）。リボ・分割で利用額と引き落とし額が
+    // 異なる場合に設定する。未設定のカードは明細合計（＝一括払い）を引き落とし額とみなす。
+    // 明細合計は消費＝統計用としてそのまま残し、口座末残高だけをこの額で補正する。
+    public Dictionary<string, decimal> CardBilled { get; set; } = new();
+}
+
+// カード利用明細（合計が ExpandCards で月次 Debit に反映される）
+public class CardDetail
+{
+    public string Id { get; set; } = Util.NewId();
+    public string CardId { get; set; } = "";
+    public string Date { get; set; } = "";        // 利用日 "yyyy-MM-dd"（表示用）
+    public string Name { get; set; } = "";         // 利用先・摘要
+    public decimal Amount { get; set; }
+    public string? CategoryId { get; set; }        // 未設定=未分類
 }
 
 public class Ledger
 {
+    // 月初残高の起点（開始残高）。前月の同口座台帳が無い「起点月」でのみ使う。
+    // それ以外の月は前月末から自動計算するため、この値は参照されない。
     public decimal Confirmed { get; set; }
     public decimal Salary { get; set; }
     public decimal Bonus { get; set; }
     public List<Debit> Debits { get; set; } = new();
+    public List<IncomeItem> Incomes { get; set; } = new();   // 臨時収入（給料/ボーナスとは別。統計の収入総額には別系列で反映）
+    public decimal AtmDeposit { get; set; }                  // ATM入金（口座増・資産移動のため統計には含めない）
+    public decimal AtmWithdraw { get; set; }                 // ATM出金（口座減・資産移動のため統計には含めない）
+}
+
+// 臨時収入の明細（給料・ボーナス以外の収入。入力名ごとに統計へ内訳表示）
+public class IncomeItem
+{
+    public string Id { get; set; } = Util.NewId();
+    public string Name { get; set; } = "";
+    public decimal Amount { get; set; }
 }
 
 public class Debit
@@ -85,6 +138,7 @@ public class Debit
     public decimal Amount { get; set; }
     public bool IsFixed { get; set; }
     public string? FixedCostId { get; set; }
+    public string? CardId { get; set; }   // カード由来 Debit の目印（明細合計を反映・読み取り専用）
 }
 
 public class Transfer

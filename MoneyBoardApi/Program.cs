@@ -9,6 +9,9 @@ builder.ConfigureFunctionsWebApplication();
 // Application Insights
 builder.Services.AddApplicationInsightsTelemetryWorkerService();
 
+// Firebase ID トークン検証（署名鍵キャッシュのため Singleton）
+builder.Services.AddSingleton<MoneyBoardApi.FirebaseAuth>();
+
 // Cosmos DB クライアントを DI に登録
 builder.Services.AddSingleton(_ =>
 {

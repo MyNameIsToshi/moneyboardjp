@@ -1,8 +1,46 @@
-<Router AppAssembly="@typeof(App).Assembly">
-    <Found Context="routeData">
-        <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
-    </Found>
-    <NotFound>
-        <p style="padding:24px">ページが見つかりません。</p>
-    </NotFound>
-</Router>
+@using MoneyBoard.Services
+@inject AuthService Auth
+@implements IDisposable
+
+@if (!Auth.Ready)
+{
+    <div class="auth-screen">
+        <div class="spinner"></div>
+        <p>読み込み中…</p>
+    </div>
+}
+else if (Auth.User is null)
+{
+    <div class="auth-screen">
+        <div class="auth-card">
+            <h1 class="app-title">MoneyBoard</h1>
+            <p class="auth-lead">口座別の収支管理・家計簿</p>
+            <button class="btn primary" @onclick="SignIn">Google でログイン</button>
+        </div>
+    </div>
+}
+else
+{
+    <Router AppAssembly="@typeof(App).Assembly">
+        <Found Context="routeData">
+            <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
+        </Found>
+        <NotFound>
+            <p style="padding:24px">ページが見つかりません。</p>
+        </NotFound>
+    </Router>
+}
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        Auth.StateChanged += OnAuthChanged;
+        await Auth.InitAsync();
+    }
+
+    private void OnAuthChanged() => InvokeAsync(StateHasChanged);
+
+    private Task SignIn() => Auth.SignInAsync();
+
+    public void Dispose() => Auth.StateChanged -= OnAuthChanged;
+}

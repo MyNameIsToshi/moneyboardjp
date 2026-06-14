@@ -9,9 +9,8 @@ using MoneyBoardShared;
 
 namespace MoneyBoardApi;
 
-public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos)
+public partial class DataApi(ILogger<DataApi> logger, CosmosClient cosmos, FirebaseAuth auth)
 {
-    private const string UserId = "default"; // Google認証実装後にヘッダーから取得
     private const string SettingsId = "settings";
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
@@ -20,8 +19,11 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos)
     // 構造上の健全性チェック
     private const int MaxAccounts = 100;
     private const int MaxFixedCosts = 500;
+    private const int MaxCategories = 100;
+    private const int MaxCards = 100;
     private const int MaxMonthsPerSave = 600;
     private const int MaxDebitsPerLedger = 1000;
+    private const int MaxCardDetailsPerMonth = 5000;
 
     private Container GetContainer() =>
         cosmos.GetContainer(Environment.GetEnvironmentVariable("CosmosDb__DatabaseName"), "userdata");
@@ -36,8 +38,10 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos)
         try
         {
             var container = GetContainer();
-            var pk = new PartitionKey(UserId);
-            var env = new DataEnvelope { Settings = new SettingsPart() };
+            var (userId, isOwner, authError) = await AuthorizeAsync(container, req);
+            if (authError is not null) return authError;
+            var pk = new PartitionKey(userId!);
+            var env = new DataEnvelope { Settings = new SettingsPart(), IsOwner = isOwner };
 
             // 設定（ポイント読み取り）。無ければ新規ユーザーとして空の設定。
             try
@@ -48,7 +52,10 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos)
                     Etag = r.ETag,
                     SchemaVersion = r.Resource.SchemaVersion,
                     Accounts = r.Resource.Accounts,
-                    FixedCosts = r.Resource.FixedCosts
+                    FixedCosts = r.Resource.FixedCosts,
+                    Categories = r.Resource.Categories,
+                    Cards = r.Resource.Cards,
+                    CategoryRules = r.Resource.CategoryRules
                 };
             }
             catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)
@@ -58,7 +65,7 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos)
 
             // 月次（クエリ）。_etag はドキュメント本文から取得する。
             var query = new QueryDefinition("SELECT * FROM c WHERE c.userId = @u AND c.type = 'month'")
-                .WithParameter("@u", UserId);
+                .WithParameter("@u", userId);
             using var it = container.GetItemQueryIterator<MonthReadDoc>(query,
                 requestOptions: new QueryRequestOptions { PartitionKey = pk });
             while (it.HasMoreResults)
@@ -70,7 +77,9 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos)
                     {
                         Etag = d.Etag,
                         Ledgers = d.Ledgers ?? new(),
-                        Transfers = d.Transfers ?? new()
+                        Transfers = d.Transfers ?? new(),
+                        CardDetails = d.CardDetails ?? new(),
+                        CardBilled = d.CardBilled ?? new()
                     };
                 }
             }
@@ -106,7 +115,9 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos)
             }
 
             var container = GetContainer();
-            var pk = new PartitionKey(UserId);
+            var (userId, _, authError) = await AuthorizeAsync(container, req);
+            if (authError is not null) return authError;
+            var pk = new PartitionKey(userId!);
             var batch = container.CreateTransactionalBatch(pk);
             var ops = new List<(string kind, string ym)>();
 
@@ -114,10 +125,13 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos)
             {
                 var doc = new SettingsDoc
                 {
-                    Id = SettingsId, UserId = UserId, Type = "settings",
+                    Id = SettingsId, UserId = userId!, Type = "settings",
                     SchemaVersion = env.Settings.SchemaVersion,
                     Accounts = env.Settings.Accounts,
-                    FixedCosts = env.Settings.FixedCosts
+                    FixedCosts = env.Settings.FixedCosts,
+                    Categories = env.Settings.Categories,
+                    Cards = env.Settings.Cards,
+                    CategoryRules = env.Settings.CategoryRules
                 };
                 batch.UpsertItem(doc, BatchOptions(env.Settings.Etag));
                 ops.Add(("settings", ""));
@@ -126,8 +140,8 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos)
             {
                 var doc = new MonthDoc
                 {
-                    Id = MonthId(ym), UserId = UserId, Type = "month", Ym = ym,
-                    Ledgers = m.Ledgers, Transfers = m.Transfers
+                    Id = MonthId(ym), UserId = userId!, Type = "month", Ym = ym,
+                    Ledgers = m.Ledgers, Transfers = m.Transfers, CardDetails = m.CardDetails, CardBilled = m.CardBilled
                 };
                 batch.UpsertItem(doc, BatchOptions(m.Etag));
                 ops.Add(("month", ym));
@@ -194,10 +208,13 @@ public class DataApi(ILogger<DataApi> logger, CosmosClient cosmos)
         {
             if (env.Settings.Accounts.Count > MaxAccounts) { reason = $"accounts={env.Settings.Accounts.Count}"; return false; }
             if (env.Settings.FixedCosts.Count > MaxFixedCosts) { reason = $"fixedCosts={env.Settings.FixedCosts.Count}"; return false; }
+            if (env.Settings.Categories.Count > MaxCategories) { reason = $"categories={env.Settings.Categories.Count}"; return false; }
+            if (env.Settings.Cards.Count > MaxCards) { reason = $"cards={env.Settings.Cards.Count}"; return false; }
         }
         if (env.Months.Count > MaxMonthsPerSave) { reason = $"months={env.Months.Count}"; return false; }
         foreach (var (ym, m) in env.Months)
         {
+            if (m.CardDetails.Count > MaxCardDetailsPerMonth) { reason = $"cardDetails in {ym}={m.CardDetails.Count}"; return false; }
             foreach (var (accId, l) in m.Ledgers)
             {
                 if (l.Debits.Count > MaxDebitsPerLedger)
@@ -221,6 +238,9 @@ public class SettingsDoc
     public int SchemaVersion { get; set; } = 1;
     public List<Account> Accounts { get; set; } = new();
     public List<FixedCost> FixedCosts { get; set; } = new();
+    public List<Category> Categories { get; set; } = new();
+    public List<Card> Cards { get; set; } = new();
+    public Dictionary<string, string> CategoryRules { get; set; } = new();
 }
 
 public class MonthDoc
@@ -231,6 +251,8 @@ public class MonthDoc
     public string Ym { get; set; } = "";
     public Dictionary<string, Ledger> Ledgers { get; set; } = new();
     public List<Transfer> Transfers { get; set; } = new();
+    public List<CardDetail> CardDetails { get; set; } = new();
+    public Dictionary<string, decimal> CardBilled { get; set; } = new();
 }
 
 // 月次クエリ読み取り専用（_etag を本文から取得するため）
@@ -239,5 +261,7 @@ public class MonthReadDoc
     public string? Ym { get; set; }
     public Dictionary<string, Ledger>? Ledgers { get; set; }
     public List<Transfer>? Transfers { get; set; }
+    public List<CardDetail>? CardDetails { get; set; }
+    public Dictionary<string, decimal>? CardBilled { get; set; }
     [Newtonsoft.Json.JsonProperty("_etag")] public string? Etag { get; set; }
 }

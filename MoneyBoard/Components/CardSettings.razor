@@ -1,0 +1,125 @@
+@inject LedgerService Svc
+
+<div class="cat-head">
+    <span>カード</span>
+    <button class="btn" @onclick="Add">＋ 追加</button>
+</div>
+
+@if (!Ordered.Any())
+{
+    <div class="none">カードが登録されていません。</div>
+}
+else
+{
+    @foreach (var card in Ordered)
+    {
+        <div class="cat-row @(DragOverId == card.Id ? "drag-over" : "")"
+             draggable="true"
+             @ondragstart="() => OnDragStart(card.Id)"
+             @ondragover:preventDefault="true"
+             @ondragover="() => OnDragOver(card.Id)"
+             @ondrop="() => OnDrop(card.Id)"
+             @ondragend="OnDragEnd">
+            <span class="drag-handle">⠿</span>
+            <input class="cat-name" @bind="card.Name" @bind:after="Save" placeholder="カード名" />
+            <select class="card-acct" @bind="card.AccountId" @bind:after="Save">
+                <option value="">引き落とし口座を選択</option>
+                @foreach (var a in Svc.ActiveAccounts)
+                {
+                    <option value="@a.Id">@a.Name</option>
+                }
+            </select>
+            <button class="x" @onclick="() => AskDelete(card)">✕</button>
+        </div>
+    }
+}
+
+<div class="foot" style="text-align:left;margin-top:10px">
+    カードの利用明細合計が、選択した口座のその月の支出に反映されます（明細機能は今後追加）。
+</div>
+
+<ConfirmDialog IsVisible="@ShowConfirm"
+               Title="カードを削除しますか？"
+               Message="@ConfirmMessage"
+               ConfirmText="削除する"
+               OnConfirm="ExecuteDelete"
+               OnCancel="CancelDelete" />
+
+@code {
+    private IEnumerable<Card> Ordered => Svc.State.Cards.Where(c => !c.IsDeleted).OrderBy(c => c.SortOrder);
+
+    // カード変更は当月以降の月次カード Debit を作り直してから保存する
+    private void Save() { Svc.OnCardsChanged(); _ = Svc.SaveAsync(); }
+
+    private void Add()
+    {
+        Svc.State.Cards.Add(new Card
+        {
+            Name = "",
+            AccountId = Svc.ActiveAccounts.FirstOrDefault()?.Id ?? "",
+            SortOrder = Ordered.Count()
+        });
+        Save();
+    }
+
+    // ── 削除（確認ダイアログで消えるデータを明示）──
+    private bool ShowConfirm;
+    private string? PendingDeleteId;
+    private string ConfirmMessage = "";
+
+    private void AskDelete(Card card)
+    {
+        var (count, total) = Svc.CardDeletionImpact(card.Id);
+        var lines = $"「{card.Name}」を削除します。\n\n";
+        lines += count > 0
+            ? $"・当月以降の明細 {count} 件（¥{total:#,0}）と、口座の支出への反映が削除されます。\n"
+            : "・当月以降に削除される明細はありません。\n";
+        lines += "・過去の明細は履歴として残ります（統計のカード名も保持されます）。\n\n";
+        lines += "この操作は取り消せません。";
+
+        ConfirmMessage = lines;
+        PendingDeleteId = card.Id;
+        ShowConfirm = true;
+    }
+
+    // 当月以降の明細を除去しカード Debit を作り直す（過去月は履歴として凍結）。
+    private void ExecuteDelete()
+    {
+        if (PendingDeleteId != null) { Svc.DeleteCard(PendingDeleteId); _ = Svc.SaveAsync(); }
+        PendingDeleteId = null;
+        ShowConfirm = false;
+    }
+
+    private void CancelDelete() { PendingDeleteId = null; ShowConfirm = false; }
+
+    // ── ドラッグ＆ドロップ並び替え ──────────────────
+    private string? DragSourceId;
+    private string? DragOverId;
+
+    private void OnDragStart(string id) => DragSourceId = id;
+    private void OnDragOver(string id) => DragOverId = id;
+
+    private void OnDrop(string targetId)
+    {
+        if (DragSourceId == null || DragSourceId == targetId) { OnDragEnd(); return; }
+
+        var ordered = Ordered.ToList();
+        var srcIdx = ordered.FindIndex(c => c.Id == DragSourceId);
+        var tgtIdx = ordered.FindIndex(c => c.Id == targetId);
+        if (srcIdx < 0 || tgtIdx < 0) { OnDragEnd(); return; }
+
+        var item = ordered[srcIdx];
+        ordered.RemoveAt(srcIdx);
+        ordered.Insert(tgtIdx, item);
+        for (int i = 0; i < ordered.Count; i++) ordered[i].SortOrder = i;
+
+        OnDragEnd();
+        Save();
+    }
+
+    private void OnDragEnd()
+    {
+        DragSourceId = null;
+        DragOverId = null;
+    }
+}

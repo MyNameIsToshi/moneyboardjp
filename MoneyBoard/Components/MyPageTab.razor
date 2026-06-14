@@ -1,36 +1,139 @@
 @inject LedgerService Svc
+@inject AuthService Auth
+@inject AccessService Access
 
 <div class="mypage-section">
     <h3>アカウント</h3>
-    <div style="font-size:13px;color:var(--sub)">
-        Google認証は今後実装予定です。
+    <div class="account-note">
+        @if (Auth.IsBypass)
+        {
+            <span>ローカル開発モード（認証バイパス）</span>
+        }
+        else
+        {
+            <span>@Auth.User?.Email でログイン中</span>
+        }
     </div>
 </div>
 
-<div class="mypage-section">
-    <h3>データ管理</h3>
-    <div class="mypage-row">
-        <span>CSVエクスポート</span>
-        <button class="btn" style="padding:5px 12px;font-size:13px" @onclick="ExportCsv">ダウンロード</button>
+@if (Svc.IsOwner)
+{
+    <div class="mypage-section">
+        <button class="mypage-collapse" @onclick='() => ToggleSection("access")'>
+            <span>アクセス管理@(PendingCount > 0 ? $"（承認待ち {PendingCount}）" : "")</span>
+            <span class="mypage-chevron">@(IsOpen("access") ? "▼" : "▶")</span>
+        </button>
+        @if (IsOpen("access"))
+        {
+            <div class="mypage-collapse-body">
+                @if (_access is null)
+                {
+                    <div class="none">読み込み中…</div>
+                }
+                else
+                {
+                    <h4 class="access-sub">承認待ち</h4>
+                    @if (_access.Pending.Count == 0)
+                    {
+                        <div class="none">承認待ちはありません。</div>
+                    }
+                    @foreach (var p in _access.Pending)
+                    {
+                        <div class="access-row">
+                            <div class="access-id">
+                                <span class="access-name">@(string.IsNullOrEmpty(p.Name) ? "(名前なし)" : p.Name)</span>
+                                <span class="access-email">@p.Email</span>
+                            </div>
+                            <div class="access-actions">
+                                <button class="btn primary" @onclick='() => Act("approve", p.Uid)'>承認</button>
+                                <button class="btn" @onclick='() => Act("reject", p.Uid)'>拒否</button>
+                            </div>
+                        </div>
+                    }
+
+                    <h4 class="access-sub">承認済み</h4>
+                    @if (_access.Approved.Count == 0)
+                    {
+                        <div class="none">承認済みのユーザーはいません。</div>
+                    }
+                    @foreach (var a in _access.Approved)
+                    {
+                        <div class="access-row">
+                            <div class="access-id">
+                                <span class="access-name">@(string.IsNullOrEmpty(a.Name) ? "(名前なし)" : a.Name)</span>
+                                <span class="access-email">@a.Email</span>
+                            </div>
+                            <button class="btn" @onclick='() => Act("revoke", a.Uid)'>解除</button>
+                        </div>
+                    }
+                }
+            </div>
+        }
     </div>
+}
+
+<div class="mypage-section">
+    <button class="mypage-collapse" @onclick='() => ToggleSection("account")'>
+        <span>口座設定</span>
+        <span class="mypage-chevron">@(IsOpen("account") ? "▼" : "▶")</span>
+    </button>
+    @if (IsOpen("account"))
+    {
+        <div class="mypage-collapse-body"><AccountsTab /></div>
+    }
 </div>
 
 <div class="mypage-section">
-    <h3>メニュー</h3>
-    <div class="mypage-link">
-        <span>統計を見る</span><span>→</span>
-    </div>
-    <div class="mypage-link">
-        <span>カテゴリ設定</span><span>→</span>
-    </div>
-    <div class="mypage-link">
-        <span>カード設定</span><span>→</span>
-    </div>
+    <button class="mypage-collapse" @onclick='() => ToggleSection("category")'>
+        <span>カード明細カテゴリ</span>
+        <span class="mypage-chevron">@(IsOpen("category") ? "▼" : "▶")</span>
+    </button>
+    @if (IsOpen("category"))
+    {
+        <div class="mypage-collapse-body"><CategorySettings /></div>
+    }
+</div>
+
+<div class="mypage-section">
+    <button class="mypage-collapse" @onclick='() => ToggleSection("card")'>
+        <span>カード設定</span>
+        <span class="mypage-chevron">@(IsOpen("card") ? "▼" : "▶")</span>
+    </button>
+    @if (IsOpen("card"))
+    {
+        <div class="mypage-collapse-body"><CardSettings /></div>
+    }
 </div>
 
 @code {
-    private void ExportCsv()
+    // 各設定セクションは折りたたみ式（既定は畳んだ状態）
+    private readonly HashSet<string> _open = new();
+    private bool IsOpen(string key) => _open.Contains(key);
+
+    private AccessInfo? _access;
+    private int PendingCount => _access?.Pending.Count ?? 0;
+
+    protected override async Task OnInitializedAsync()
     {
-        // Phase 1 では未実装（後で実装）
+        if (Svc.IsOwner) await LoadAccess();   // バッジ表示のため先読み
+    }
+
+    private async Task ToggleSection(string key)
+    {
+        if (!_open.Remove(key)) _open.Add(key);
+        if (key == "access" && IsOpen("access") && _access is null)
+            await LoadAccess();
+    }
+
+    private async Task LoadAccess()
+    {
+        _access = await Access.GetAsync();
+        StateHasChanged();
+    }
+
+    private async Task Act(string action, string uid)
+    {
+        var result = await Access.ActAsync(action, uid);
+        if (result is not null) _access = result;
     }
 }

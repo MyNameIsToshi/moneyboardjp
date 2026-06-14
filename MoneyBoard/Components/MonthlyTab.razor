@@ -10,6 +10,7 @@
                 <button @onclick="Prev" disabled="@IsPrevDisabled">‹</button>
                 <div class="m">@LedgerService.Label(Svc.CurrentMonth)</div>
                 <button @onclick="Next">›</button>
+                <CycleInfo Ym="@Svc.CurrentMonth" />
             </div>
         </div>
     </div>
@@ -29,19 +30,21 @@
             var outgoing = Mo.Transfers.Where(t => t.From == a.Id).ToList();
             var incoming = Mo.Transfers.Where(t => t.To == a.Id).ToList();
             var others = ActiveAccountsForMonth.Where(x => x.Id != a.Id).ToList();
-            decimal? prevClose = HasPrev ? Svc.CloseOf(PrevMonth, a.Id) : (decimal?)null;
+            var isAnchor = Svc.IsOpeningAnchor(Svc.CurrentMonth, a.Id);
 
             <div class="acct @(bad ? "bad" : "")">
                 <div class="ahead"><span class="aname">@a.Name</span></div>
 
                 <div class="field">
-                    <label>確認時点
-                        @if (prevClose is not null)
-                        {
-                            <span class="hint">前月末 @Yen(prevClose.Value)</span>
-                        }
-                    </label>
-                    <AmountInput Value="@l.Confirmed" ValueChanged="v => { l.Confirmed = v; Svc.RequestSave(); }" />
+                    <label>月初残高 <span class="hint">@(isAnchor ? "開始残高（起点）" : "前月末より自動")</span></label>
+                    @if (isAnchor)
+                    {
+                        <AmountInput Value="@l.Confirmed" ValueChanged="v => { l.Confirmed = v; Svc.RequestSave(); }" />
+                    }
+                    else
+                    {
+                        <span class="opening-auto">@Yen(Svc.OpeningOf(Svc.CurrentMonth, a.Id))</span>
+                    }
                 </div>
 
                 <div class="field">
@@ -58,8 +61,40 @@
                 }
 
                 <div class="sec">
-                    <h4>引き落とし <button class="add-line" @onclick="() => AddDebit(a.Id)">＋追加</button></h4>
-                    @foreach (var d in l.Debits)
+                    <h4>収入（給料・ボーナス以外） <button class="add-line" @onclick="() => AddIncome(a.Id)">＋追加</button></h4>
+                    @* ATM入金（一番上に固定・資産移動のため統計には含めない） *@
+                    <div class="row atm-row">
+                        <span class="atm-label">🏧 ATM入金</span>
+                        <AmountInput CssClass="amt" Value="@l.AtmDeposit" ValueChanged="v => { l.AtmDeposit = v; Svc.RequestSave(); }" />
+                    </div>
+                    @foreach (var inc in l.Incomes)
+                    {
+                        <div class="row">
+                            <input class="name" @bind="inc.Name" @bind:after="Save" placeholder="収入名（例：副業・還付金）" />
+                            <AmountInput CssClass="amt" Value="@inc.Amount" ValueChanged="v => { inc.Amount = v; Svc.RequestSave(); }" />
+                            <button class="x" @onclick="() => RemoveIncome(a.Id, inc.Id)">✕</button>
+                        </div>
+                    }
+                </div>
+
+                <div class="sec">
+                    <h4>支出 <button class="add-line" @onclick="() => AddDebit(a.Id)">＋追加</button></h4>
+                    @* カード由来の項目を先頭に表示（読み取り専用） *@
+                    @foreach (var d in l.Debits.Where(d => d.CardId != null))
+                    {
+                        <div class="row card-row" @onclick="() => GoToCard(d.CardId)" title="カードタブで明細を編集">
+                            <span class="name card-name">💳 @d.Name</span>
+                            <span class="amt card-amt">@Yen(d.Amount)</span>
+                            <span class="card-arrow">›</span>
+                        </div>
+                    }
+                    @* ATM出金（カードの下に固定・資産移動のため統計には含めない） *@
+                    <div class="row atm-row">
+                        <span class="atm-label">🏧 ATM出金</span>
+                        <AmountInput CssClass="amt" Value="@l.AtmWithdraw" ValueChanged="v => { l.AtmWithdraw = v; Svc.RequestSave(); }" />
+                    </div>
+                    @* 手入力の支出 *@
+                    @foreach (var d in l.Debits.Where(d => d.CardId == null))
                     {
                         <div class="row">
                             <input class="name" @bind="d.Name" @bind:after="Save" placeholder="項目" />
@@ -68,7 +103,6 @@
                             <button class="x" @onclick="() => RemoveDebit(a.Id, d.Id)">✕</button>
                         </div>
                     }
-
                 </div>
 
                 <div class="sec">
@@ -124,9 +158,6 @@
 @code {
     private MonthData Mo = new();
 
-    private string PrevMonth => LedgerService.PrevYm(Svc.CurrentMonth);
-    private bool HasPrev => Svc.State.Months.ContainsKey(PrevMonth);
-
     // 現在月以降は IsDeleted の口座を非表示、過去月はキープ
     private List<Account> ActiveAccountsForMonth
     {
@@ -161,12 +192,25 @@
     [Inject] NavigationManager Nav { get; set; } = default!;
     // 保留中のデバウンス保存をフラッシュしてから遷移（グラフ側の再読込が最新を取得できるように）
     private async Task GoToGraph() { await Svc.SaveAsync(); Nav.NavigateTo("/graph"); }
+
+    // カード明細はカードタブで編集する。月次の月をカードタブへ引き継いでから切替。
+    [Parameter] public EventCallback<string> RequestTab { get; set; }
+    // 押下したカードの月へ合わせ、対象カードを指定してカードタブへ（先で展開＆スクロール）。
+    private Task GoToCard(string? cardId)
+    {
+        Svc.CardMonth = Svc.CurrentMonth;
+        Svc.ScrollToCardId = cardId;
+        return RequestTab.InvokeAsync("card");
+    }
     private void Prev() { Svc.CurrentMonth = LedgerService.PrevYm(Svc.CurrentMonth); Mo = Svc.EnsureMonth(Svc.CurrentMonth); }
     private void Next() { Svc.CurrentMonth = LedgerService.NextYm(Svc.CurrentMonth); Mo = Svc.EnsureMonth(Svc.CurrentMonth); }
 
 
     private void AddDebit(string aid) { Mo.Ledgers[aid].Debits.Add(new Debit()); Save(); }
     private void RemoveDebit(string aid, string did) { Mo.Ledgers[aid].Debits.RemoveAll(d => d.Id == did); Save(); }
+
+    private void AddIncome(string aid) { Mo.Ledgers[aid].Incomes.Add(new IncomeItem()); Save(); }
+    private void RemoveIncome(string aid, string iid) { Mo.Ledgers[aid].Incomes.RemoveAll(i => i.Id == iid); Save(); }
 
     private void AddTransfer(string aid)
     {

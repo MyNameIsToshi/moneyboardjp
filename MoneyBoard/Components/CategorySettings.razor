@@ -1,0 +1,105 @@
+@inject LedgerService Svc
+
+<div class="cat-head">
+    <span>カテゴリ</span>
+    <button class="btn" @onclick="Add">＋ 追加</button>
+</div>
+
+@if (Svc.State.Categories.Count == 0)
+{
+    <div class="none">カテゴリが登録されていません。</div>
+}
+else
+{
+    @foreach (var c in Ordered)
+    {
+        <div class="cat-row @(DragOverId == c.Id ? "drag-over" : "")"
+             draggable="true"
+             @ondragstart="() => OnDragStart(c.Id)"
+             @ondragover:preventDefault="true"
+             @ondragover="() => OnDragOver(c.Id)"
+             @ondrop="() => OnDrop(c.Id)"
+             @ondragend="OnDragEnd">
+            <span class="drag-handle">⠿</span>
+            <span class="cat-swatch" style="background:@c.Color"></span>
+            <input class="cat-name" @bind="c.Name" @bind:after="Save" placeholder="カテゴリ名" />
+            <div class="cat-palette">
+                @foreach (var color in Palette)
+                {
+                    <button class="cat-color @(c.Color == color ? "sel" : "")"
+                            style="background:@color"
+                            @onclick="() => SetColor(c, color)" title="@color"></button>
+                }
+            </div>
+            <button class="x" @onclick="() => Remove(c.Id)">✕</button>
+        </div>
+    }
+}
+
+<div class="foot" style="text-align:left;margin-top:10px">
+    カテゴリ未設定の明細は「未分類（灰色）」として扱われます。
+</div>
+
+@code {
+    // 12色パレット
+    private static readonly string[] Palette =
+    {
+        "#ef4444", "#f97316", "#f59e0b", "#eab308", "#84cc16", "#22c55e",
+        "#14b8a6", "#06b6d4", "#3b82f6", "#8b5cf6", "#ec4899", "#78716c"
+    };
+
+    private IEnumerable<Category> Ordered => Svc.State.Categories.OrderBy(c => c.SortOrder);
+
+    private void Save() => _ = Svc.SaveAsync();
+
+    private void Add()
+    {
+        // 未使用の色を優先的に割り当てる
+        var used = Svc.State.Categories.Select(c => c.Color).ToHashSet();
+        var color = Palette.FirstOrDefault(p => !used.Contains(p)) ?? Palette[0];
+        Svc.State.Categories.Add(new Category
+        {
+            Name = "",
+            Color = color,
+            SortOrder = Svc.State.Categories.Count
+        });
+        Save();
+    }
+
+    private void SetColor(Category c, string color) { c.Color = color; Save(); }
+
+    private void Remove(string id) { Svc.State.Categories.RemoveAll(c => c.Id == id); Save(); }
+
+    // ── ドラッグ＆ドロップ並び替え ──────────────────
+    private string? DragSourceId;
+    private string? DragOverId;
+
+    private void OnDragStart(string id) => DragSourceId = id;
+    private void OnDragOver(string id) => DragOverId = id;
+
+    private void OnDrop(string targetId)
+    {
+        if (DragSourceId == null || DragSourceId == targetId) { OnDragEnd(); return; }
+
+        var ordered = Svc.State.Categories.OrderBy(c => c.SortOrder).ToList();
+        var srcIdx = ordered.FindIndex(c => c.Id == DragSourceId);
+        var tgtIdx = ordered.FindIndex(c => c.Id == targetId);
+        if (srcIdx < 0 || tgtIdx < 0) { OnDragEnd(); return; }
+
+        var item = ordered[srcIdx];
+        ordered.RemoveAt(srcIdx);
+        ordered.Insert(tgtIdx, item);
+
+        // SortOrder を連番に振り直す
+        for (int i = 0; i < ordered.Count; i++) ordered[i].SortOrder = i;
+
+        OnDragEnd();
+        Save();
+    }
+
+    private void OnDragEnd()
+    {
+        DragSourceId = null;
+        DragOverId = null;
+    }
+}

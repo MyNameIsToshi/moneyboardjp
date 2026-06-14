@@ -1,0 +1,240 @@
+/* =====================================================
+   固定費設定タブ (FixedCostTab.razor)
+   ===================================================== */
+.fc-filter-note {
+  color: var(--accent);
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+/* .fc-head span の overflow:hidden を打ち消し、フィルターメニューを表示できるようにする */
+.fc-head .fc-th-filter {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  overflow: visible;
+}
+
+.fc-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  background: none;
+  color: var(--sub);
+  cursor: pointer;
+  padding: 2px 3px;
+  line-height: 1;
+  border-radius: 4px;
+}
+
+/* inline 既定のベースライン揃えを避け、じょうごを「口座」と上下中央に揃える */
+.fc-filter-btn svg {
+  display: block;
+}
+
+.fc-filter-btn.active {
+  color: var(--accent);
+  background: var(--okbg);
+}
+
+.fc-filter-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 30;
+  margin-top: 4px;
+  min-width: 160px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .12);
+  padding: 8px;
+}
+
+.fc-filter-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  font-size: 14.5px;
+  color: var(--ink);
+  font-weight: 400;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.fc-filter-item:hover {
+  background: var(--paper);
+}
+
+.fc-filter-actions {
+  border-top: 1px dashed var(--line);
+  margin-top: 6px;
+  padding-top: 8px;
+  text-align: right;
+}
+
+.fc-filter-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+}
+
+.fc-head {
+  display: grid;
+  grid-template-columns: 24px 1fr 140px 100px 32px;
+  gap: 8px;
+  padding: 4px 0 8px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 4px;
+}
+
+.fc-head span {
+  font-size: 11px;
+  color: var(--sub);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fc-item {
+  border-bottom: 1px dashed var(--line);
+  padding: 6px 0;
+  transition: opacity 0.15s;
+}
+
+.fc-item:last-child {
+  border-bottom: none
+}
+
+.fc-item.drag-over {
+  outline: 2px solid var(--accent);
+  border-radius: 6px;
+  opacity: 0.85;
+}
+
+.fc-row {
+  display: grid;
+  grid-template-columns: 24px 1fr 140px 100px 32px;
+  gap: 8px;
+  align-items: center;
+}
+
+.fc-row input,
+.fc-row select {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 5px 8px;
+  font: inherit;
+  background: #fff;
+  width: 100%;
+}
+
+.fc-row input.ra {
+  text-align: right
+}
+
+.drag-handle {
+  cursor: grab;
+  color: var(--sub);
+  font-size: 1.1rem;
+  padding: 0 4px;
+  user-select: none;
+  flex-shrink: 0;
+  text-align: center;
+}
+
+.drag-handle:active {
+  cursor: grabbing
+}
+
+.fc-expand {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 0;
+  text-align: left;
+  display: block;
+  margin-top: 3px;
+}
+
+.fc-detail {
+  background: #fafaf8;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 6px 0 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.detail-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.detail-lab {
+  font-size: 12px;
+  color: var(--sub);
+  min-width: 72px;
+  font-weight: 600;
+}
+
+.detail-row select {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 5px 8px;
+  font: inherit;
+  font-size: 14px;
+  background: #fff;
+}
+
+.bonus-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.bonus-row-head {
+  display: grid;
+  grid-template-columns: 80px 110px 110px 32px;
+  gap: 6px;
+  padding: 2px 0;
+}
+
+.bonus-row-head span {
+  font-size: 10.5px;
+  color: var(--sub);
+  font-weight: 600;
+}
+
+.bonus-row {
+  display: grid;
+  grid-template-columns: 80px 110px 110px 32px;
+  gap: 6px;
+  align-items: center;
+}
+
+.bonus-row input,
+.bonus-row select {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 5px 8px;
+  font: inherit;
+  font-size: 14px;
+  background: #fff;
+  width: 100%;
+}
+
+.bonus-row input.ra {
+  text-align: right
+}

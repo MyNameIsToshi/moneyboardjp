@@ -7,7 +7,10 @@ namespace MoneyBoardShared;
 /// </summary>
 public static class SchemaMigration
 {
-    public const int CurrentVersion = 1;
+    // v2: Phase 2（カテゴリ／カード／カード明細）を追加。加算的なフィールド追加のみで移行不要。
+    // v3: 月初残高を「作成時スナップショット」から「前月末からの自動連鎖」へ変更。
+    //     非起点月の Confirmed は参照されなくなるだけ（フィールド削除）で、構造的な移行処理は不要。
+    public const int CurrentVersion = 3;
 
     /// <summary>最新スキーマへ移行する。実際に変更が発生した場合のみ true を返す（=保存が必要）。</summary>
     public static bool Apply(AppState state)
@@ -15,7 +18,7 @@ public static class SchemaMigration
         var from = state.SchemaVersion;
 
         // 将来のバージョンアップはここに昇順で追加していく:
-        // if (state.SchemaVersion < 2) { MigrateV1ToV2(state); state.SchemaVersion = 2; }
+        // if (state.SchemaVersion < 4) { MigrateV3ToV4(state); state.SchemaVersion = 4; }
 
         state.SchemaVersion = CurrentVersion;
         return from != CurrentVersion;

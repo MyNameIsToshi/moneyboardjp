@@ -12,6 +12,8 @@ public class AppStateStore(StorageService storage)
 {
     public AppState State { get; private set; } = new();
     public bool IsLoaded { get; private set; }
+    public bool IsPending { get; private set; }   // サインイン済みだが未承認（承認待ち）
+    public bool IsOwner => storage.IsOwner;        // 現在のユーザーがオーナーか
 
     /// <summary>保存が競合し、最新状態を読み込み直したときに発火（UI 再描画用）。</summary>
     public event Action? StateReloadedExternally;
@@ -30,6 +32,7 @@ public class AppStateStore(StorageService storage)
     /// </summary>
     public async Task<bool> LoadAsync()
     {
+        IsPending = false;
         try
         {
             State = await storage.LoadAsync() ?? new AppState();
@@ -37,6 +40,11 @@ public class AppStateStore(StorageService storage)
             SeedBaselines();
             IsLoaded = true;
             return true;
+        }
+        catch (AccessPendingException)
+        {
+            IsPending = true;   // 承認待ち（実データではない・UIで承認待ち画面を出す）
+            return false;
         }
         catch
         {
@@ -127,13 +135,18 @@ public class AppStateStore(StorageService storage)
     {
         SchemaVersion = State.SchemaVersion,
         Accounts = State.Accounts,
-        FixedCosts = State.FixedCosts
+        FixedCosts = State.FixedCosts,
+        Categories = State.Categories,
+        Cards = State.Cards,
+        CategoryRules = State.CategoryRules
     };
 
     private static MonthPart BuildMonthPart(MonthData mo) => new()
     {
         Ledgers = mo.Ledgers,
-        Transfers = mo.Transfers
+        Transfers = mo.Transfers,
+        CardDetails = mo.CardDetails,
+        CardBilled = mo.CardBilled
     };
 
     private string SerializeSettings() => JsonSerializer.Serialize(BuildSettingsPart());

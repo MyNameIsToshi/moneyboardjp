@@ -1,48 +1,44 @@
 @inject LedgerService Svc
 
-<div class="panel">
-    <div class="panel-head">
-        <h3>口座設定</h3>
-        <button class="btn" @onclick="OpenAddDialog">＋ 追加</button>
-    </div>
-
-    @if (Svc.ActiveAccounts.Count == 0)
-    {
-        <div class="none">口座が登録されていません。</div>
-    }
-    else
-    {
-        <table class="acct-table">
-            <thead>
-                <tr>
-                    <th>口座名</th>
-                    <th>口座番号</th>
-                    <th style="text-align:center">ボーナス受取</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var a in Svc.ActiveAccounts)
-                {
-                    <tr>
-                        <td><input class="tinput" @bind="a.Name" @bind:after="Save" placeholder="口座名" /></td>
-                        <td><input class="tinput" @bind="a.AccountNumber" @bind:after="Save" placeholder="口座番号" /></td>
-                        <td style="text-align:center">
-                            <input type="radio" name="bonusAcct" class="radio-bonus"
-                                   checked="@a.IsBonusAccount"
-                                   @onchange="() => SetBonusAccount(a.Id)" />
-                        </td>
-                        <td><button class="x" @onclick="() => RequestDelete(a.Id)">✕</button></td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    }
+<div class="cat-head">
+    <span>口座</span>
+    <button class="btn" @onclick="OpenAddDialog">＋ 追加</button>
 </div>
 
-<div class="foot">
+@if (Svc.ActiveAccounts.Count == 0)
+{
+    <div class="none">口座が登録されていません。</div>
+}
+else
+{
+    <table class="acct-table">
+        <thead>
+            <tr>
+                <th>口座名</th>
+                <th style="text-align:center">ボーナス受取</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var a in Svc.ActiveAccounts)
+            {
+                <tr>
+                    <td><input class="tinput" @bind="a.Name" @bind:after="Save" placeholder="口座名" /></td>
+                    <td style="text-align:center">
+                        <input type="radio" name="bonusAcct" class="radio-bonus"
+                               checked="@a.IsBonusAccount"
+                               @onchange="() => SetBonusAccount(a.Id)" />
+                    </td>
+                    <td><button class="x" @onclick="() => RequestDelete(a.Id)">✕</button></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+<div class="foot" style="text-align:left;margin-top:10px">
     ボーナス受取口座は1つだけ選択できます。<br />
-    固定費設定に使用中の口座、または現在月以降の月次データに記録がある口座は削除できません。
+    固定費で使用中、または現在月以降の月次データがある口座は削除できません。
 </div>
 
 <!-- 追加ダイアログ -->
@@ -136,6 +132,15 @@
         {
             WarnMessages.Add($"以下の固定費で使用されています：{string.Join("、", fcNames)}");
             WarnSubMessage = "固定費設定から該当の固定費を変更または削除してください。";
+            ShowWarn = true;
+            return;
+        }
+
+        var cardNames = Svc.GetCardsUsingAccount(id);
+        if (cardNames.Count > 0)
+        {
+            WarnMessages.Add($"以下のカードで使用されています：{string.Join("、", cardNames)}");
+            WarnSubMessage = "マイページのカード設定から該当のカードを変更または削除してください。";
             ShowWarn = true;
             return;
         }
