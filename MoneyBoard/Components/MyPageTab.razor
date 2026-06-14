@@ -84,17 +84,6 @@
 </div>
 
 <div class="mypage-section">
-    <button class="mypage-collapse" @onclick='() => ToggleSection("category")'>
-        <span>カード明細カテゴリ</span>
-        <span class="mypage-chevron">@(IsOpen("category") ? "▼" : "▶")</span>
-    </button>
-    @if (IsOpen("category"))
-    {
-        <div class="mypage-collapse-body"><CategorySettings /></div>
-    }
-</div>
-
-<div class="mypage-section">
     <button class="mypage-collapse" @onclick='() => ToggleSection("card")'>
         <span>カード設定</span>
         <span class="mypage-chevron">@(IsOpen("card") ? "▼" : "▶")</span>
@@ -102,6 +91,17 @@
     @if (IsOpen("card"))
     {
         <div class="mypage-collapse-body"><CardSettings /></div>
+    }
+</div>
+
+<div class="mypage-section">
+    <button class="mypage-collapse" @onclick='() => ToggleSection("category")'>
+        <span>カード明細カテゴリー設定</span>
+        <span class="mypage-chevron">@(IsOpen("category") ? "▼" : "▶")</span>
+    </button>
+    @if (IsOpen("category"))
+    {
+        <div class="mypage-collapse-body"><CategorySettings /></div>
     }
 </div>
 

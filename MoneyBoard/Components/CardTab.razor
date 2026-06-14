@@ -47,7 +47,7 @@
                     @if (!collapsed)
                     {
                         <button class="add-line" @onclick="() => AddDetail(card.Id)">＋ 明細を追加</button>
-                        <label class="add-line import-label">📥 CSV取込<InputFile OnChange="@(e => OnCsvSelected(e, card.Id))" accept=".csv" class="import-input" /></label>
+                        <button class="add-line" @onclick="() => OpenImport(card.Id)">📥 取込</button>
                     }
                 </div>
 
@@ -119,6 +119,27 @@
     リボ・分割で引き落とし額が異なる場合は「今月の請求額」を設定すると、口座末残高はその額で計算されます（明細＝利用額は統計にそのまま残ります）。<br />
     明細は表示中の月（@LedgerService.Label(Svc.CardMonth)）に計上されます。
 </div>
+
+@if (_importCardId != null)
+{
+    <div class="dialog-overlay" @onclick="() => _importCardId = null">
+        <div class="dialog-box import-pick" @onclick:stopPropagation="true">
+            <h4>CSVの種別を選択</h4>
+            <div class="import-pick-list">
+                @foreach (var fmt in Enum.GetValues<CardCsvFormat>())
+                {
+                    <label class="btn import-pick-item">
+                        @CardCsvParser.Specs[fmt].Label
+                        <InputFile OnChange="@(e => OnCsvSelected(e, fmt))" accept=".csv" class="import-input" />
+                    </label>
+                }
+            </div>
+            <div class="dialog-btns">
+                <button class="btn" @onclick="() => _importCardId = null">キャンセル</button>
+            </div>
+        </div>
+    </div>
+}
 
 @if (ShowBulk)
 {
@@ -328,21 +349,32 @@
         Save();
     }
 
-    // ── JCB CSV 取込（表示中の月へ・そのカードを全置換）──
+    // ── カード明細 CSV 取込（取込ボタン→種別選択→ファイル選択。表示中の月へ・そのカードを全置換）──
     private string? ImportMessage;
+    private string? _importCardId;   // 取込対象カード（種別選択ダイアログ表示中は非null）
 
-    private async Task OnCsvSelected(InputFileChangeEventArgs e, string cardId)
+    private void OpenImport(string cardId) => _importCardId = cardId;
+
+    private async Task OnCsvSelected(InputFileChangeEventArgs e, CardCsvFormat format)
     {
+        var cardId = _importCardId;
         var file = e.File;
-        if (file == null) return;
+        _importCardId = null;   // 種別選択ダイアログを閉じる
+        if (cardId == null || file == null) return;
         try
         {
             using var stream = file.OpenReadStream(maxAllowedSize: 5_000_000);
             using var ms = new MemoryStream();
             await stream.CopyToAsync(ms);
-            var text = await JS.InvokeAsync<string>("decodeShiftJis", ms.ToArray());
+            var bytes = ms.ToArray();
+            var spec = CardCsvParser.Specs[format];
+            // PayPay は UTF-8(BOM可)、その他(JCB/Amazon/au PAY)は Shift-JIS。種別ごとにデコードを切り替える。
+            bool hasBom = bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF;
+            var text = spec.IsUtf8
+                ? System.Text.Encoding.UTF8.GetString(hasBom ? bytes[3..] : bytes)
+                : await JS.InvokeAsync<string>("decodeShiftJis", bytes);
 
-            var parsed = JcbCsvParser.Parse(text, cardId);
+            var parsed = CardCsvParser.Parse(format, text, cardId);
             Svc.ApplyCategoryRules(parsed);   // 記憶済みの店名→カテゴリを自動適用
 
             // リボ/分割で過去月に既出の明細（再掲）は除外し、二重計上を防ぐ
@@ -357,8 +389,8 @@
             var name = Svc.CardById(cardId)?.Name;
             var label = LedgerService.Label(Svc.CardMonth);
             ImportMessage = excluded > 0
-                ? $"「{name}」に {kept.Count} 件を取り込みました（{label}・全置換／過去月と重複の {excluded} 件を除外）"
-                : $"「{name}」に {kept.Count} 件を取り込みました（{label}・全置換）";
+                ? $"「{name}」に {spec.Label} の明細 {kept.Count} 件を取り込みました（{label}・全置換／過去月と重複の {excluded} 件を除外）"
+                : $"「{name}」に {spec.Label} の明細 {kept.Count} 件を取り込みました（{label}・全置換）";
         }
         catch (Exception ex)
         {

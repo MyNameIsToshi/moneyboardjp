@@ -221,6 +221,19 @@
   display: none;
 }
 
+/* CSV種別選択ダイアログ */
+.import-pick-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.import-pick-item {
+  cursor: pointer;
+  text-align: center;
+}
+
 .import-msg {
   background: var(--okbg);
   border: 1px solid #b7dccd;
