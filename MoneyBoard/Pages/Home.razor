@@ -8,9 +8,9 @@
     <div class="home-head">
         <div class="app-title">
             MoneyBoard
-            @if (!string.IsNullOrEmpty(BuildId))
+            @if (!string.IsNullOrEmpty(AppVersion))
             {
-                <span class="app-ver">build @BuildId</span>
+                <span class="app-ver">v@AppVersion</span>
             }
         </div>
         @if (!Auth.IsBypass && Auth.User is not null)
@@ -77,7 +77,7 @@
     private bool Loaded = false;
     private bool LoadFailed = false;
     private bool ShowConflictNotice = false;
-    private string BuildId = "";
+    private string AppVersion = "";
 
     // 読み込み完了までタブ操作を無効化（空状態のタブを触らせない）
     private bool TabDisabled => !Loaded;
@@ -85,9 +85,11 @@
 
     protected override async Task OnInitializedAsync()
     {
-        BuildId = typeof(Home).Assembly
-            .GetCustomAttributes<AssemblyMetadataAttribute>()
-            .FirstOrDefault(a => a.Key == "BuildId")?.Value ?? "";
+        // InformationalVersion は csproj の <Version>（"0.9.0" / SourceLink 併用時は "0.9.0+<sha>"）。
+        // ビルドメタ('+'以降)は落として "v0.9.0" の形で表示する。
+        var info = typeof(Home).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+        AppVersion = string.IsNullOrEmpty(info) ? "" : info.Split('+')[0];
         Svc.StateReloadedExternally += OnExternalReload;
         await Load();
     }
