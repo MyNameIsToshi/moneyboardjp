@@ -29,62 +29,243 @@
     {
         <div class="cat-head">
             <span>保有銘柄</span>
-            <button class="btn" @onclick="AddHolding">＋ 追加</button>
+            <button class="btn" @onclick="OpenAdd">＋ 追加</button>
         </div>
 
         @if (!Ordered.Any())
         {
-            <div class="none">銘柄が登録されていません。「＋ 追加」から登録してください。</div>
+            <div class="none">銘柄が登録されていません。「＋ 追加」から取引を登録してください。</div>
         }
         else
         {
-            <div class="pf-grid pf-grid-head">
-                <span>銘柄名</span><span>資産クラス</span><span>口座区分</span><span>建て通貨</span><span>シンボル（株のみ）</span><span></span>
-            </div>
-            @foreach (var h in Ordered)
+            @foreach (var grp in Groups)
             {
-                <div class="pf-grid pf-row">
-                    <input class="pf-name" @bind="h.Name" @bind:after="Save" placeholder="銘柄名" />
-                    <select class="pf-sel" @bind="h.Class" @bind:after="() => OnClassChanged(h)">
-                        <option value="@AssetClass.Fund">投資信託</option>
-                        <option value="@AssetClass.JpStock">日本株</option>
-                        <option value="@AssetClass.UsStock">米国株</option>
-                    </select>
-                    <select class="pf-sel" @bind="h.Account" @bind:after="Save">
-                        <option value="@AccountKind.Nisa">NISA</option>
-                        <option value="@AccountKind.Tokutei">特定</option>
-                        <option value="@AccountKind.General">一般</option>
-                    </select>
-                    @if (h.Class == AssetClass.UsStock)
-                    {
-                        <select class="pf-sel" @bind="h.CostCurrency" @bind:after="Save">
-                            <option value="@Currency.Jpy">円建て</option>
-                            <option value="@Currency.Usd">ドル建て</option>
-                        </select>
-                    }
-                    else
-                    {
-                        <span class="pf-fixed">円</span>
-                    }
-                    @if (h.Class == AssetClass.Fund)
-                    {
-                        <span class="pf-muted">—</span>
-                    }
-                    else
-                    {
-                        <input class="pf-sym" @bind="h.Symbol" @bind:after="Save" placeholder="例 7203.JP / AAPL.US" />
-                    }
-                    <button class="x" @onclick="() => AskDelete(h)">✕</button>
+                var items = Ordered.Where(h => h.Class == grp.Class).ToList();
+                if (items.Count == 0) continue;
+                <div class="pf-group-head">@grp.Label</div>
+                <div class="pf-grid pf-grid-head">
+                    <span>銘柄名</span><span>口座</span>
+                    <span class="pf-num">数量</span><span class="pf-num">平均取得単価</span><span class="pf-num">実現損益</span>
+                    <span></span><span></span>
                 </div>
+                @foreach (var h in items)
+                {
+                    var s = Summary(h);
+                    <div class="pf-grid pf-row">
+                        <span class="pf-hname" title="@DisplayName(h)">@DisplayName(h)</span>
+                        <span class="pf-badge">@AccountLabel(h.Account)</span>
+                        <span class="pf-num">@Qty(s.Quantity)</span>
+                        <span class="pf-num">@Price(h, s.AvgUnitPrice)</span>
+                        <span class="pf-num @PnlClass(s.RealizedPnl)">@MoneySigned(h, s.RealizedPnl)</span>
+                        <button class="btn-sm" @onclick="() => OpenTx(h.Id)">取引</button>
+                        <button class="x" @onclick="() => AskDelete(h)">✕</button>
+                    </div>
+                }
             }
         }
 
         <div class="foot" style="text-align:left;margin-top:10px">
-            まず保有銘柄を登録します。買付・売却・配当の入力、評価額・損益、価格の自動取得は次の段階で追加します。<br />
-            投資信託は基準価額（1万口あたり）を手入力、個別株はシンボルで自動取得する想定です。
+            「＋ 追加」から取引（買付）を登録すると保有銘柄として表示されます。同じ銘柄は合算されます。<br />
+            各銘柄の「取引」で買付・売却・配当の追加/編集と銘柄設定ができます。投資信託は基準価額＝1万口あたりとして計算します。<br />
+            評価額・評価損益（現在価格が必要）と価格の自動取得は次の段階で追加します。
         </div>
     }
 </div>
+
+@* ── 取引を追加ダイアログ（新規銘柄 or 既存銘柄への買付）── *@
+@if (_addOpen)
+{
+    <div class="dialog-overlay" @onclick="CloseAdd">
+        <div class="dialog-box pf-add-box" @onclick:stopPropagation="true">
+            <h4>取引を追加</h4>
+            <div class="pf-add-form">
+                <label>銘柄
+                    <select @bind="_addTargetId">
+                        <option value="">＋ 新規銘柄</option>
+                        @foreach (var h in Ordered)
+                        {
+                            <option value="@h.Id">@DisplayName(h)（@ClassLabel(h.Class)・@AccountLabel(h.Account)）</option>
+                        }
+                    </select>
+                </label>
+
+                @if (_addTargetId == "")
+                {
+                    <label>銘柄名
+                        <input @bind="_nName" placeholder="例 eMAXIS Slim 全世界株式（オール・カントリー）" />
+                    </label>
+                    <label>資産クラス
+                        <select @bind="_nClass">
+                            <option value="@AssetClass.Fund">投資信託</option>
+                            <option value="@AssetClass.JpStock">日本株</option>
+                            <option value="@AssetClass.UsStock">米国株</option>
+                        </select>
+                    </label>
+                    <label>口座区分
+                        <select @bind="_nAccount">
+                            <option value="@AccountKind.Nisa">NISA</option>
+                            <option value="@AccountKind.Tokutei">特定</option>
+                            <option value="@AccountKind.General">一般</option>
+                        </select>
+                    </label>
+                    @if (_nClass == AssetClass.UsStock)
+                    {
+                        <label>建て通貨
+                            <select @bind="_nCurrency">
+                                <option value="@Currency.Jpy">円建て</option>
+                                <option value="@Currency.Usd">ドル建て</option>
+                            </select>
+                        </label>
+                    }
+                    @if (_nClass != AssetClass.Fund)
+                    {
+                        <label>シンボル
+                            <input @bind="_nSymbol" placeholder="例 7203.JP / AAPL.US" />
+                        </label>
+                    }
+                }
+
+                <div class="pf-add-buy">
+                    <span class="pf-add-buy-title">買付</span>
+                    <label>約定日 <input type="date" value="@_bDate" @onchange="e => _bDate = e.Value?.ToString() ?? string.Empty" /></label>
+                    <label>数量 <AmountInput CssClass="pf-tx-amt" Decimals="4" Value="@_bQty" ValueChanged="v => _bQty = v" /></label>
+                    <label>@BuyPriceLabel <AmountInput CssClass="pf-tx-amt" Decimals="4" Value="@_bPrice" ValueChanged="v => _bPrice = v" /></label>
+                </div>
+            </div>
+            <div class="dialog-btns">
+                <button class="btn" @onclick="CloseAdd">キャンセル</button>
+                <button class="btn primary" disabled="@(!CanAdd)" @onclick="SubmitAdd">追加</button>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── 取引・設定ダイアログ（既存銘柄）── *@
+@if (_txHoldingId != null)
+{
+    var h = HoldingById(_txHoldingId);
+    if (h != null)
+    {
+        var s = Summary(h);
+        <div class="dialog-overlay" @onclick="CloseTx">
+            <div class="dialog-box pf-tx-box" @onclick:stopPropagation="true">
+                <h4>@DisplayName(h) の取引・設定</h4>
+
+                <div class="pf-tx-settings">
+                    <label>銘柄名 <input @bind="h.Name" @bind:after="Save" /></label>
+                    <label>資産クラス
+                        <select @bind="h.Class" @bind:after="() => OnClassChanged(h)">
+                            <option value="@AssetClass.Fund">投資信託</option>
+                            <option value="@AssetClass.JpStock">日本株</option>
+                            <option value="@AssetClass.UsStock">米国株</option>
+                        </select>
+                    </label>
+                    <label>口座区分
+                        <select @bind="h.Account" @bind:after="Save">
+                            <option value="@AccountKind.Nisa">NISA</option>
+                            <option value="@AccountKind.Tokutei">特定</option>
+                            <option value="@AccountKind.General">一般</option>
+                        </select>
+                    </label>
+                    @if (h.Class == AssetClass.UsStock)
+                    {
+                        <label>建て通貨
+                            <select @bind="h.CostCurrency" @bind:after="Save">
+                                <option value="@Currency.Jpy">円建て</option>
+                                <option value="@Currency.Usd">ドル建て</option>
+                            </select>
+                        </label>
+                    }
+                    @if (h.Class != AssetClass.Fund)
+                    {
+                        <label>シンボル <input @bind="h.Symbol" @bind:after="Save" placeholder="例 7203.JP / AAPL.US" /></label>
+                    }
+                </div>
+
+                @if (h.Class == AssetClass.UsStock)
+                {
+                    <div class="pf-hint">円建て＝単価は「円/株」（拠出した円÷株数・為替入力は不要）／ドル建て＝単価は「$/株」。現在価格は後の段階で自動取得して評価額に反映します。</div>
+                }
+
+                <div class="pf-tx-summary">
+                    <span>数量 <b>@Qty(s.Quantity)</b></span>
+                    <span>平均取得単価 <b>@Price(h, s.AvgUnitPrice)</b></span>
+                    <span>取得原価 <b>@Money(h, s.CostBasis)</b></span>
+                    <span>実現損益 <b class="@PnlClass(s.RealizedPnl)">@MoneySigned(h, s.RealizedPnl)</b></span>
+                    <span>配当合計 <b>@Money(h, s.Dividends)</b></span>
+                </div>
+
+                @* 買付 *@
+                <div class="pf-tx-sec">
+                    <div class="pf-tx-sec-head"><span>買付</span><button class="btn-sm" @onclick="() => AddBuy(h.Id)">＋ 追加</button></div>
+                    @if (BuysOf(h.Id).Any())
+                    {
+                        <div class="pf-tx-grid pf-tx-grid-head"><span>約定日</span><span class="pf-num">数量</span><span class="pf-num">@UnitLabel(h)</span><span></span></div>
+                        @foreach (var b in BuysOf(h.Id))
+                        {
+                            <div class="pf-tx-grid">
+                                <input type="date" class="pf-tx-date" value="@b.Date" @onchange="e => OnBuyDate(b, e.Value)" />
+                                <AmountInput CssClass="pf-tx-amt" Decimals="4" Value="@b.Quantity" ValueChanged="v => { b.Quantity = v; Save(); }" />
+                                <AmountInput CssClass="pf-tx-amt" Decimals="4" Value="@b.UnitPrice" ValueChanged="v => { b.UnitPrice = v; Save(); }" />
+                                <button class="x" @onclick="() => RemoveBuy(b.Id)">✕</button>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="none">買付の記録はありません。</div>
+                    }
+                </div>
+
+                @* 売却 *@
+                <div class="pf-tx-sec">
+                    <div class="pf-tx-sec-head"><span>売却（解約）</span><button class="btn-sm" @onclick="() => AddSell(h.Id)">＋ 追加</button></div>
+                    @if (SellsOf(h.Id).Any())
+                    {
+                        <div class="pf-tx-grid pf-tx-grid-head"><span>約定日</span><span class="pf-num">数量</span><span class="pf-num">@UnitLabel(h)</span><span></span></div>
+                        @foreach (var sl in SellsOf(h.Id))
+                        {
+                            <div class="pf-tx-grid">
+                                <input type="date" class="pf-tx-date" value="@sl.Date" @onchange="e => OnSellDate(sl, e.Value)" />
+                                <AmountInput CssClass="pf-tx-amt" Decimals="4" Value="@sl.Quantity" ValueChanged="v => { sl.Quantity = v; Save(); }" />
+                                <AmountInput CssClass="pf-tx-amt" Decimals="4" Value="@sl.UnitPrice" ValueChanged="v => { sl.UnitPrice = v; Save(); }" />
+                                <button class="x" @onclick="() => RemoveSell(sl.Id)">✕</button>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="none">売却の記録はありません。</div>
+                    }
+                </div>
+
+                @* 配当 *@
+                <div class="pf-tx-sec">
+                    <div class="pf-tx-sec-head"><span>配当・分配金</span><button class="btn-sm" @onclick="() => AddDiv(h.Id)">＋ 追加</button></div>
+                    @if (DivsOf(h.Id).Any())
+                    {
+                        <div class="pf-tx-grid pf-tx-grid-head"><span>受取日</span><span class="pf-num">金額</span><span></span><span></span></div>
+                        @foreach (var dv in DivsOf(h.Id))
+                        {
+                            <div class="pf-tx-grid">
+                                <input type="date" class="pf-tx-date" value="@dv.Date" @onchange="e => OnDivDate(dv, e.Value)" />
+                                <AmountInput CssClass="pf-tx-amt" Decimals="4" Value="@dv.Amount" ValueChanged="v => { dv.Amount = v; Save(); }" />
+                                <span></span>
+                                <button class="x" @onclick="() => RemoveDiv(dv.Id)">✕</button>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="none">配当の記録はありません。</div>
+                    }
+                </div>
+
+                <div class="dialog-btns"><button class="btn" @onclick="CloseTx">閉じる</button></div>
+            </div>
+        </div>
+    }
+}
 
 <ConfirmDialog IsVisible="@ShowConfirm"
                Title="銘柄を削除しますか？"
@@ -97,8 +278,19 @@
     private bool Loaded;
     private bool LoadFailed;
 
+    // 表示するカテゴリ（順番＝日本株→米国株→投資信託）
+    private static readonly (AssetClass Class, string Label)[] Groups =
+    {
+        (AssetClass.JpStock, "日本株"),
+        (AssetClass.UsStock, "米国株"),
+        (AssetClass.Fund, "投資信託"),
+    };
+
     private IEnumerable<Holding> Ordered =>
         Store.Data.Holdings.Where(h => !h.IsDeleted).OrderBy(h => h.SortOrder);
+
+    private HoldingSummary Summary(Holding h) =>
+        PortfolioMath.Summarize(h, Store.Data.Buys, Store.Data.Sells, Store.Data.Dividends);
 
     protected override async Task OnInitializedAsync()
     {
@@ -119,13 +311,97 @@
 
     private void Save() => Store.RequestSave();
 
-    private void AddHolding()
+    // ── 表示ヘルパ ──
+    private static string Qty(decimal v) => v.ToString("#,0.####");
+    private static string CurSym(Holding h) => h.CostCurrency == Currency.Usd ? "$" : "¥";
+    private static string Money(Holding h, decimal v) =>
+        CurSym(h) + (h.CostCurrency == Currency.Usd ? v.ToString("#,0.##") : v.ToString("#,0"));
+    private static string MoneySigned(Holding h, decimal v) => (v > 0 ? "+" : "") + Money(h, v);
+    private static string Price(Holding h, decimal v) => CurSym(h) + v.ToString("#,0.##");
+    private static string PnlClass(decimal v) => v > 0 ? "pf-pos" : v < 0 ? "pf-neg" : "";
+    private static string UnitLabel(Holding h) => h.Class == AssetClass.Fund ? "基準価額" : "単価";
+    private static string ClassLabel(AssetClass c) => c switch
     {
-        Store.Data.Holdings.Add(new Holding { SortOrder = Store.Data.Holdings.Count });
+        AssetClass.Fund => "投資信託",
+        AssetClass.JpStock => "日本株",
+        _ => "米国株",
+    };
+    private static string AccountLabel(AccountKind a) => a switch
+    {
+        AccountKind.Nisa => "NISA",
+        AccountKind.Tokutei => "特定",
+        _ => "一般",
+    };
+    private static string DisplayName(Holding h) => string.IsNullOrEmpty(h.Name) ? "(名称未設定)" : h.Name;
+    private Holding? HoldingById(string id) => Store.Data.Holdings.FirstOrDefault(h => h.Id == id);
+
+    // ── 取引を追加（新規銘柄 or 既存への買付）──
+    private bool _addOpen;
+    private string _addTargetId = "";        // "" = 新規銘柄 / それ以外 = 既存 Holding.Id
+    private string _nName = "";
+    private AssetClass _nClass = AssetClass.Fund;
+    private AccountKind _nAccount = AccountKind.Nisa;
+    private Currency _nCurrency = Currency.Jpy;
+    private string _nSymbol = "";
+    private string _bDate = "";
+    private decimal _bQty;
+    private decimal _bPrice;
+
+    private string BuyPriceLabel => _addTargetId == "" && _nClass == AssetClass.Fund ? "基準価額" : "単価";
+
+    private bool CanAdd =>
+        (_addTargetId != "" || !string.IsNullOrWhiteSpace(_nName)) && _bQty != 0;
+
+    private void OpenAdd()
+    {
+        _addTargetId = "";
+        _nName = ""; _nClass = AssetClass.Fund; _nAccount = AccountKind.Nisa;
+        _nCurrency = Currency.Jpy; _nSymbol = "";
+        _bDate = DateTime.Today.ToString("yyyy-MM-dd");
+        _bQty = 0; _bPrice = 0;
+        _addOpen = true;
+    }
+    private void CloseAdd() => _addOpen = false;
+
+    private void SubmitAdd()
+    {
+        if (!CanAdd) return;
+        string holdingId;
+        if (_addTargetId != "")
+        {
+            holdingId = _addTargetId;
+        }
+        else
+        {
+            var name = _nName.Trim();
+            // 同一銘柄（名前＋クラス＋口座）が既にあれば合算、無ければ新規作成
+            var existing = Store.Data.Holdings.FirstOrDefault(h =>
+                !h.IsDeleted && h.Name == name && h.Class == _nClass && h.Account == _nAccount);
+            if (existing != null)
+            {
+                holdingId = existing.Id;
+            }
+            else
+            {
+                var nh = new Holding
+                {
+                    Name = name,
+                    Class = _nClass,
+                    Account = _nAccount,
+                    CostCurrency = _nClass == AssetClass.UsStock ? _nCurrency : Currency.Jpy,
+                    Symbol = _nClass == AssetClass.Fund ? "" : _nSymbol.Trim(),
+                    SortOrder = Store.Data.Holdings.Count,
+                };
+                Store.Data.Holdings.Add(nh);
+                holdingId = nh.Id;
+            }
+        }
+        Store.Data.Buys.Add(new BuyLot { HoldingId = holdingId, Date = _bDate, Quantity = _bQty, UnitPrice = _bPrice });
         Save();
+        _addOpen = false;
     }
 
-    // 米国株以外は常に円建て。投信はシンボルを持たない（価格は手入力）。
+    // 米国株以外は常に円建て。投信はシンボルを持たない。
     private void OnClassChanged(Holding h)
     {
         if (h.Class != AssetClass.UsStock) h.CostCurrency = Currency.Jpy;
@@ -133,23 +409,49 @@
         Save();
     }
 
+    // ── 削除 ──
     private bool ShowConfirm;
     private string? _deleteId;
     private string ConfirmMessage = "";
 
     private void AskDelete(Holding h)
     {
-        var name = string.IsNullOrEmpty(h.Name) ? "(名称未設定)" : h.Name;
-        ConfirmMessage = $"「{name}」を削除します。\nこの操作は取り消せません。";
+        ConfirmMessage = $"「{DisplayName(h)}」を削除します。\n買付・売却・配当の記録も一緒に削除されます。\nこの操作は取り消せません。";
         _deleteId = h.Id;
         ShowConfirm = true;
     }
 
     private void ExecuteDelete()
     {
-        if (_deleteId != null) Store.Data.Holdings.RemoveAll(h => h.Id == _deleteId);
+        if (_deleteId != null)
+        {
+            Store.Data.Holdings.RemoveAll(h => h.Id == _deleteId);
+            Store.Data.Buys.RemoveAll(b => b.HoldingId == _deleteId);
+            Store.Data.Sells.RemoveAll(s => s.HoldingId == _deleteId);
+            Store.Data.Dividends.RemoveAll(d => d.HoldingId == _deleteId);
+        }
         _deleteId = null;
         ShowConfirm = false;
         Save();
     }
+
+    // ── 取引・設定ダイアログ ──
+    private string? _txHoldingId;
+    private void OpenTx(string id) => _txHoldingId = id;
+    private void CloseTx() => _txHoldingId = null;
+
+    private IEnumerable<BuyLot> BuysOf(string id) => Store.Data.Buys.Where(b => b.HoldingId == id).OrderBy(b => b.Date);
+    private IEnumerable<SellLot> SellsOf(string id) => Store.Data.Sells.Where(s => s.HoldingId == id).OrderBy(s => s.Date);
+    private IEnumerable<Dividend> DivsOf(string id) => Store.Data.Dividends.Where(d => d.HoldingId == id).OrderBy(d => d.Date);
+
+    private void AddBuy(string id) { Store.Data.Buys.Add(new BuyLot { HoldingId = id, Date = DateTime.Today.ToString("yyyy-MM-dd") }); Save(); }
+    private void RemoveBuy(string lotId) { Store.Data.Buys.RemoveAll(b => b.Id == lotId); Save(); }
+    private void AddSell(string id) { Store.Data.Sells.Add(new SellLot { HoldingId = id, Date = DateTime.Today.ToString("yyyy-MM-dd") }); Save(); }
+    private void RemoveSell(string lotId) { Store.Data.Sells.RemoveAll(s => s.Id == lotId); Save(); }
+    private void AddDiv(string id) { Store.Data.Dividends.Add(new Dividend { HoldingId = id, Date = DateTime.Today.ToString("yyyy-MM-dd"), Currency = HoldingById(id)?.CostCurrency ?? Currency.Jpy }); Save(); }
+    private void RemoveDiv(string divId) { Store.Data.Dividends.RemoveAll(d => d.Id == divId); Save(); }
+
+    private void OnBuyDate(BuyLot b, object? v) { b.Date = v?.ToString() ?? ""; Save(); }
+    private void OnSellDate(SellLot s, object? v) { s.Date = v?.ToString() ?? ""; Save(); }
+    private void OnDivDate(Dividend d, object? v) { d.Date = v?.ToString() ?? ""; Save(); }
 }

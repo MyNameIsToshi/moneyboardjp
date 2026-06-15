@@ -13,10 +13,20 @@
   margin-bottom: 0;
 }
 
-/* 保有銘柄の行（銘柄名 / 資産クラス / 口座区分 / 建て通貨 / シンボル・価格 / 削除）*/
+/* カテゴリ見出し（日本株 / 米国株 / 投資信託）*/
+.pf-group-head {
+  margin: 18px 0 6px;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--sub);
+  border-bottom: 2px solid var(--line, #e5e2d9);
+  padding-bottom: 4px;
+}
+
+/* 保有銘柄の行（銘柄名 / 口座 / 数量 / 取得原価 / 実現損益 / 取引 / 削除）*/
 .pf-grid {
   display: grid;
-  grid-template-columns: 1.6fr 1fr 0.9fr 0.9fr 1.4fr 32px;
+  grid-template-columns: 1.6fr 0.7fr 0.9fr 1fr 1fr auto 32px;
   gap: 8px;
   align-items: center;
 }
@@ -25,25 +35,159 @@
   font-size: 12px;
   color: var(--sub);
   padding: 6px 0;
-  border-bottom: 1px solid var(--line, #eee);
 }
 
 .pf-row {
-  padding: 6px 0;
+  padding: 7px 0;
+  border-top: 1px solid var(--line, #efede6);
 }
 
-.pf-name,
-.pf-sym,
-.pf-sel {
+.pf-hname {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pf-badge {
+  display: inline-block;
+  font-size: 11px;
+  color: var(--sub);
+  background: #efece4;
+  border-radius: 10px;
+  padding: 2px 8px;
+  justify-self: start;
+}
+
+.pf-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.pf-pos { color: #1a8a4f; }
+.pf-neg { color: #c0392b; }
+
+.pf-hint {
+  font-size: 12px;
+  color: var(--sub);
+  margin: 6px 0 0;
+  line-height: 1.5;
+}
+
+/* 小さめボタン（取引・セクションの追加）*/
+.btn-sm {
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 10px;
+  border: 1px solid var(--line, #ccc);
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-sm:hover { background: #f3f1ea; }
+
+/* ── 取引を追加ダイアログ ── */
+.pf-add-box {
+  max-width: 480px;
+  width: 92%;
+  text-align: left;
+}
+.pf-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 10px 0;
+}
+.pf-add-form > label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+.pf-add-form select,
+.pf-add-form input {
   font: inherit;
   padding: 6px 8px;
   border: 1px solid #ccc;
   border-radius: 6px;
-  min-width: 0;
+}
+.pf-add-buy {
+  border-top: 1px solid var(--line, #eee);
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pf-add-buy-title {
+  font-weight: 600;
 }
 
-.pf-fixed,
-.pf-muted {
+/* ── 取引・設定ダイアログ ── */
+.pf-tx-box {
+  max-width: 660px;
+  width: 92%;
+  text-align: left;
+}
+
+.pf-tx-settings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  margin: 8px 0 4px;
+  font-size: 13px;
+}
+.pf-tx-settings label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.pf-tx-settings select,
+.pf-tx-settings input {
+  font: inherit;
+  padding: 5px 8px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+
+.pf-tx-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  font-size: 13px;
+  background: #f3f1ea;
+  padding: 10px 12px;
+  border-radius: 8px;
+  margin: 10px 0 4px;
+}
+
+.pf-tx-sec {
+  margin: 14px 0;
+}
+.pf-tx-sec-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.pf-tx-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr 32px;
+  gap: 8px;
+  align-items: center;
+  padding: 3px 0;
+}
+.pf-tx-grid-head {
   font-size: 12px;
   color: var(--sub);
+}
+
+.pf-tx-date,
+.pf-tx-amt {
+  font: inherit;
+  padding: 5px 8px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  min-width: 0;
 }
