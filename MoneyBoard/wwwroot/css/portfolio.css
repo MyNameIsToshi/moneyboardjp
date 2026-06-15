@@ -57,6 +57,17 @@
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
+/* 総資産の右に並ぶ元本・評価損益 */
+.pf-sum-sub {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--sub);
+}
+.pf-sum-sub b {
+  font-variant-numeric: tabular-nums;
+}
 .pf-sum-meta {
   display: flex;
   align-items: center;
@@ -244,4 +255,15 @@
   border: 1px solid #ccc;
   border-radius: 6px;
   min-width: 0;
+}
+
+/* ── 資産構成（クラス別／銘柄別ドーナツ）── */
+.pf-comp-toggle {
+  display: flex;
+  gap: 6px;
+}
+
+/* 構成リストは件数列を持たない4列（ドット / 名称 / 評価額 / 割合）*/
+.pf-comp-card .spend-row {
+  grid-template-columns: 16px 1fr 110px 64px;
 }

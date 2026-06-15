@@ -1,5 +1,6 @@
 @page "/portfolio"
 @implements IDisposable
+@using ApexCharts
 @inject PortfolioStore Store
 @inject QuoteService Quote
 @inject NavigationManager Nav
@@ -32,6 +33,10 @@
             <div class="pf-sum-main">
                 <span class="pf-sum-label">総資産（円）</span>
                 <span class="pf-sum-total">@TotalJpyDisplay</span>
+                <div class="pf-sum-sub">
+                    <span>元本 ¥@TotalCostJpy.ToString("#,0")</span>
+                    <span>評価損益 <b class="@PnlClass(TotalPnlJpy)">@SignedYen(TotalPnlJpy)</b></span>
+                </div>
             </div>
             <div class="pf-sum-meta">
                 @if (!string.IsNullOrEmpty(Store.Data.PricedAt))
@@ -48,6 +53,90 @@
         @if (_updateMsg != null)
         {
             <div class="pf-hint pf-neg">@_updateMsg</div>
+        }
+
+        @* ── 資産構成（クラス別／銘柄別の構成比ドーナツ）── *@
+        @if (CompositionData.Count > 0)
+        {
+            <div class="cat-head" style="margin-top:6px">
+                <span>資産構成</span>
+                <div class="pf-comp-toggle">
+                    <button class="period-btn @(_compMode == "class" ? "active" : "")" @onclick='() => SetCompMode("class")'>クラス別</button>
+                    <button class="period-btn @(_compMode == "holding" ? "active" : "")" @onclick='() => SetCompMode("holding")'>銘柄別</button>
+                </div>
+            </div>
+            <div class="graph-card graph-card-full pf-comp-card">
+                <div class="spend">
+                    <div class="spend-chart">
+                        <ApexChart TItem="SpendSlice" Options="CompDonutOptions" @key="@($"comp-{_compMode}-{_compRev}")">
+                            <ApexPointSeries TItem="SpendSlice"
+                                             Items="CompositionData"
+                                             SeriesType="SeriesType.Donut"
+                                             Name="資産構成"
+                                             XValue="@(e => e.Label)"
+                                             YValue="@(e => e.Value)" />
+                        </ApexChart>
+                    </div>
+                    <div class="spend-list">
+                        <div class="spend-row spend-head">
+                            <span></span><span>@(_compMode == "class" ? "資産クラス" : "銘柄")</span><span>評価額</span><span>割合</span>
+                        </div>
+                        @foreach (var s in CompositionData)
+                        {
+                            <div class="spend-row">
+                                <span class="color-dot" style="background:@s.Color"></span>
+                                <span class="spend-name">@s.Label</span>
+                                <span class="spend-amt">¥@s.Value.ToString("#,0")</span>
+                                <span class="spend-pct">@CompPct(s.Value)</span>
+                            </div>
+                        }
+                        <div class="spend-row spend-total">
+                            <span></span><span>合計</span>
+                            <span class="spend-amt">¥@CompTotal.ToString("#,0")</span>
+                            <span></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @* ── 推移（総資産・評価損益・配当の時系列。価格更新のたびに1日1点が記録される）── *@
+        @if (AssetSeries.Count > 0 || DivSeries.Count > 0)
+        {
+            <div class="cat-head" style="margin-top:18px"><span>推移</span></div>
+            <div class="graph-grid">
+                @if (AssetSeries.Count > 0)
+                {
+                    <div class="graph-card">
+                        <h4>総資産の推移</h4>
+                        <ApexChart TItem="ChartPoint" Options="AssetLineOpt" @key="@($"asset-{_compRev}")">
+                            <ApexPointSeries TItem="ChartPoint" Items="AssetSeries" SeriesType="SeriesType.Line"
+                                             Name="総資産" XValue="@(e => e.Label)" YValue="@(e => e.Value)" />
+                        </ApexChart>
+                    </div>
+                    <div class="graph-card">
+                        <h4>評価損益の推移</h4>
+                        <ApexChart TItem="ChartPoint" Options="PnlLineOpt" @key="@($"pnl-{_compRev}")">
+                            <ApexPointSeries TItem="ChartPoint" Items="PnlSeries" SeriesType="SeriesType.Line"
+                                             Name="評価損益" XValue="@(e => e.Label)" YValue="@(e => e.Value)" />
+                        </ApexChart>
+                    </div>
+                }
+                @if (DivSeries.Count > 0)
+                {
+                    <div class="graph-card">
+                        <h4>配当・分配金の累計</h4>
+                        <ApexChart TItem="ChartPoint" Options="DivLineOpt" @key="@($"div-{_compRev}")">
+                            <ApexPointSeries TItem="ChartPoint" Items="DivSeries" SeriesType="SeriesType.Area"
+                                             Name="配当累計" XValue="@(e => e.Label)" YValue="@(e => e.Value)" />
+                        </ApexChart>
+                    </div>
+                }
+            </div>
+            @if (AssetSeries.Count == 1)
+            {
+                <div class="pf-hint">推移は「価格更新」のたびに1日1点が記録されます。日を追うごとにグラフが伸びていきます。</div>
+            }
         }
 
         <div class="cat-head">
@@ -384,6 +473,9 @@
         if (await Store.LoadAsync())
         {
             Loaded = true;
+            // 既存データ（前回の価格・スナップショット）でまずグラフを描く（自動更新失敗時もここまでは出る）。
+            BuildComposition();
+            BuildTimeSeries();
             // 画面を開いたら現在価格を自動更新（失敗・一部未取得のメッセージは出さない）。
             await UpdatePrices(manual: false);
         }
@@ -419,6 +511,8 @@
     {
         if (v > 0) Store.Data.CurrentPrices[holdingId] = v;
         else Store.Data.CurrentPrices.Remove(holdingId);
+        BuildComposition();
+        BuildTimeSeries();
         Save();
     }
     private static string CurPriceLabel(Holding h) => h.Class == AssetClass.Fund ? "現在基準価額" : "現在価格";
@@ -433,24 +527,33 @@
         return v.HasValue ? v.Value - s.CostBasis : (decimal?)null;
     }
 
-    // 総資産（円）。数量0以外で価格が取れている銘柄だけを合計。一部未取得なら末尾に印を付ける。
+    // 総資産（円）。数量0以外で価格が取れている銘柄だけを合計。一部未取得なら印を付ける。
+    private (decimal Total, bool Missing) TotalAssets()
+    {
+        decimal total = 0m;
+        bool anyMissing = false;
+        foreach (var h in Ordered)
+        {
+            var qty = Summary(h).Quantity;
+            if (qty == 0) continue;
+            var v = ValuationJpy(h, qty);
+            if (v.HasValue) total += v.Value;
+            else anyMissing = true;
+        }
+        return (total, anyMissing);
+    }
+
     private string TotalJpyDisplay
     {
-        get
-        {
-            decimal total = 0m;
-            bool anyMissing = false;
-            foreach (var h in Ordered)
-            {
-                var qty = Summary(h).Quantity;
-                if (qty == 0) continue;
-                var v = ValuationJpy(h, qty);
-                if (v.HasValue) total += v.Value;
-                else anyMissing = true;
-            }
-            return "¥" + total.ToString("#,0") + (anyMissing ? "（一部未取得）" : "");
-        }
+        get { var (total, missing) = TotalAssets(); return "¥" + total.ToString("#,0") + (missing ? "（一部未取得）" : ""); }
     }
+
+    // 元本（取得原価合計・円換算）＝現存保有分。価格に依存しないので常に表示できる。
+    private decimal TotalCostJpy => CostBasisJpyAsOf(DateTime.Today.ToString("yyyy-MM-dd"), 0m);
+    // 評価損益（合計・円）＝総資産 − 元本（一部未取得時は概算）。
+    private decimal TotalPnlJpy => TotalAssets().Total - TotalCostJpy;
+
+    private static string SignedYen(decimal v) => (v >= 0 ? "+¥" : "-¥") + Math.Abs(v).ToString("#,0");
 
     // ── 価格更新（Yahoo Finance から株価＋USD/JPY を取得し現在価格に反映）──
     private bool _updating;
@@ -505,6 +608,9 @@
                 }
             }
             Store.Data.PricedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
+            RecordSnapshot();
+            BuildComposition();
+            BuildTimeSeries();
             if (manual && target > 0 && hit < target)
                 _updateMsg = $"一部の銘柄は価格を取得できませんでした（{hit}/{target}）。コード（証券コード/ティッカー/協会コード）をご確認ください。";
             Save();
@@ -517,6 +623,168 @@
         {
             _updating = false;
         }
+    }
+
+    // 価格更新のたびに、その時点の銘柄別評価額（円）と USD/JPY を時系列の1点として記録する。
+    // 評価額が1件も取れなければ記録しない。同じ日付の点は最新で上書き（1日1点・自動更新でも履歴が育つ）。
+    private void RecordSnapshot()
+    {
+        var values = new List<HoldingValue>();
+        foreach (var h in Ordered)
+        {
+            var qty = Summary(h).Quantity;
+            if (qty == 0) continue;
+            var vJpy = ValuationJpy(h, qty);
+            if (!vJpy.HasValue) continue;   // 価格未取得の銘柄は除外
+            values.Add(new HoldingValue { HoldingId = h.Id, PriceNative = CurPrice(h.Id), ValuationJpy = vJpy.Value });
+        }
+        if (values.Count == 0) return;
+
+        var now = DateTime.Now;
+        var today = now.ToString("yyyy-MM-dd");
+        Store.Data.Snapshots.RemoveAll(s => s.At.StartsWith(today));   // 同日は上書き
+        Store.Data.Snapshots.Add(new PriceSnapshot
+        {
+            At = now.ToString("yyyy-MM-dd HH:mm"),
+            UsdJpyRate = Store.Data.UsdJpyRate,
+            Values = values
+        });
+        Store.Data.Snapshots.Sort((a, b) => string.CompareOrdinal(a.At, b.At));
+    }
+
+    // ── 資産構成（クラス別／銘柄別のドーナツ）──
+    private string _compMode = "class";   // "class" | "holding"
+    private int _compRev;                 // 再描画キー（データ更新ごとにインクリメント）
+    private List<SpendSlice> CompositionData = new();
+    private decimal CompTotal => CompositionData.Sum(s => s.Value);
+    private string CompPct(decimal v) => CompTotal == 0 ? "0%" : (v / CompTotal * 100).ToString("0.0") + "%";
+
+    // クラス別の固定色／銘柄別の循環パレット（家計簿のカード別と同様）
+    private static readonly Dictionary<AssetClass, string> ClassColors = new()
+    {
+        [AssetClass.JpStock] = "#5b8def",
+        [AssetClass.UsStock] = "#34c3a3",
+        [AssetClass.Fund] = "#f6a609",
+    };
+    private static readonly string[] CompPalette =
+    {
+        "#5b8def", "#34c3a3", "#f6a609", "#ef6a6a", "#9b7ede",
+        "#4db3d6", "#e879b9", "#7ac74f", "#f08a4b", "#6c7a89"
+    };
+
+    // ドーナツ設定（家計簿の NewDonutOptions と同流儀。薄色の白飛び対策で hover/active を暗くする）
+    private readonly ApexChartOptions<SpendSlice> CompDonutOptions = new()
+    {
+        Chart = new Chart { Height = 300, Toolbar = new Toolbar { Show = false } },
+        Legend = new Legend { Position = LegendPosition.Bottom },
+        Tooltip = new Tooltip { Y = new TooltipY { Formatter = "function(v){return '¥'+v.toLocaleString()}" } },
+        States = new States
+        {
+            Hover = new StatesHover { Filter = new StatesFilter { Type = StatesFilterType.darken, Value = 0.12 } },
+            Active = new StatesActive { Filter = new StatesFilter { Type = StatesFilterType.darken, Value = 0.12 } }
+        }
+    };
+
+    private void SetCompMode(string mode) { _compMode = mode; BuildComposition(); }
+
+    // 現在の評価額（円換算）から構成比スライスを作る。価格未取得・評価額0は除外。
+    private void BuildComposition()
+    {
+        var slices = new List<SpendSlice>();
+        if (_compMode == "class")
+        {
+            foreach (var grp in Groups)
+            {
+                decimal sum = 0m;
+                foreach (var h in Ordered.Where(h => h.Class == grp.Class))
+                {
+                    var v = ValuationJpy(h, Summary(h).Quantity);
+                    if (v.HasValue) sum += v.Value;
+                }
+                if (sum > 0) slices.Add(new SpendSlice { Key = grp.Class.ToString(), Label = grp.Label, Value = sum, Color = ClassColors[grp.Class] });
+            }
+        }
+        else
+        {
+            foreach (var h in Ordered)
+            {
+                var v = ValuationJpy(h, Summary(h).Quantity);
+                if (v.HasValue && v.Value > 0) slices.Add(new SpendSlice { Key = h.Id, Label = DisplayName(h), Value = v.Value });
+            }
+            slices = slices.OrderByDescending(s => s.Value).ToList();
+            for (int i = 0; i < slices.Count; i++) slices[i].Color = CompPalette[i % CompPalette.Length];
+        }
+        CompositionData = slices;
+        CompDonutOptions.Colors = slices.Select(s => s.Color).ToList();
+        _compRev++;
+    }
+
+    // ── 推移（時系列）──
+    public class ChartPoint { public string Label { get; set; } = ""; public decimal Value { get; set; } }
+
+    private List<ChartPoint> AssetSeries = new();   // 総資産（Σ評価額・円）
+    private List<ChartPoint> PnlSeries = new();     // 評価損益（総資産 − 取得原価・円）
+    private List<ChartPoint> DivSeries = new();      // 配当・分配金の累計（円・USDは現在レートで換算）
+
+    // 折れ線設定（家計簿の NewLineOptions と同流儀）。チャートごとに専用インスタンス。
+    private static ApexChartOptions<ChartPoint> NewLineOpt() => new()
+    {
+        Chart = new Chart { Height = 220, Toolbar = new Toolbar { Show = false } },
+        Stroke = new Stroke { Curve = Curve.Smooth },
+        Yaxis = new List<YAxis> { new YAxis { Labels = new YAxisLabels { Formatter = "function(v){return '¥'+Math.round(v).toLocaleString()}" } } }
+    };
+    private readonly ApexChartOptions<ChartPoint> AssetLineOpt = NewLineOpt();
+    private readonly ApexChartOptions<ChartPoint> PnlLineOpt = NewLineOpt();
+    private readonly ApexChartOptions<ChartPoint> DivLineOpt = NewLineOpt();
+
+    // スナップショットの "yyyy-MM-dd HH:mm" → 軸ラベル "M/d"
+    private static string SnapLabel(string at) =>
+        DateTime.TryParse(at, out var d) ? d.ToString("M/d") : at;
+
+    private void BuildTimeSeries()
+    {
+        var snaps = Store.Data.Snapshots.OrderBy(s => s.At, StringComparer.Ordinal).ToList();
+        AssetSeries = snaps.Select(s => new ChartPoint { Label = SnapLabel(s.At), Value = s.Values.Sum(v => v.ValuationJpy) }).ToList();
+        PnlSeries = snaps.Select(s =>
+        {
+            decimal val = s.Values.Sum(v => v.ValuationJpy);
+            decimal cost = CostBasisJpyAsOf(s.At.Length >= 10 ? s.At[..10] : s.At, s.UsdJpyRate);
+            return new ChartPoint { Label = SnapLabel(s.At), Value = val - cost };
+        }).ToList();
+
+        // 配当累計（受取日順）。USD建ては現在の USD/JPY で円換算（概算）。
+        decimal cum = 0m;
+        var dl = new List<ChartPoint>();
+        foreach (var d in Store.Data.Dividends.Where(x => !string.IsNullOrEmpty(x.Date)).OrderBy(x => x.Date, StringComparer.Ordinal))
+        {
+            decimal amt = d.Currency == Currency.Usd
+                ? (Store.Data.UsdJpyRate > 0 ? d.Amount * Store.Data.UsdJpyRate : 0m)
+                : d.Amount;
+            cum += amt;
+            dl.Add(new ChartPoint { Label = SnapLabel(d.Date + " 00:00"), Value = cum });
+        }
+        DivSeries = dl;
+    }
+
+    // 指定日（"yyyy-MM-dd"）時点の取得原価合計（円換算）。買付/売却を日付で絞り平均取得単価法で算出。
+    // 建て通貨が USD の銘柄はその時点（スナップショット）の USD/JPY で換算。
+    private decimal CostBasisJpyAsOf(string date, decimal snapRate)
+    {
+        decimal total = 0m;
+        decimal rate = snapRate > 0 ? snapRate : Store.Data.UsdJpyRate;
+        foreach (var h in Store.Data.Holdings.Where(h => !h.IsDeleted))
+        {
+            var buys = Store.Data.Buys.Where(b => b.HoldingId == h.Id && string.CompareOrdinal(b.Date, date) <= 0).ToList();
+            if (buys.Count == 0) continue;
+            decimal bq = buys.Sum(b => b.Quantity);
+            decimal sq = Store.Data.Sells.Where(s => s.HoldingId == h.Id && string.CompareOrdinal(s.Date, date) <= 0).Sum(s => s.Quantity);
+            decimal qty = bq - sq;
+            if (qty <= 0) continue;
+            decimal avg = buys.Sum(b => b.Quantity * b.UnitPrice) / bq;
+            decimal costNative = qty * avg / PortfolioMath.Divisor(h.Class);
+            total += h.CostCurrency == Currency.Usd ? (rate > 0 ? costNative * rate : 0m) : costNative;
+        }
+        return total;
     }
 
     // ── 新規銘柄登録 ──
@@ -643,6 +911,8 @@
         }
         _deleteId = null;
         ShowConfirm = false;
+        BuildComposition();
+        BuildTimeSeries();
         Save();
     }
 
