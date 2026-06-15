@@ -1,6 +1,7 @@
 @page "/portfolio"
 @implements IDisposable
 @inject PortfolioStore Store
+@inject QuoteService Quote
 @inject NavigationManager Nav
 
 <div class="wrap">
@@ -27,6 +28,28 @@
     }
     else
     {
+        <div class="pf-summary-bar">
+            <div class="pf-sum-main">
+                <span class="pf-sum-label">総資産（円）</span>
+                <span class="pf-sum-total">@TotalJpyDisplay</span>
+            </div>
+            <div class="pf-sum-meta">
+                @if (!string.IsNullOrEmpty(Store.Data.PricedAt))
+                {
+                    <span>価格更新 @Store.Data.PricedAt</span>
+                    @if (Store.Data.UsdJpyRate > 0)
+                    {
+                        <span>・USD/JPY @Store.Data.UsdJpyRate.ToString("#,0.##")</span>
+                    }
+                }
+                <button class="btn-sm" disabled="@_updating" @onclick="() => UpdatePrices()">@(_updating ? "更新中…" : "価格更新")</button>
+            </div>
+        </div>
+        @if (_updateMsg != null)
+        {
+            <div class="pf-hint pf-neg">@_updateMsg</div>
+        }
+
         <div class="cat-head">
             <span>保有銘柄</span>
             <button class="btn" @onclick="OpenAdd">＋ 追加</button>
@@ -45,18 +68,22 @@
                 <div class="pf-group-head">@grp.Label</div>
                 <div class="pf-grid pf-grid-head">
                     <span>銘柄名</span><span>口座</span>
-                    <span class="pf-num">数量</span><span class="pf-num">平均取得単価</span><span class="pf-num">実現損益</span>
+                    <span class="pf-num">数量</span><span class="pf-num">平均取得単価</span>
+                    <span class="pf-num">評価額</span><span class="pf-num">評価損益</span>
                     <span></span><span></span>
                 </div>
                 @foreach (var h in items)
                 {
                     var s = Summary(h);
+                    var val = Valuation(h, s.Quantity);
+                    var upnl = UnrealizedPnl(h, s);
                     <div class="pf-grid pf-row">
                         <span class="pf-hname" title="@DisplayName(h)">@DisplayName(h)</span>
                         <span class="pf-badge">@AccountLabel(h.Account)</span>
                         <span class="pf-num">@Qty(s.Quantity)</span>
                         <span class="pf-num">@Price(h, s.AvgUnitPrice)</span>
-                        <span class="pf-num @PnlClass(s.RealizedPnl)">@MoneySigned(h, s.RealizedPnl)</span>
+                        <span class="pf-num">@MoneyOpt(h, val)</span>
+                        <span class="pf-num @PnlClass(upnl ?? 0)">@MoneySignedOpt(h, upnl)</span>
                         <button class="btn-sm" @onclick="() => OpenTx(h.Id)">取引</button>
                         <button class="x" @onclick="() => AskDelete(h)">✕</button>
                     </div>
@@ -65,62 +92,82 @@
         }
 
         <div class="foot" style="text-align:left;margin-top:10px">
-            「＋ 追加」から取引（買付）を登録すると保有銘柄として表示されます。同じ銘柄は合算されます。<br />
+            「＋ 追加」で新規銘柄を登録すると保有銘柄として表示されます。同じ銘柄は合算されます。<br />
             各銘柄の「取引」で買付・売却・配当の追加/編集と銘柄設定ができます。投資信託は基準価額＝1万口あたりとして計算します。<br />
-            評価額・評価損益（現在価格が必要）と価格の自動取得は次の段階で追加します。
+            「価格更新」で現在価格と USD/JPY を取得します（日本株＝証券コード4桁／米国株＝ティッカー／投資信託＝協会コード）。コード未設定の投資信託は「取引」で現在基準価額を手入力できます。
         </div>
     }
 </div>
 
-@* ── 取引を追加ダイアログ（新規銘柄 or 既存銘柄への買付）── *@
+@* ── 新規銘柄登録ダイアログ（誤クリック防止のためダイアログ外クリックでは閉じない）── *@
 @if (_addOpen)
 {
-    <div class="dialog-overlay" @onclick="CloseAdd">
+    <div class="dialog-overlay">
         <div class="dialog-box pf-add-box" @onclick:stopPropagation="true">
-            <h4>取引を追加</h4>
+            <h4>新規銘柄登録</h4>
             <div class="pf-add-form">
-                <label>銘柄
-                    <select @bind="_addTargetId">
-                        <option value="">＋ 新規銘柄</option>
-                        @foreach (var h in Ordered)
-                        {
-                            <option value="@h.Id">@DisplayName(h)（@ClassLabel(h.Class)・@AccountLabel(h.Account)）</option>
-                        }
+                <label>資産クラス
+                    <select @bind="_nClass">
+                        <option value="@AssetClass.Fund">投資信託</option>
+                        <option value="@AssetClass.JpStock">日本株</option>
+                        <option value="@AssetClass.UsStock">米国株</option>
                     </select>
                 </label>
+                <label>口座区分
+                    <select @bind="_nAccount">
+                        <option value="@AccountKind.Nisa">NISA</option>
+                        <option value="@AccountKind.Tokutei">特定</option>
+                        <option value="@AccountKind.General">一般</option>
+                    </select>
+                </label>
+                @if (_nClass == AssetClass.UsStock)
+                {
+                    <label>建て通貨
+                        <select @bind="_nCurrency">
+                            <option value="@Currency.Jpy">円建て</option>
+                            <option value="@Currency.Usd">ドル建て</option>
+                        </select>
+                    </label>
+                }
 
-                @if (_addTargetId == "")
+                @if (_nClass == AssetClass.Fund)
+                {
+                    <label>投信を選択
+                        <select @bind="_nFundPick" @bind:after="OnFundPicked">
+                            <option value="">― 一覧から選択 ―</option>
+                            @foreach (var f in FundMaster.Items)
+                            {
+                                <option value="@f.Code">@f.Name</option>
+                            }
+                            <option value="__other">その他（一覧に無い投信）</option>
+                        </select>
+                    </label>
+                    @if (_nFundPick == "__other")
+                    {
+                        <label>銘柄名
+                            <input @bind="_nName" placeholder="例 ○○インデックスファンド" />
+                        </label>
+                        <label>協会コード
+                            <input @bind="_nAssocFundCd" placeholder="例 0331418A" />
+                        </label>
+                        <span class="pf-hint">協会コード（8桁）を入れると「価格更新」で基準価額を自動取得します。未入力でも現在基準価額は手入力できます。</span>
+                    }
+                }
+                else
                 {
                     <label>銘柄名
-                        <input @bind="_nName" placeholder="例 eMAXIS Slim 全世界株式（オール・カントリー）" />
+                        <input @bind="_nName" placeholder="@(_nClass == AssetClass.JpStock ? "例 トヨタ自動車" : "例 アップル")" />
                     </label>
-                    <label>資産クラス
-                        <select @bind="_nClass">
-                            <option value="@AssetClass.Fund">投資信託</option>
-                            <option value="@AssetClass.JpStock">日本株</option>
-                            <option value="@AssetClass.UsStock">米国株</option>
-                        </select>
-                    </label>
-                    <label>口座区分
-                        <select @bind="_nAccount">
-                            <option value="@AccountKind.Nisa">NISA</option>
-                            <option value="@AccountKind.Tokutei">特定</option>
-                            <option value="@AccountKind.General">一般</option>
-                        </select>
-                    </label>
-                    @if (_nClass == AssetClass.UsStock)
+                    @if (_nClass == AssetClass.JpStock)
                     {
-                        <label>建て通貨
-                            <select @bind="_nCurrency">
-                                <option value="@Currency.Jpy">円建て</option>
-                                <option value="@Currency.Usd">ドル建て</option>
-                            </select>
+                        <label>証券コード（4桁）
+                            <input @bind="_nSymbol" placeholder="例 7203 / 9432" />
                         </label>
                     }
-                    @if (_nClass != AssetClass.Fund)
+                    else
                     {
-                        <label>シンボル
-                            <input @bind="_nSymbol" placeholder="例 7203.JP / AAPL.US" />
+                        <label>ティッカー
+                            <input @bind="_nSymbol" placeholder="例 AAPL / TSM" />
                         </label>
                     }
                 }
@@ -134,7 +181,7 @@
             </div>
             <div class="dialog-btns">
                 <button class="btn" @onclick="CloseAdd">キャンセル</button>
-                <button class="btn primary" disabled="@(!CanAdd)" @onclick="SubmitAdd">追加</button>
+                <button class="btn primary" disabled="@(!CanAdd)" @onclick="SubmitAdd">登録</button>
             </div>
         </div>
     </div>
@@ -152,7 +199,7 @@
                 <h4>@DisplayName(h) の取引・設定</h4>
 
                 <div class="pf-tx-settings">
-                    <label>銘柄名 <input @bind="h.Name" @bind:after="Save" /></label>
+                    <label>銘柄名 <input @bind="h.Name" @bind:after="TxSave" /></label>
                     <label>資産クラス
                         <select @bind="h.Class" @bind:after="() => OnClassChanged(h)">
                             <option value="@AssetClass.Fund">投資信託</option>
@@ -161,7 +208,7 @@
                         </select>
                     </label>
                     <label>口座区分
-                        <select @bind="h.Account" @bind:after="Save">
+                        <select @bind="h.Account" @bind:after="TxSave">
                             <option value="@AccountKind.Nisa">NISA</option>
                             <option value="@AccountKind.Tokutei">特定</option>
                             <option value="@AccountKind.General">一般</option>
@@ -170,15 +217,32 @@
                     @if (h.Class == AssetClass.UsStock)
                     {
                         <label>建て通貨
-                            <select @bind="h.CostCurrency" @bind:after="Save">
+                            <select @bind="h.CostCurrency" @bind:after="TxSave">
                                 <option value="@Currency.Jpy">円建て</option>
                                 <option value="@Currency.Usd">ドル建て</option>
                             </select>
                         </label>
                     }
-                    @if (h.Class != AssetClass.Fund)
+                    @if (h.Class == AssetClass.JpStock)
                     {
-                        <label>シンボル <input @bind="h.Symbol" @bind:after="Save" placeholder="例 7203.JP / AAPL.US" /></label>
+                        <label>証券コード <input @bind="h.Symbol" @bind:after="TxSave" placeholder="例 7203 / 9432" /></label>
+                    }
+                    else if (h.Class == AssetClass.UsStock)
+                    {
+                        <label>ティッカー <input @bind="h.Symbol" @bind:after="TxSave" placeholder="例 AAPL / TSM" /></label>
+                    }
+                    else
+                    {
+                        <label>投信を選択
+                            <select value="@h.AssocFundCd" @onchange="e => OnTxFundPicked(h, e.Value?.ToString())">
+                                <option value="">― 一覧から選択 ―</option>
+                                @foreach (var f in FundMaster.Items)
+                                {
+                                    <option value="@f.Code">@f.Name</option>
+                                }
+                            </select>
+                        </label>
+                        <label>協会コード <input @bind="h.AssocFundCd" @bind:after="TxSave" placeholder="例 0331418A" /></label>
                     }
                 </div>
 
@@ -187,10 +251,22 @@
                     <div class="pf-hint">円建て＝単価は「円/株」（拠出した円÷株数・為替入力は不要）／ドル建て＝単価は「$/株」。現在価格は後の段階で自動取得して評価額に反映します。</div>
                 }
 
+                <div class="pf-tx-price">
+                    <label>@CurPriceLabel(h)
+                        <AmountInput CssClass="pf-tx-amt" Decimals="4" Value="@CurPrice(h.Id)" ValueChanged="v => SetCurPrice(h.Id, v)" />
+                    </label>
+                    @if (h.Class == AssetClass.UsStock)
+                    {
+                        <span class="pf-hint">米国株の現在価格は $/株。円換算は USD/JPY @(Store.Data.UsdJpyRate > 0 ? Store.Data.UsdJpyRate.ToString("#,0.##") : "未取得") を使用。</span>
+                    }
+                </div>
+
                 <div class="pf-tx-summary">
                     <span>数量 <b>@Qty(s.Quantity)</b></span>
                     <span>平均取得単価 <b>@Price(h, s.AvgUnitPrice)</b></span>
                     <span>取得原価 <b>@Money(h, s.CostBasis)</b></span>
+                    <span>評価額 <b>@MoneyOpt(h, Valuation(h, s.Quantity))</b></span>
+                    <span>評価損益 <b class="@PnlClass(UnrealizedPnl(h, s) ?? 0)">@MoneySignedOpt(h, UnrealizedPnl(h, s))</b></span>
                     <span>実現損益 <b class="@PnlClass(s.RealizedPnl)">@MoneySigned(h, s.RealizedPnl)</b></span>
                     <span>配当合計 <b>@Money(h, s.Dividends)</b></span>
                 </div>
@@ -205,8 +281,8 @@
                         {
                             <div class="pf-tx-grid">
                                 <input type="date" class="pf-tx-date" value="@b.Date" @onchange="e => OnBuyDate(b, e.Value)" />
-                                <AmountInput CssClass="pf-tx-amt" Decimals="4" Value="@b.Quantity" ValueChanged="v => { b.Quantity = v; Save(); }" />
-                                <AmountInput CssClass="pf-tx-amt" Decimals="4" Value="@b.UnitPrice" ValueChanged="v => { b.UnitPrice = v; Save(); }" />
+                                <AmountInput CssClass="pf-tx-amt" Decimals="4" Value="@b.Quantity" ValueChanged="v => { b.Quantity = v; TxSave(); }" />
+                                <AmountInput CssClass="pf-tx-amt" Decimals="4" Value="@b.UnitPrice" ValueChanged="v => { b.UnitPrice = v; TxSave(); }" />
                                 <button class="x" @onclick="() => RemoveBuy(b.Id)">✕</button>
                             </div>
                         }
@@ -227,8 +303,8 @@
                         {
                             <div class="pf-tx-grid">
                                 <input type="date" class="pf-tx-date" value="@sl.Date" @onchange="e => OnSellDate(sl, e.Value)" />
-                                <AmountInput CssClass="pf-tx-amt" Decimals="4" Value="@sl.Quantity" ValueChanged="v => { sl.Quantity = v; Save(); }" />
-                                <AmountInput CssClass="pf-tx-amt" Decimals="4" Value="@sl.UnitPrice" ValueChanged="v => { sl.UnitPrice = v; Save(); }" />
+                                <AmountInput CssClass="pf-tx-amt" Decimals="4" Value="@sl.Quantity" ValueChanged="v => { sl.Quantity = v; TxSave(); }" />
+                                <AmountInput CssClass="pf-tx-amt" Decimals="4" Value="@sl.UnitPrice" ValueChanged="v => { sl.UnitPrice = v; TxSave(); }" />
                                 <button class="x" @onclick="() => RemoveSell(sl.Id)">✕</button>
                             </div>
                         }
@@ -249,7 +325,7 @@
                         {
                             <div class="pf-tx-grid">
                                 <input type="date" class="pf-tx-date" value="@dv.Date" @onchange="e => OnDivDate(dv, e.Value)" />
-                                <AmountInput CssClass="pf-tx-amt" Decimals="4" Value="@dv.Amount" ValueChanged="v => { dv.Amount = v; Save(); }" />
+                                <AmountInput CssClass="pf-tx-amt" Decimals="4" Value="@dv.Amount" ValueChanged="v => { dv.Amount = v; TxSave(); }" />
                                 <span></span>
                                 <button class="x" @onclick="() => RemoveDiv(dv.Id)">✕</button>
                             </div>
@@ -305,7 +381,12 @@
     {
         Loaded = false;
         LoadFailed = false;
-        if (await Store.LoadAsync()) Loaded = true;
+        if (await Store.LoadAsync())
+        {
+            Loaded = true;
+            // 画面を開いたら現在価格を自動更新（失敗・一部未取得のメッセージは出さない）。
+            await UpdatePrices(manual: false);
+        }
         else if (!Store.IsPending) LoadFailed = true;
     }
 
@@ -318,14 +399,11 @@
         CurSym(h) + (h.CostCurrency == Currency.Usd ? v.ToString("#,0.##") : v.ToString("#,0"));
     private static string MoneySigned(Holding h, decimal v) => (v > 0 ? "+" : "") + Money(h, v);
     private static string Price(Holding h, decimal v) => CurSym(h) + v.ToString("#,0.##");
+    // 評価額・評価損益は現在価格が無いと算出できないため null 許容。未取得は "—"。
+    private static string MoneyOpt(Holding h, decimal? v) => v.HasValue ? Money(h, v.Value) : "—";
+    private static string MoneySignedOpt(Holding h, decimal? v) => v.HasValue ? MoneySigned(h, v.Value) : "—";
     private static string PnlClass(decimal v) => v > 0 ? "pf-pos" : v < 0 ? "pf-neg" : "";
     private static string UnitLabel(Holding h) => h.Class == AssetClass.Fund ? "基準価額" : "単価";
-    private static string ClassLabel(AssetClass c) => c switch
-    {
-        AssetClass.Fund => "投資信託",
-        AssetClass.JpStock => "日本株",
-        _ => "米国株",
-    };
     private static string AccountLabel(AccountKind a) => a switch
     {
         AccountKind.Nisa => "NISA",
@@ -335,78 +413,211 @@
     private static string DisplayName(Holding h) => string.IsNullOrEmpty(h.Name) ? "(名称未設定)" : h.Name;
     private Holding? HoldingById(string id) => Store.Data.Holdings.FirstOrDefault(h => h.Id == id);
 
-    // ── 取引を追加（新規銘柄 or 既存への買付）──
+    // ── 現在価格・評価額 ──
+    private decimal CurPrice(string holdingId) => Store.Data.CurrentPrices.GetValueOrDefault(holdingId);
+    private void SetCurPrice(string holdingId, decimal v)
+    {
+        if (v > 0) Store.Data.CurrentPrices[holdingId] = v;
+        else Store.Data.CurrentPrices.Remove(holdingId);
+        Save();
+    }
+    private static string CurPriceLabel(Holding h) => h.Class == AssetClass.Fund ? "現在基準価額" : "現在価格";
+
+    private decimal? Valuation(Holding h, decimal qty) =>
+        PortfolioMath.Valuation(h, qty, CurPrice(h.Id), Store.Data.UsdJpyRate);
+    private decimal? ValuationJpy(Holding h, decimal qty) =>
+        PortfolioMath.ValuationJpy(h, qty, CurPrice(h.Id), Store.Data.UsdJpyRate);
+    private decimal? UnrealizedPnl(Holding h, HoldingSummary s)
+    {
+        var v = Valuation(h, s.Quantity);
+        return v.HasValue ? v.Value - s.CostBasis : (decimal?)null;
+    }
+
+    // 総資産（円）。数量0以外で価格が取れている銘柄だけを合計。一部未取得なら末尾に印を付ける。
+    private string TotalJpyDisplay
+    {
+        get
+        {
+            decimal total = 0m;
+            bool anyMissing = false;
+            foreach (var h in Ordered)
+            {
+                var qty = Summary(h).Quantity;
+                if (qty == 0) continue;
+                var v = ValuationJpy(h, qty);
+                if (v.HasValue) total += v.Value;
+                else anyMissing = true;
+            }
+            return "¥" + total.ToString("#,0") + (anyMissing ? "（一部未取得）" : "");
+        }
+    }
+
+    // ── 価格更新（Yahoo Finance から株価＋USD/JPY を取得し現在価格に反映）──
+    private bool _updating;
+    private string? _updateMsg;
+
+    // 日本株は証券コードに .T を付与、米国株はティッカーそのまま（既に "." 付きはそのまま使う）。
+    private static string YahooSymbol(Holding h)
+    {
+        var s = h.Symbol.Trim();
+        if (h.Class == AssetClass.JpStock && s.Length > 0 && !s.Contains('.')) return s + ".T";
+        return s;
+    }
+
+    private async Task UpdatePrices(bool manual = true)
+    {
+        if (_updating) return;
+        _updating = true;
+        _updateMsg = null;
+        try
+        {
+            var stocks = Ordered
+                .Where(h => h.Class != AssetClass.Fund && !string.IsNullOrWhiteSpace(h.Symbol))
+                .ToList();
+            var fundHoldings = Ordered
+                .Where(h => h.Class == AssetClass.Fund && !string.IsNullOrWhiteSpace(h.AssocFundCd))
+                .ToList();
+
+            var symbols = stocks.Select(YahooSymbol).Distinct().ToList();
+            var funds = fundHoldings
+                .Select(h => new FundRef { Isin = h.Isin.Trim(), AssocFundCd = h.AssocFundCd.Trim() })
+                .ToList();
+
+            var res = await Quote.FetchAsync(symbols, funds);
+            if (res == null) { if (manual) _updateMsg = "価格の取得に失敗しました。時間をおいて再度お試しください。"; return; }
+
+            if (res.UsdJpyRate > 0) Store.Data.UsdJpyRate = res.UsdJpyRate;
+            int hit = 0, target = stocks.Count + fundHoldings.Count;
+            foreach (var h in stocks)
+            {
+                if (res.Prices.TryGetValue(YahooSymbol(h).ToUpperInvariant(), out var p) && p > 0)
+                {
+                    Store.Data.CurrentPrices[h.Id] = p;
+                    hit++;
+                }
+            }
+            foreach (var h in fundHoldings)
+            {
+                if (res.FundPrices.TryGetValue(h.AssocFundCd.Trim().ToUpperInvariant(), out var p) && p > 0)
+                {
+                    Store.Data.CurrentPrices[h.Id] = p;
+                    hit++;
+                }
+            }
+            Store.Data.PricedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
+            if (manual && target > 0 && hit < target)
+                _updateMsg = $"一部の銘柄は価格を取得できませんでした（{hit}/{target}）。コード（証券コード/ティッカー/協会コード）をご確認ください。";
+            Save();
+        }
+        catch
+        {
+            if (manual) _updateMsg = "価格の取得に失敗しました。時間をおいて再度お試しください。";
+        }
+        finally
+        {
+            _updating = false;
+        }
+    }
+
+    // ── 新規銘柄登録 ──
     private bool _addOpen;
-    private string _addTargetId = "";        // "" = 新規銘柄 / それ以外 = 既存 Holding.Id
     private string _nName = "";
     private AssetClass _nClass = AssetClass.Fund;
     private AccountKind _nAccount = AccountKind.Nisa;
     private Currency _nCurrency = Currency.Jpy;
     private string _nSymbol = "";
+    private string _nIsin = "";
+    private string _nAssocFundCd = "";
+    private string _nFundPick = "";
     private string _bDate = "";
     private decimal _bQty;
     private decimal _bPrice;
 
-    private string BuyPriceLabel => _addTargetId == "" && _nClass == AssetClass.Fund ? "基準価額" : "単価";
+    private string BuyPriceLabel => _nClass == AssetClass.Fund ? "基準価額" : "単価";
 
-    private bool CanAdd =>
-        (_addTargetId != "" || !string.IsNullOrWhiteSpace(_nName)) && _bQty != 0;
+    private bool CanAdd => !string.IsNullOrWhiteSpace(_nName) && _bQty != 0;
 
     private void OpenAdd()
     {
-        _addTargetId = "";
         _nName = ""; _nClass = AssetClass.Fund; _nAccount = AccountKind.Nisa;
-        _nCurrency = Currency.Jpy; _nSymbol = "";
+        _nCurrency = Currency.Jpy; _nSymbol = ""; _nIsin = ""; _nAssocFundCd = ""; _nFundPick = "";
         _bDate = DateTime.Today.ToString("yyyy-MM-dd");
         _bQty = 0; _bPrice = 0;
         _addOpen = true;
     }
     private void CloseAdd() => _addOpen = false;
 
-    private void SubmitAdd()
+    private async Task SubmitAdd()
     {
         if (!CanAdd) return;
+        var name = _nName.Trim();
+        // 同一銘柄（名前＋クラス＋口座）が既にあれば合算、無ければ新規作成
+        var existing = Store.Data.Holdings.FirstOrDefault(h =>
+            !h.IsDeleted && h.Name == name && h.Class == _nClass && h.Account == _nAccount);
         string holdingId;
-        if (_addTargetId != "")
+        if (existing != null)
         {
-            holdingId = _addTargetId;
+            holdingId = existing.Id;
         }
         else
         {
-            var name = _nName.Trim();
-            // 同一銘柄（名前＋クラス＋口座）が既にあれば合算、無ければ新規作成
-            var existing = Store.Data.Holdings.FirstOrDefault(h =>
-                !h.IsDeleted && h.Name == name && h.Class == _nClass && h.Account == _nAccount);
-            if (existing != null)
+            var nh = new Holding
             {
-                holdingId = existing.Id;
-            }
-            else
-            {
-                var nh = new Holding
-                {
-                    Name = name,
-                    Class = _nClass,
-                    Account = _nAccount,
-                    CostCurrency = _nClass == AssetClass.UsStock ? _nCurrency : Currency.Jpy,
-                    Symbol = _nClass == AssetClass.Fund ? "" : _nSymbol.Trim(),
-                    SortOrder = Store.Data.Holdings.Count,
-                };
-                Store.Data.Holdings.Add(nh);
-                holdingId = nh.Id;
-            }
+                Name = name,
+                Class = _nClass,
+                Account = _nAccount,
+                CostCurrency = _nClass == AssetClass.UsStock ? _nCurrency : Currency.Jpy,
+                Symbol = _nClass == AssetClass.Fund ? "" : _nSymbol.Trim(),
+                Isin = _nClass == AssetClass.Fund ? _nIsin.Trim() : "",
+                AssocFundCd = _nClass == AssetClass.Fund ? _nAssocFundCd.Trim() : "",
+                SortOrder = Store.Data.Holdings.Count,
+            };
+            Store.Data.Holdings.Add(nh);
+            holdingId = nh.Id;
         }
         Store.Data.Buys.Add(new BuyLot { HoldingId = holdingId, Date = _bDate, Quantity = _bQty, UnitPrice = _bPrice });
         Save();
         _addOpen = false;
+        // 追加した銘柄の現在価格をすぐ反映（自動）。
+        await UpdatePrices(manual: false);
+    }
+
+    // 投信マスタから選択 → 銘柄名・協会コード（＋ISIN）を自動入力。「その他」「未選択」はクリア。
+    private void OnFundPicked()
+    {
+        if (FundMaster.Items.FirstOrDefault(x => x.Code == _nFundPick) is { } f)
+        {
+            _nName = f.Name;
+            _nAssocFundCd = f.Code;
+            _nIsin = f.Isin ?? "";
+        }
+        else   // "" または "__other"
+        {
+            _nName = "";
+            _nAssocFundCd = "";
+            _nIsin = "";
+        }
+    }
+
+    // 同上（既存銘柄の取引・設定ダイアログ）。選択時に上書きし保存。
+    private void OnTxFundPicked(Holding h, string? code)
+    {
+        if (FundMaster.Items.FirstOrDefault(x => x.Code == code) is { } f)
+        {
+            h.Name = f.Name;
+            h.AssocFundCd = f.Code;
+            h.Isin = f.Isin ?? "";
+        }
+        TxSave();
     }
 
     // 米国株以外は常に円建て。投信はシンボルを持たない。
     private void OnClassChanged(Holding h)
     {
         if (h.Class != AssetClass.UsStock) h.CostCurrency = Currency.Jpy;
-        if (h.Class == AssetClass.Fund) h.Symbol = "";
-        Save();
+        if (h.Class == AssetClass.Fund) { h.Symbol = ""; }
+        else { h.Isin = ""; h.AssocFundCd = ""; }
+        TxSave();
     }
 
     // ── 削除 ──
@@ -437,21 +648,33 @@
 
     // ── 取引・設定ダイアログ ──
     private string? _txHoldingId;
-    private void OpenTx(string id) => _txHoldingId = id;
-    private void CloseTx() => _txHoldingId = null;
+    private bool _txDirty;   // ダイアログ内で変更があったか（閉じる時に1回だけ価格更新するため）
+    private void OpenTx(string id) { _txHoldingId = id; _txDirty = false; }
+
+    // 取引・設定の編集は全てこれを通す。閉じた時に dirty なら価格更新を呼ぶ。
+    private void TxSave() { _txDirty = true; Store.RequestSave(); }
+
+    // 閉じる：変更があった場合だけ価格更新（call回数を抑える）。
+    private async Task CloseTx()
+    {
+        var dirty = _txDirty;
+        _txDirty = false;
+        _txHoldingId = null;
+        if (dirty) await UpdatePrices(manual: false);
+    }
 
     private IEnumerable<BuyLot> BuysOf(string id) => Store.Data.Buys.Where(b => b.HoldingId == id).OrderBy(b => b.Date);
     private IEnumerable<SellLot> SellsOf(string id) => Store.Data.Sells.Where(s => s.HoldingId == id).OrderBy(s => s.Date);
     private IEnumerable<Dividend> DivsOf(string id) => Store.Data.Dividends.Where(d => d.HoldingId == id).OrderBy(d => d.Date);
 
-    private void AddBuy(string id) { Store.Data.Buys.Add(new BuyLot { HoldingId = id, Date = DateTime.Today.ToString("yyyy-MM-dd") }); Save(); }
-    private void RemoveBuy(string lotId) { Store.Data.Buys.RemoveAll(b => b.Id == lotId); Save(); }
-    private void AddSell(string id) { Store.Data.Sells.Add(new SellLot { HoldingId = id, Date = DateTime.Today.ToString("yyyy-MM-dd") }); Save(); }
-    private void RemoveSell(string lotId) { Store.Data.Sells.RemoveAll(s => s.Id == lotId); Save(); }
-    private void AddDiv(string id) { Store.Data.Dividends.Add(new Dividend { HoldingId = id, Date = DateTime.Today.ToString("yyyy-MM-dd"), Currency = HoldingById(id)?.CostCurrency ?? Currency.Jpy }); Save(); }
-    private void RemoveDiv(string divId) { Store.Data.Dividends.RemoveAll(d => d.Id == divId); Save(); }
+    private void AddBuy(string id) { Store.Data.Buys.Add(new BuyLot { HoldingId = id, Date = DateTime.Today.ToString("yyyy-MM-dd") }); TxSave(); }
+    private void RemoveBuy(string lotId) { Store.Data.Buys.RemoveAll(b => b.Id == lotId); TxSave(); }
+    private void AddSell(string id) { Store.Data.Sells.Add(new SellLot { HoldingId = id, Date = DateTime.Today.ToString("yyyy-MM-dd") }); TxSave(); }
+    private void RemoveSell(string lotId) { Store.Data.Sells.RemoveAll(s => s.Id == lotId); TxSave(); }
+    private void AddDiv(string id) { Store.Data.Dividends.Add(new Dividend { HoldingId = id, Date = DateTime.Today.ToString("yyyy-MM-dd"), Currency = HoldingById(id)?.CostCurrency ?? Currency.Jpy }); TxSave(); }
+    private void RemoveDiv(string divId) { Store.Data.Dividends.RemoveAll(d => d.Id == divId); TxSave(); }
 
-    private void OnBuyDate(BuyLot b, object? v) { b.Date = v?.ToString() ?? ""; Save(); }
-    private void OnSellDate(SellLot s, object? v) { s.Date = v?.ToString() ?? ""; Save(); }
-    private void OnDivDate(Dividend d, object? v) { d.Date = v?.ToString() ?? ""; Save(); }
+    private void OnBuyDate(BuyLot b, object? v) { b.Date = v?.ToString() ?? ""; TxSave(); }
+    private void OnSellDate(SellLot s, object? v) { s.Date = v?.ToString() ?? ""; TxSave(); }
+    private void OnDivDate(Dividend d, object? v) { d.Date = v?.ToString() ?? ""; TxSave(); }
 }

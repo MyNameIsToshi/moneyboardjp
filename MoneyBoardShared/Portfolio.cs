@@ -16,7 +16,9 @@ public class Holding
 {
     public string Id { get; set; } = Util.NewId();
     public string Name { get; set; } = "";          // 表示名
-    public string Symbol { get; set; } = "";          // Stooq形式 "7203.JP"/"AAPL.US"。投信は空（価格は手入力）
+    public string Symbol { get; set; } = "";          // 株のみ。日本株=証券コード4桁 "7203"（取得時 .T 付与）/ 米国株=ティッカー "AAPL"。投信は空
+    public string Isin { get; set; } = "";            // 投信のみ・任意。ISINコード 例 "JP90C000H1T1"（マスタ自動入力時に併せて保持）
+    public string AssocFundCd { get; set; } = "";     // 投信のみ。協会コード 例 "0331418A"（基準価額取得の主キー）
     public AssetClass Class { get; set; } = AssetClass.Fund;
     public AccountKind Account { get; set; } = AccountKind.Nisa;
     public Currency CostCurrency { get; set; } = Currency.Jpy;
@@ -79,6 +81,34 @@ public class PortfolioData
     public List<SellLot> Sells { get; set; } = new();
     public List<Dividend> Dividends { get; set; } = new();
     public List<PriceSnapshot> Snapshots { get; set; } = new();
+
+    // ── 現在価格（価格更新ボタン or 投信の手入力）。評価額・評価損益の算出に使う ──
+    public Dictionary<string, decimal> CurrentPrices { get; set; } = new();  // holdingId → 現在単価（ネイティブ通貨・投信は基準価額）
+    public decimal UsdJpyRate { get; set; }    // 直近の USD/JPY（ドル建て/円建て米国株の円換算に使用）
+    public string PricedAt { get; set; } = ""; // 価格更新日時 "yyyy-MM-dd HH:mm"
+}
+
+/// <summary>POST /api/quote のリクエスト。株+為替は Yahoo シンボル、投信は ISIN＋協会コード。</summary>
+public class QuoteRequest
+{
+    public List<string> Symbols { get; set; } = new();   // Yahoo形式（株 "7203.T"/"AAPL"、為替は内部で付与）
+    public List<FundRef> Funds { get; set; } = new();     // 投信協会で基準価額を取得する投信
+}
+
+/// <summary>投信の基準価額取得に使う識別子。協会コードが主キー（価格を一意に決める）。ISINは任意（あれば併送）。</summary>
+public class FundRef
+{
+    public string Isin { get; set; } = "";        // 任意（未指定ならサーバーが既知の有効ISINで代替）
+    public string AssocFundCd { get; set; } = "";  // 必須
+}
+
+/// <summary>/api/quote のレスポンス。取得失敗分は欠落する。</summary>
+public class QuoteResponse
+{
+    public decimal UsdJpyRate { get; set; }
+    public Dictionary<string, decimal> Prices { get; set; } = new();      // 株シンボル(大文字)→終値（ネイティブ通貨）
+    public Dictionary<string, decimal> FundPrices { get; set; } = new();  // 協会コード(大文字)→基準価額（円・1万口あたり）
+    public string At { get; set; } = "";   // 取得時刻（UTC）
 }
 
 /// <summary>GET /api/portfolio のレスポンス兼 POST /api/portfolio のリクエスト。</summary>

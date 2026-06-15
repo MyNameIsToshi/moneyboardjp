@@ -43,7 +43,10 @@ public partial class DataApi
                     Buys = r.Resource.Buys,
                     Sells = r.Resource.Sells,
                     Dividends = r.Resource.Dividends,
-                    Snapshots = r.Resource.Snapshots
+                    Snapshots = r.Resource.Snapshots,
+                    CurrentPrices = r.Resource.CurrentPrices,
+                    UsdJpyRate = r.Resource.UsdJpyRate,
+                    PricedAt = r.Resource.PricedAt
                 };
             }
             catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)
@@ -94,7 +97,8 @@ public partial class DataApi
                 Id = PortfolioId, UserId = userId!, Type = "portfolio",
                 SchemaVersion = d.SchemaVersion,
                 Holdings = d.Holdings, Buys = d.Buys, Sells = d.Sells,
-                Dividends = d.Dividends, Snapshots = d.Snapshots
+                Dividends = d.Dividends, Snapshots = d.Snapshots,
+                CurrentPrices = d.CurrentPrices, UsdJpyRate = d.UsdJpyRate, PricedAt = d.PricedAt
             };
             var opt = new ItemRequestOptions { EnableContentResponseOnWrite = false };
             if (!string.IsNullOrEmpty(env.Etag)) opt.IfMatchEtag = env.Etag;
@@ -129,4 +133,7 @@ public class PortfolioDoc
     public List<SellLot> Sells { get; set; } = new();
     public List<Dividend> Dividends { get; set; } = new();
     public List<PriceSnapshot> Snapshots { get; set; } = new();
+    public Dictionary<string, decimal> CurrentPrices { get; set; } = new();
+    public decimal UsdJpyRate { get; set; }
+    public string PricedAt { get; set; } = "";
 }
