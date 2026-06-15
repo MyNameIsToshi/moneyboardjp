@@ -204,7 +204,8 @@
                 </label>
                 <label>口座区分
                     <select @bind="_nAccount">
-                        <option value="@AccountKind.Nisa">NISA</option>
+                        <option value="@AccountKind.NisaGrowth">NISA（成長投資枠）</option>
+                        <option value="@AccountKind.NisaTsumitate">NISA（つみたて投資枠）</option>
                         <option value="@AccountKind.Tokutei">特定</option>
                         <option value="@AccountKind.General">一般</option>
                     </select>
@@ -298,9 +299,14 @@
                     </label>
                     <label>口座区分
                         <select @bind="h.Account" @bind:after="TxSave">
-                            <option value="@AccountKind.Nisa">NISA</option>
+                            <option value="@AccountKind.NisaGrowth">NISA（成長投資枠）</option>
+                            <option value="@AccountKind.NisaTsumitate">NISA（つみたて投資枠）</option>
                             <option value="@AccountKind.Tokutei">特定</option>
                             <option value="@AccountKind.General">一般</option>
+                            @if (h.Account == AccountKind.Nisa)
+                            {
+                                <option value="@AccountKind.Nisa">NISA（旧・未分類）</option>
+                            }
                         </select>
                     </label>
                     @if (h.Class == AssetClass.UsStock)
@@ -498,6 +504,8 @@
     private static string UnitLabel(Holding h) => h.Class == AssetClass.Fund ? "基準価額" : "単価";
     private static string AccountLabel(AccountKind a) => a switch
     {
+        AccountKind.NisaGrowth => "NISA成長",
+        AccountKind.NisaTsumitate => "NISAつみたて",
         AccountKind.Nisa => "NISA",
         AccountKind.Tokutei => "特定",
         _ => "一般",
@@ -791,7 +799,7 @@
     private bool _addOpen;
     private string _nName = "";
     private AssetClass _nClass = AssetClass.Fund;
-    private AccountKind _nAccount = AccountKind.Nisa;
+    private AccountKind _nAccount = AccountKind.NisaTsumitate;
     private Currency _nCurrency = Currency.Jpy;
     private string _nSymbol = "";
     private string _nIsin = "";
@@ -807,7 +815,7 @@
 
     private void OpenAdd()
     {
-        _nName = ""; _nClass = AssetClass.Fund; _nAccount = AccountKind.Nisa;
+        _nName = ""; _nClass = AssetClass.Fund; _nAccount = AccountKind.NisaTsumitate;
         _nCurrency = Currency.Jpy; _nSymbol = ""; _nIsin = ""; _nAssocFundCd = ""; _nFundPick = "";
         _bDate = DateTime.Today.ToString("yyyy-MM-dd");
         _bQty = 0; _bPrice = 0;

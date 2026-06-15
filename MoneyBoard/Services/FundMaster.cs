@@ -25,6 +25,7 @@ public static class FundMaster
         new("SBI・V・S&P500インデックス・ファンド",        "89311199", "JP90C000J569"),
         new("SBI・V・全米株式インデックス・ファンド",       "89311216"),
         new("SBI・V・全世界株式インデックス・ファンド",     "89311221"),
+        new("野村世界業種別投資シリーズ（世界半導体株投資）", "01313098", "JP90C0006G52"),
     };
 
     public static FundMasterItem? ByName(string? name) =>

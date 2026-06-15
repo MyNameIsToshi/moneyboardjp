@@ -5,8 +5,9 @@ namespace MoneyBoardShared;
 /// <summary>資産クラス。Fund=投資信託（基準価額は1万口あたり＝評価額は数量×単価÷10,000）/ 株は÷1。</summary>
 public enum AssetClass { Fund, JpStock, UsStock }
 
-/// <summary>口座区分（税区分）。</summary>
-public enum AccountKind { Nisa, Tokutei, General }
+/// <summary>口座区分（税区分）。Nisa は旧・未分類（成長/つみたて分割前の既存データ用に残置）。
+/// 整数でシリアライズされるため末尾追加で既存値は不変（Nisa=0 / Tokutei=1 / General=2 / NisaGrowth=3 / NisaTsumitate=4）。</summary>
+public enum AccountKind { Nisa, Tokutei, General, NisaGrowth, NisaTsumitate }
 
 /// <summary>建て通貨＝取得原価の通貨。円建て購入=Jpy / ドル建て購入=Usd。日本株・投信は常に Jpy。</summary>
 public enum Currency { Jpy, Usd }
