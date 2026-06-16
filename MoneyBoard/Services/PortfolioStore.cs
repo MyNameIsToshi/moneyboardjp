@@ -11,6 +11,7 @@ public class PortfolioStore(PortfolioService svc)
     public PortfolioData Data { get; private set; } = new();
     public bool IsLoaded { get; private set; }
     public bool IsPending { get; private set; }   // サインイン済みだが未承認
+    public bool IsTsmcEmployee => svc.IsTsmcEmployee;   // ESPP UI 表示可否（Owner は常に true）
 
     /// <summary>保存競合で最新を読み込み直したときに発火（UI 再描画用）。</summary>
     public event Action? StateReloadedExternally;

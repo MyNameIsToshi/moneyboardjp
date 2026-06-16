@@ -36,6 +36,8 @@ public class BuyLot
     public decimal Quantity { get; set; }    // 株数 / 口数
     public decimal UnitPrice { get; set; }   // 取得単価（CostCurrency 建て・投信は基準価額）
     public decimal FxRate { get; set; }      // 約定時 USD/JPY（ドル建てのみ・任意）。元本の円換算に使用。0=未設定（現在レートで代用）
+    public bool IsEspp { get; set; }         // ESPP（会社の従業員株式購入制度）の買付。取得原価を割引率ぶん減額（実拠出に一致）
+    public decimal Amount { get; set; }      // 取得金額＝実際の受渡金額（CostCurrency 建て・任意）。0=未設定（数量×単価÷Divisor で算出）。投信の口数丸め対策
 }
 
 /// <summary>売却（解約）。実現損益＝(売却単価−平均取得単価)×数量。</summary>
@@ -119,6 +121,8 @@ public class PortfolioEnvelope
 {
     public string? Etag { get; set; }
     public PortfolioData Data { get; set; } = new();
+    /// <summary>リクエスト本人が TSMC 社員か（Owner は常に true）。GET 時のみサーバーが設定＝ESPP UI の表示可否。他人の状態は返さない。</summary>
+    public bool IsTsmcEmployee { get; set; }
 }
 
 /// <summary>POST /api/portfolio の成功レスポンス（保存後の新しい etag）。</summary>

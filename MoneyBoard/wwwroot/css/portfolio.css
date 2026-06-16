@@ -36,7 +36,7 @@
 /* 保有銘柄の行（銘柄名 / 口座 / 数量 / 平均取得単価 / 元本 / 評価額 / 評価損益 / 取引 / 削除）*/
 .pf-grid {
   display: grid;
-  grid-template-columns: 1.2fr 0.8fr 0.7fr 0.95fr 1fr 1fr 1.05fr auto 32px;
+  grid-template-columns: 1.1fr 0.7fr 0.6fr 0.9fr 0.95fr 0.95fr 1.35fr auto 32px;
   gap: 8px;
   align-items: center;
 }
@@ -136,6 +136,7 @@
 .pf-num {
   text-align: right;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;   /* 評価損益の金額＋(%)が改行されないように */
 }
 
 .pf-pos { color: #1a8a4f; }
@@ -260,6 +261,22 @@
 /* ドル建て買付は約定為替レート列を加えた5列 */
 .pf-tx-grid-fx {
   grid-template-columns: 1.1fr 0.9fr 0.9fr 0.8fr 32px;
+}
+/* ESPP（TSM・社員のみ）列を加えた5列／ドル建て＋ESPP の6列 */
+.pf-tx-grid-espp {
+  grid-template-columns: 1.1fr 0.9fr 0.9fr 48px 32px;
+}
+.pf-tx-grid-fx-espp {
+  grid-template-columns: 1fr 0.85fr 0.85fr 0.75fr 48px 32px;
+}
+.pf-tx-espp {
+  justify-self: center;
+  width: 18px;
+  height: 18px;
+}
+/* 投信買付は取得金額（受渡金額）列を加えた5列 */
+.pf-tx-grid-amt {
+  grid-template-columns: 1.1fr 0.95fr 0.95fr 0.95fr 32px;
 }
 .pf-tx-grid-head {
   font-size: 12px;

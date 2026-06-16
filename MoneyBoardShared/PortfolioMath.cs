@@ -14,6 +14,11 @@ public static class PortfolioMath
     /// <summary>投信の基準価額は「1万口あたり」。金額＝数量×単価÷Divisor（投信=10,000 / 株=1）。</summary>
     public static int Divisor(AssetClass c) => c == AssetClass.Fund ? 10000 : 1;
 
+    /// <summary>ESPP（従業員株式購入制度）の会社補助＝15%。ESPP 買付の取得原価は市場価格×(1−これ)＝実拠出。</summary>
+    public const decimal EsppDiscount = 0.15m;
+    /// <summary>買付ロットの実取得単価係数（ESPP は割引後＝実際に払った価格）。</summary>
+    public static decimal CostFactor(BuyLot b) => b.IsEspp ? 1m - EsppDiscount : 1m;
+
     public static HoldingSummary Summarize(
         Holding h,
         IEnumerable<BuyLot> buys,
@@ -31,11 +36,17 @@ public static class PortfolioMath
         decimal soldQty = hs.Sum(s => s.Quantity);
         decimal qty = boughtQty - soldQty;
 
-        // 平均取得単価＝買付の金額合計 ÷ 取得数量合計（再投資株は$0なので分母だけ増える。Divisor は約分されるので単価そのもの）
-        decimal avg = boughtQty > 0 ? hb.Sum(b => b.Quantity * b.UnitPrice) / boughtQty : 0m;
-        decimal costBasis = qty * avg / div;
-        // 実現損益＝Σ(売却単価 − 平均取得単価)×売却数量 ÷ Divisor（平均取得単価法の概算）
-        decimal realized = hs.Sum(s => (s.UnitPrice - avg) * s.Quantity) / div;
+        // 1ロットの実取得原価（建て通貨）。Amount(受渡金額)があればそのまま（口数丸め対策・割引等は実額に内包済み）、無ければ数量×単価÷Divisor×ESPP係数。
+        decimal LotCost(BuyLot b) => b.Amount > 0 ? b.Amount : b.Quantity * b.UnitPrice * CostFactor(b) / div;
+        // 取得総額（建て通貨）＝買付ロットの実取得原価の合計。
+        decimal totalCost = hb.Sum(LotCost);
+        // 平均取得単価（基準価額/単価・表示用）＝数量加重平均（ESPP は割引後の実価格・再投資株は$0で薄まる）
+        decimal avg = boughtQty > 0 ? hb.Sum(b => b.Quantity * b.UnitPrice * CostFactor(b)) / boughtQty : 0m;
+        // 1口/1株あたり実取得原価（建て通貨）。取得原価・実現損益はこれで按分（平均取得単価法）。
+        decimal costPerUnit = boughtQty > 0 ? totalCost / boughtQty : 0m;
+        decimal costBasis = qty * costPerUnit;
+        // 実現損益＝Σ(売却単価÷Divisor − 1口あたり取得原価)×売却数量
+        decimal realized = hs.Sum(s => (s.UnitPrice / div - costPerUnit) * s.Quantity);
         decimal divSum = hd.Sum(x => x.Amount);
 
         return new HoldingSummary(qty, avg, costBasis, realized, divSum);

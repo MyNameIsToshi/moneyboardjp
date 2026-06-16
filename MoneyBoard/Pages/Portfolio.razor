@@ -373,15 +373,21 @@
                 <div class="pf-tx-sec-head"><span>買付</span><button class="btn-sm" @onclick="AddBuy">＋ 追加</button></div>
                 @if (_editBuys.Count > 0)
                 {
-                    var fx = h.CostCurrency == Currency.Usd;   // ドル建てのみ約定為替レート列を出す
-                    <div class="pf-tx-grid @(fx ? "pf-tx-grid-fx" : "") pf-tx-grid-head">
+                    var fund = h.Class == AssetClass.Fund;              // 投信は取得金額（受渡金額）列
+                    var fx = h.CostCurrency == Currency.Usd;            // ドル建てのみ約定為替レート列
+                    var espp = ShowEspp(h);                              // TSM かつ社員のみ ESPP 列
+                    var gridCls = fund ? "pf-tx-grid-amt"
+                        : fx && espp ? "pf-tx-grid-fx-espp" : fx ? "pf-tx-grid-fx" : espp ? "pf-tx-grid-espp" : "";
+                    <div class="pf-tx-grid @gridCls pf-tx-grid-head">
                         <span>約定日</span><span class="pf-num">数量</span><span class="pf-num">@UnitLabel(h)</span>
                         @if (fx) { <span class="pf-num">約定為替</span> }
+                        @if (espp) { <span class="pf-num">ESPP</span> }
+                        @if (fund) { <span class="pf-num">取得金額</span> }
                         <span></span>
                     </div>
                     @foreach (var b in _editBuys.OrderBy(b => b.Date))
                     {
-                        <div class="pf-tx-grid @(fx ? "pf-tx-grid-fx" : "")" @key="b.Id">
+                        <div class="pf-tx-grid @gridCls" @key="b.Id">
                             <input type="date" class="pf-tx-date" value="@b.Date" @onchange="e => { b.Date = e.Value?.ToString() ?? string.Empty; TxDirty(); }" />
                             <AmountInput CssClass="pf-tx-amt" Decimals="4" Value="@b.Quantity" ValueChanged="v => { b.Quantity = v; TxDirty(); }" />
                             <AmountInput CssClass="pf-tx-amt" Decimals="4" Value="@b.UnitPrice" ValueChanged="v => { b.UnitPrice = v; TxDirty(); }" />
@@ -389,12 +395,28 @@
                             {
                                 <AmountInput CssClass="pf-tx-amt" Decimals="2" Value="@b.FxRate" ValueChanged="v => { b.FxRate = v; TxDirty(); }" />
                             }
+                            @if (espp)
+                            {
+                                <input type="checkbox" class="pf-tx-espp" checked="@b.IsEspp" @onchange="e => { b.IsEspp = (bool)(e.Value ?? false); TxDirty(); }" />
+                            }
+                            @if (fund)
+                            {
+                                <AmountInput CssClass="pf-tx-amt" Decimals="0" Value="@b.Amount" ValueChanged="v => { b.Amount = v; TxDirty(); }" />
+                            }
                             <button class="x" @onclick="() => { _editBuys.Remove(b); TxDirty(); }">✕</button>
                         </div>
                     }
                     @if (fx)
                     {
                         <div class="pf-hint">「約定為替」に買付時の USD/JPY を入れると、元本（円）が実際の拠出円に一致します。空欄は現在レートで換算します。</div>
+                    }
+                    @if (espp)
+                    {
+                        <div class="pf-hint">「ESPP」にチェックした買付は会社補助 @( (PortfolioMath.EsppDiscount * 100).ToString("0") )% を差し引いた実拠出を取得原価とします（個人購入はチェックを外す）。</div>
+                    }
+                    @if (fund)
+                    {
+                        <div class="pf-hint">「取得金額」に SBI の受渡金額（実際に支払った円）を入れると、その額をそのまま取得原価にします（空欄は 口数×基準価額÷10,000 で計算するため丸め差が出ます）。</div>
                     }
                 }
                 else
@@ -871,12 +893,14 @@
             decimal qty = bq - sq;
             if (qty <= 0 || bq <= 0) continue;
 
-            // 取得総額（円）。ドル建て＝Σ数量×USD単価×(約定レート or fallback)／円建て・日本株・投信＝Σ数量×単価。
+            // 1ロットの実取得原価（建て通貨）。Amount(受渡金額)があればそのまま、無ければ数量×単価÷Divisor×ESPP係数。
+            decimal LotNative(BuyLot b) => b.Amount > 0 ? b.Amount : b.Quantity * b.UnitPrice * PortfolioMath.CostFactor(b) / divsor;
+            // 取得総額（円）。ドル建ては各ロットを約定レート(無ければ fallback)で円換算。
             decimal boughtJpy = h.CostCurrency == Currency.Usd
-                ? buys.Sum(b => b.Quantity * b.UnitPrice * (b.FxRate > 0 ? b.FxRate : fallback))
-                : buys.Sum(b => b.Quantity * b.UnitPrice);
+                ? buys.Sum(b => LotNative(b) * (b.FxRate > 0 ? b.FxRate : fallback))
+                : buys.Sum(LotNative);
             // 現在保有分の元本＝取得総額 ×(現在数量 / 取得数量)。再投資株は$0で取得総額に寄与しないので平均が薄まる。
-            total += boughtJpy / divsor * (qty / bq);
+            total += boughtJpy * (qty / bq);
         }
         return total;
     }
@@ -1004,7 +1028,7 @@
         Id = h.Id, Name = h.Name, Symbol = h.Symbol, Isin = h.Isin, AssocFundCd = h.AssocFundCd,
         Class = h.Class, Account = h.Account, CostCurrency = h.CostCurrency, SortOrder = h.SortOrder, IsDeleted = h.IsDeleted
     };
-    private static BuyLot CloneB(BuyLot b) => new() { Id = b.Id, HoldingId = b.HoldingId, Date = b.Date, Quantity = b.Quantity, UnitPrice = b.UnitPrice, FxRate = b.FxRate };
+    private static BuyLot CloneB(BuyLot b) => new() { Id = b.Id, HoldingId = b.HoldingId, Date = b.Date, Quantity = b.Quantity, UnitPrice = b.UnitPrice, FxRate = b.FxRate, IsEspp = b.IsEspp, Amount = b.Amount };
     private static SellLot CloneS(SellLot s) => new() { Id = s.Id, HoldingId = s.HoldingId, Date = s.Date, Quantity = s.Quantity, UnitPrice = s.UnitPrice };
     private static Dividend CloneD(Dividend d) => new() { Id = d.Id, HoldingId = d.HoldingId, Date = d.Date, Amount = d.Amount, Currency = d.Currency, Quantity = d.Quantity };
 
@@ -1032,7 +1056,12 @@
         return v.HasValue ? v.Value - s.CostBasis : (decimal?)null;
     }
 
-    private void AddBuy() { _editBuys.Add(new BuyLot { HoldingId = _editH!.Id, Date = DateTime.Today.ToString("yyyy-MM-dd") }); TxDirty(); }
+    // ESPP 列の表示可否：本人が TSMC 社員（Owner は常に true）かつ TSM ティッカーの米国株のみ。非社員には一切出さない。
+    private bool ShowEspp(Holding h) =>
+        Store.IsTsmcEmployee && h.Class == AssetClass.UsStock
+        && string.Equals(h.Symbol?.Trim(), "TSM", StringComparison.OrdinalIgnoreCase);
+
+    private void AddBuy() { _editBuys.Add(new BuyLot { HoldingId = _editH!.Id, Date = DateTime.Today.ToString("yyyy-MM-dd"), IsEspp = ShowEspp(_editH!) }); TxDirty(); }
     private void AddSell() { _editSells.Add(new SellLot { HoldingId = _editH!.Id, Date = DateTime.Today.ToString("yyyy-MM-dd") }); TxDirty(); }
     private void AddDiv() { _editDivs.Add(new Dividend { HoldingId = _editH!.Id, Date = DateTime.Today.ToString("yyyy-MM-dd"), Currency = _editH!.CostCurrency }); TxDirty(); }
 

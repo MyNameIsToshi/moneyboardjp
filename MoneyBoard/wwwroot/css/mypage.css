@@ -86,6 +86,18 @@
 
 .access-actions {
   display: flex;
-  gap: 6px;
+  align-items: center;
+  gap: 10px;
   flex-shrink: 0;
+}
+/* TSMC社員チェック（解除ボタンと縦位置を揃える）*/
+.access-tsmc {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.access-tsmc input {
+  margin: 0;
 }

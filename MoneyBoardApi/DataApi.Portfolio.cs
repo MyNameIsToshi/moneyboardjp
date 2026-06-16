@@ -27,10 +27,18 @@ public partial class DataApi
         try
         {
             var container = GetContainer();
-            var (userId, _, authError) = await AuthorizeAsync(container, req);
+            var (userId, isOwner, authError) = await AuthorizeAsync(container, req);
             if (authError is not null) return authError;
             var pk = new PartitionKey(userId!);
             var env = new PortfolioEnvelope();
+
+            // ESPP UI の表示可否：Owner は常に true、それ以外は access の社員リストに含まれるか。本人ぶんのみ返す。
+            if (isOwner) env.IsTsmcEmployee = true;
+            else
+            {
+                var access = await ReadAccessAsync(container);
+                env.IsTsmcEmployee = access.TsmcEmployees.Contains(userId!);
+            }
 
             try
             {
