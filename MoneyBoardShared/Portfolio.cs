@@ -35,6 +35,7 @@ public class BuyLot
     public string Date { get; set; } = "";   // "yyyy-MM-dd"
     public decimal Quantity { get; set; }    // 株数 / 口数
     public decimal UnitPrice { get; set; }   // 取得単価（CostCurrency 建て・投信は基準価額）
+    public decimal FxRate { get; set; }      // 約定時 USD/JPY（ドル建てのみ・任意）。元本の円換算に使用。0=未設定（現在レートで代用）
 }
 
 /// <summary>売却（解約）。実現損益＝(売却単価−平均取得単価)×数量。</summary>
@@ -47,7 +48,7 @@ public class SellLot
     public decimal UnitPrice { get; set; }
 }
 
-/// <summary>配当・分配金（受取記録）。</summary>
+/// <summary>配当・分配金（受取記録）。Quantity&gt;0 のときは配当再投資＝取得コスト$0で株数/口数を加算（平均取得単価が下がる）。</summary>
 public class Dividend
 {
     public string Id { get; set; } = Util.NewId();
@@ -55,6 +56,7 @@ public class Dividend
     public string Date { get; set; } = "";
     public decimal Amount { get; set; }
     public Currency Currency { get; set; } = Currency.Jpy;
+    public decimal Quantity { get; set; }   // 配当再投資で取得した株数/口数（取得コスト$0）。通常配当は0。
 }
 
 /// <summary>価格更新ボタンで記録する時系列の1点（総資産・評価損益の推移＆構成ドリルダウン用）。</summary>

@@ -23,17 +23,20 @@ public static class PortfolioMath
         int div = Divisor(h.Class);
         var hb = buys.Where(b => b.HoldingId == h.Id).ToList();
         var hs = sells.Where(s => s.HoldingId == h.Id).ToList();
+        var hd = dividends.Where(x => x.HoldingId == h.Id).ToList();
 
-        decimal boughtQty = hb.Sum(b => b.Quantity);
+        // 配当再投資株（取得コスト$0）＝取得株数には含めるが、買付金額には足さない（→平均取得単価が下がる）
+        decimal reinvestQty = hd.Sum(d => d.Quantity);
+        decimal boughtQty = hb.Sum(b => b.Quantity) + reinvestQty;
         decimal soldQty = hs.Sum(s => s.Quantity);
         decimal qty = boughtQty - soldQty;
 
-        // 平均取得単価＝買付の数量加重平均（Divisor は約分されるので単価そのもの）
+        // 平均取得単価＝買付の金額合計 ÷ 取得数量合計（再投資株は$0なので分母だけ増える。Divisor は約分されるので単価そのもの）
         decimal avg = boughtQty > 0 ? hb.Sum(b => b.Quantity * b.UnitPrice) / boughtQty : 0m;
         decimal costBasis = qty * avg / div;
         // 実現損益＝Σ(売却単価 − 平均取得単価)×売却数量 ÷ Divisor（平均取得単価法の概算）
         decimal realized = hs.Sum(s => (s.UnitPrice - avg) * s.Quantity) / div;
-        decimal divSum = dividends.Where(x => x.HoldingId == h.Id).Sum(x => x.Amount);
+        decimal divSum = hd.Sum(x => x.Amount);
 
         return new HoldingSummary(qty, avg, costBasis, realized, divSum);
     }
