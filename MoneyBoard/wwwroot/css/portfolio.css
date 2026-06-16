@@ -268,3 +268,25 @@
 .pf-comp-card .spend-row {
   grid-template-columns: 16px 1fr 110px 64px;
 }
+
+/* ── 並べ替え（D&D）・評価損益% ── */
+.pf-drag-handle {
+  display: inline-block;
+  margin-right: 6px;
+  color: var(--sub);
+  cursor: grab;
+  user-select: none;
+  font-size: 13px;
+}
+.pf-row[draggable="true"] {
+  cursor: grab;
+}
+.pf-row.pf-drag-over {
+  border-top: 2px solid var(--accent, #5b8def);
+  background: var(--paper, #faf8f2);
+}
+/* 評価損益の () 内パーセント（金額より一段小さく） */
+.pf-pnl-pct {
+  font-size: 11px;
+  margin-left: 2px;
+}

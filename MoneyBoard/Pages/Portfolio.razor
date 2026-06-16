@@ -35,7 +35,7 @@
                 <span class="pf-sum-total">@TotalJpyDisplay</span>
                 <div class="pf-sum-sub">
                     <span>元本 ¥@TotalCostJpy.ToString("#,0")</span>
-                    <span>評価損益 <b class="@PnlClass(TotalPnlJpy)">@SignedYen(TotalPnlJpy)</b></span>
+                    <span>評価損益 <b class="@PnlClass(TotalPnlJpy)">@SignedYen(TotalPnlJpy)@PnlPct(TotalPnlJpy, TotalCostJpy)</b></span>
                 </div>
             </div>
             <div class="pf-sum-meta">
@@ -166,13 +166,21 @@
                     var s = Summary(h);
                     var val = Valuation(h, s.Quantity);
                     var upnl = UnrealizedPnl(h, s);
-                    <div class="pf-grid pf-row">
-                        <span class="pf-hname" title="@DisplayName(h)">@DisplayName(h)</span>
+                    <div class="pf-grid pf-row @(_dragOverId == h.Id ? "pf-drag-over" : "")"
+                         draggable="true" @key="h.Id"
+                         @ondragstart="() => _dragId = h.Id"
+                         @ondragenter="() => _dragOverId = h.Id"
+                         @ondragover:preventDefault="true"
+                         @ondragleave="() => OnDragLeave(h.Id)"
+                         @ondrop="() => OnDrop(h)"
+                         @ondrop:preventDefault="true"
+                         @ondragend="OnDragEnd">
+                        <span class="pf-hname" title="@DisplayName(h)"><span class="pf-drag-handle" title="ドラッグで並べ替え">⠿</span>@DisplayName(h)</span>
                         <span class="pf-badge">@AccountLabel(h.Account)</span>
                         <span class="pf-num">@Qty(s.Quantity)</span>
                         <span class="pf-num">@Price(h, s.AvgUnitPrice)</span>
                         <span class="pf-num">@MoneyOpt(h, val)</span>
-                        <span class="pf-num @PnlClass(upnl ?? 0)">@MoneySignedOpt(h, upnl)</span>
+                        <span class="pf-num @PnlClass(upnl ?? 0)">@MoneySignedOpt(h, upnl)<span class="pf-pnl-pct">@PnlPct(upnl, s.CostBasis)</span></span>
                         <button class="btn-sm" @onclick="() => OpenTx(h.Id)">取引</button>
                         <button class="x" @onclick="() => AskDelete(h)">✕</button>
                     </div>
@@ -361,7 +369,7 @@
                     <span>平均取得単価 <b>@Price(h, s.AvgUnitPrice)</b></span>
                     <span>取得原価 <b>@Money(h, s.CostBasis)</b></span>
                     <span>評価額 <b>@MoneyOpt(h, Valuation(h, s.Quantity))</b></span>
-                    <span>評価損益 <b class="@PnlClass(UnrealizedPnl(h, s) ?? 0)">@MoneySignedOpt(h, UnrealizedPnl(h, s))</b></span>
+                    <span>評価損益 <b class="@PnlClass(UnrealizedPnl(h, s) ?? 0)">@MoneySignedOpt(h, UnrealizedPnl(h, s))@PnlPct(UnrealizedPnl(h, s), s.CostBasis)</b></span>
                     <span>実現損益 <b class="@PnlClass(s.RealizedPnl)">@MoneySigned(h, s.RealizedPnl)</b></span>
                     <span>配当合計 <b>@Money(h, s.Dividends)</b></span>
                 </div>
@@ -501,6 +509,13 @@
     private static string MoneyOpt(Holding h, decimal? v) => v.HasValue ? Money(h, v.Value) : "—";
     private static string MoneySignedOpt(Holding h, decimal? v) => v.HasValue ? MoneySigned(h, v.Value) : "—";
     private static string PnlClass(decimal v) => v > 0 ? "pf-pos" : v < 0 ? "pf-neg" : "";
+    // 評価損益率＝評価損益 ÷ 取得原価 ×100。金額の後ろに " (+12.3%)" として併記。価格未取得・原価0は空。
+    private static string PnlPct(decimal? upnl, decimal costBasis)
+    {
+        if (!upnl.HasValue || costBasis == 0) return "";
+        decimal p = upnl.Value / costBasis * 100m;
+        return " (" + (p >= 0 ? "+" : "") + p.ToString("0.0") + "%)";
+    }
     private static string UnitLabel(Holding h) => h.Class == AssetClass.Fund ? "基準価額" : "単価";
     private static string AccountLabel(AccountKind a) => a switch
     {
@@ -725,6 +740,38 @@
         CompositionData = slices;
         CompDonutOptions.Colors = slices.Select(s => s.Color).ToList();
         _compRev++;
+    }
+
+    // ── 並べ替え（同一クラス内のドラッグ＆ドロップ）──
+    private string? _dragId;       // ドラッグ中の銘柄
+    private string? _dragOverId;   // ドロップ先のハイライト対象
+
+    private void OnDragLeave(string id) { if (_dragOverId == id) _dragOverId = null; }
+    private void OnDragEnd() { _dragId = null; _dragOverId = null; }
+
+    private void OnDrop(Holding target)
+    {
+        var dragId = _dragId;
+        _dragId = null;
+        _dragOverId = null;
+        if (dragId == null || dragId == target.Id) return;
+        var dragged = HoldingById(dragId);
+        if (dragged == null || dragged.Class != target.Class) return;   // 別クラスへの移動は無効
+
+        // 同一クラス内の現在順でドラッグ要素をターゲット位置へ差し込む
+        var list = Ordered.Where(h => h.Class == dragged.Class).ToList();
+        list.Remove(dragged);
+        int idx = list.IndexOf(target);
+        if (idx < 0) return;
+        list.Insert(idx, dragged);
+
+        // そのクラスが現在占めている SortOrder 値の集合を昇順で振り直す（他クラスは不変）
+        var slots = Ordered.Where(h => h.Class == dragged.Class).Select(h => h.SortOrder).OrderBy(x => x).ToList();
+        for (int i = 0; i < list.Count; i++) list[i].SortOrder = slots[i];
+
+        // 銘柄別ドーナツは評価額の降順で並ぶため SortOrder 変更の影響なし → グラフは再構築しない
+        // （BuildComposition で _compRev を上げると全チャートが再マウントし画面が再描画されてしまう）
+        Save();
     }
 
     // ── 推移（時系列）──
