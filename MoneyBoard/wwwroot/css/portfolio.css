@@ -1,0 +1,342 @@
+/* =====================================================
+   証券ポートフォリオ (Portfolio.razor)
+   ===================================================== */
+.pf-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.pf-head .app-title {
+  margin-bottom: 0;
+}
+
+/* カテゴリ見出し（日本株 / 米国株 / 投資信託）*/
+.pf-group-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 18px 0 6px;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--sub);
+  border-bottom: 2px solid var(--line, #e5e2d9);
+  padding-bottom: 4px;
+}
+/* 価格取得先・遅延の注記 */
+.pf-group-note {
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--sub);
+}
+
+/* 保有銘柄の行（銘柄名 / 口座 / 数量 / 平均取得単価 / 元本 / 評価額 / 評価損益 / 取引 / 削除）*/
+.pf-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 0.7fr 0.6fr 0.9fr 0.95fr 0.95fr 1.35fr auto 32px;
+  gap: 8px;
+  align-items: center;
+}
+
+/* 総資産バー（価格更新）*/
+.pf-summary-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  background: #f3f1ea;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+}
+.pf-sum-main {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.pf-sum-label {
+  font-size: 12px;
+  color: var(--sub);
+}
+.pf-sum-total {
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+/* 総資産の右に並ぶ元本・評価損益 */
+.pf-sum-sub {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--sub);
+}
+.pf-sum-sub b {
+  font-variant-numeric: tabular-nums;
+}
+.pf-sum-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--sub);
+}
+
+/* 現在価格入力（取引ダイアログ）*/
+.pf-tx-price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  margin: 10px 0 4px;
+  font-size: 13px;
+}
+.pf-tx-price > label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.pf-tx-price .pf-hint {
+  margin: 0;
+}
+
+.pf-grid-head {
+  font-size: 12px;
+  color: var(--sub);
+  padding: 6px 0;
+}
+
+.pf-row {
+  padding: 7px 0;
+  border-top: 1px solid var(--line, #efede6);
+}
+
+.pf-hname {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pf-badge {
+  display: inline-block;
+  font-size: 11px;
+  color: var(--sub);
+  background: #efece4;
+  border-radius: 10px;
+  padding: 2px 8px;
+  justify-self: start;
+  white-space: nowrap;
+}
+
+.pf-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;   /* 評価損益の金額＋(%)が改行されないように */
+}
+
+.pf-pos { color: #1a8a4f; }
+.pf-neg { color: #c0392b; }
+.pf-hint.pf-neg { color: #c0392b; }
+
+.pf-hint {
+  font-size: 12px;
+  color: var(--sub);
+  margin: 6px 0 0;
+  line-height: 1.5;
+}
+
+/* 小さめボタン（取引・セクションの追加）*/
+.btn-sm {
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 10px;
+  border: 1px solid var(--line, #ccc);
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-sm:hover { background: #f3f1ea; }
+
+/* ── 取引を追加ダイアログ ── */
+.pf-add-box {
+  max-width: 480px;
+  width: 92%;
+  text-align: left;
+}
+.pf-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 10px 0;
+}
+.pf-add-form > label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+.pf-add-form select,
+.pf-add-form input {
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+.pf-add-buy {
+  border-top: 1px solid var(--line, #eee);
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pf-add-buy-title {
+  font-weight: 600;
+}
+
+/* ── 取引・設定ダイアログ ── */
+.pf-tx-box {
+  max-width: 660px;
+  width: 92%;
+  text-align: left;
+  /* 取引履歴が増えても画面内に収め、ダイアログ内でスクロールできるようにする */
+  max-height: 88vh;
+  overflow-y: auto;
+}
+
+.pf-tx-settings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  margin: 8px 0 4px;
+  font-size: 13px;
+}
+.pf-tx-settings label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.pf-tx-settings select,
+.pf-tx-settings input {
+  font: inherit;
+  padding: 5px 8px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+
+.pf-tx-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  font-size: 13px;
+  background: #f3f1ea;
+  padding: 10px 12px;
+  border-radius: 8px;
+  margin: 10px 0 4px;
+}
+
+.pf-tx-sec {
+  margin: 14px 0;
+}
+.pf-tx-sec-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.pf-tx-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr 32px;
+  gap: 8px;
+  align-items: center;
+  padding: 3px 0;
+}
+/* ドル建て買付は約定為替レート列を加えた5列 */
+.pf-tx-grid-fx {
+  grid-template-columns: 1.1fr 0.9fr 0.9fr 0.8fr 32px;
+}
+/* ESPP（TSM・社員のみ）列を加えた5列／ドル建て＋ESPP の6列 */
+.pf-tx-grid-espp {
+  grid-template-columns: 1.1fr 0.9fr 0.9fr 48px 32px;
+}
+.pf-tx-grid-fx-espp {
+  grid-template-columns: 1fr 0.85fr 0.85fr 0.75fr 48px 32px;
+}
+.pf-tx-espp {
+  justify-self: center;
+  width: 18px;
+  height: 18px;
+}
+/* 投信買付は取得金額（受渡金額）列を加えた5列 */
+.pf-tx-grid-amt {
+  grid-template-columns: 1.1fr 0.95fr 0.95fr 0.95fr 32px;
+}
+.pf-tx-grid-head {
+  font-size: 12px;
+  color: var(--sub);
+}
+
+.pf-tx-date,
+.pf-tx-amt {
+  font: inherit;
+  padding: 5px 8px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  min-width: 0;
+}
+
+/* ── 資産構成（クラス別／銘柄別ドーナツ）── */
+.pf-comp-toggle {
+  display: flex;
+  gap: 6px;
+}
+
+/* 構成リストは件数列を持たない4列（ドット / 名称 / 評価額 / 割合）*/
+.pf-comp-card .spend-row {
+  grid-template-columns: 16px 1fr 110px 64px;
+}
+
+/* 推移の期間切替ボタン */
+.pf-trend-period {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+/* 推移は2グラフを1行に等幅で並べる（狭い画面は1列）*/
+.pf-trend-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (max-width: 760px) {
+  .pf-trend-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── 並べ替え（D&D）・評価損益% ── */
+.pf-drag-handle {
+  display: inline-block;
+  margin-right: 6px;
+  color: var(--sub);
+  cursor: grab;
+  user-select: none;
+  font-size: 13px;
+}
+.pf-row[draggable="true"] {
+  cursor: grab;
+}
+.pf-row.pf-drag-over {
+  border-top: 2px solid var(--accent, #5b8def);
+  background: var(--paper, #faf8f2);
+}
+/* 評価損益の () 内パーセント（金額より一段小さく） */
+.pf-pnl-pct {
+  font-size: 11px;
+  margin-left: 2px;
+}

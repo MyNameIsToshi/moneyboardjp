@@ -63,7 +63,13 @@
                                 <span class="access-name">@(string.IsNullOrEmpty(a.Name) ? "(名前なし)" : a.Name)</span>
                                 <span class="access-email">@a.Email</span>
                             </div>
-                            <button class="btn" @onclick='() => Act("revoke", a.Uid)'>解除</button>
+                            <div class="access-actions">
+                                <label class="access-tsmc" title="ESPP（従業員株式購入制度）の入力を許可">
+                                    <input type="checkbox" checked="@IsTsmc(a.Uid)" @onchange="e => SetTsmc(a.Uid, (bool)(e.Value ?? false))" />
+                                    TSMC社員
+                                </label>
+                                <button class="btn" @onclick='() => Act("revoke", a.Uid)'>解除</button>
+                            </div>
                         </div>
                     }
                 }
@@ -134,6 +140,14 @@
     private async Task Act(string action, string uid)
     {
         var result = await Access.ActAsync(action, uid);
+        if (result is not null) _access = result;
+    }
+
+    private bool IsTsmc(string uid) => _access?.TsmcEmployees?.Contains(uid) == true;
+
+    private async Task SetTsmc(string uid, bool value)
+    {
+        var result = await Access.SetTsmcAsync(uid, value);
         if (result is not null) _access = result;
     }
 }

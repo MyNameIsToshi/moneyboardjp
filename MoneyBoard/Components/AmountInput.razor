@@ -7,7 +7,7 @@
 *@
 
 <input class="@CssClass"
-       inputmode="numeric"
+       inputmode="@(Decimals > 0 ? "decimal" : "numeric")"
        placeholder="@Placeholder"
        value="@DisplayValue"
        @onfocus="OnFocus"
@@ -19,18 +19,23 @@
     [Parameter] public EventCallback<decimal> ValueChanged { get; set; }
     [Parameter] public string CssClass { get; set; } = "num";
     [Parameter] public string Placeholder { get; set; } = "0";
+    // 0=整数（円など・従来動作）／1以上=小数を許可・表示（数量・単価など）。
+    [Parameter] public int Decimals { get; set; } = 0;
 
     private bool _focused;
     private string _editing = "";
 
+    private string DispFmt => Decimals > 0 ? "#,0.######" : "#,0";
+    private string EditFmt => Decimals > 0 ? "0.######" : "0";
+
     // 非フォーカス時はカンマ整形して表示、フォーカス中は入力内容をそのまま返す。
-    private string DisplayValue => _focused ? _editing : Value.ToString("#,0");
+    private string DisplayValue => _focused ? _editing : Value.ToString(DispFmt);
 
     private void OnFocus()
     {
         _focused = true;
         // 0 のときは空欄から打ち始められるようにする（"0" を居座らせない）。
-        _editing = Value == 0 ? "" : Value.ToString("0");
+        _editing = Value == 0 ? "" : Value.ToString(EditFmt);
     }
 
     private async Task OnInput(ChangeEventArgs e)

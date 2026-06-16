@@ -77,7 +77,7 @@ public partial class DataApi
             if (!isOwner) return new StatusCodeResult(StatusCodes.Status403Forbidden);
 
             var access = await ReadAccessAsync(container);
-            return new OkObjectResult(new { approved = access.Approved, pending = access.Pending });
+            return new OkObjectResult(new { approved = access.Approved, pending = access.Pending, tsmcEmployees = access.TsmcEmployees });
         }
         catch (Exception ex)
         {
@@ -119,12 +119,17 @@ public partial class DataApi
                     break;
                 case "revoke":
                     access.Approved.RemoveAll(a => a.Uid == action.Uid);
+                    access.TsmcEmployees.RemoveAll(u => u == action.Uid);   // 解除時は社員フラグも除去
+                    break;
+                case "tsmc":   // TSMC 社員フラグの ON/OFF（value=true で付与）
+                    access.TsmcEmployees.RemoveAll(u => u == action.Uid);
+                    if (action.Value) access.TsmcEmployees.Add(action.Uid);
                     break;
                 default:
                     return new BadRequestResult();
             }
             await container.UpsertItemAsync(access, new PartitionKey(SystemPartition));
-            return new OkObjectResult(new { approved = access.Approved, pending = access.Pending });
+            return new OkObjectResult(new { approved = access.Approved, pending = access.Pending, tsmcEmployees = access.TsmcEmployees });
         }
         catch (Exception ex)
         {
@@ -142,6 +147,7 @@ public class AccessDoc
     public string Type { get; set; } = "access";
     public List<AccessUser> Approved { get; set; } = new();   // 承認済み（uid＋メール/名前）
     public List<PendingUser> Pending { get; set; } = new();   // 承認待ち
+    public List<string> TsmcEmployees { get; set; } = new();  // TSMC 社員フラグを付けた uid（ESPP UI 表示可。Owner は常に許可）
 }
 
 public class AccessUser
@@ -159,9 +165,10 @@ public class PendingUser
     public string RequestedAt { get; set; } = "";
 }
 
-// POST /api/access のリクエスト本文。action = approve / reject / revoke。
+// POST /api/access のリクエスト本文。action = approve / reject / revoke / tsmc（value で ON/OFF）。
 public class AccessAction
 {
     public string Action { get; set; } = "";
     public string Uid { get; set; } = "";
+    public bool Value { get; set; }
 }
