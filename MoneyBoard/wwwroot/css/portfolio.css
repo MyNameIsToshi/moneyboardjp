@@ -303,6 +303,12 @@
   grid-template-columns: 16px 1fr 110px 64px;
 }
 
+/* 推移の期間切替ボタン */
+.pf-trend-period {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
 /* 推移は2グラフを1行に等幅で並べる（狭い画面は1列）*/
 .pf-trend-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));

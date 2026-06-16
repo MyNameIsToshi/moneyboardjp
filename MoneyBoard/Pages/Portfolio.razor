@@ -103,7 +103,15 @@
         @* ── 推移（総資産・元本・評価損益）。元本は取引履歴から全期間、総資産/評価損益は価格更新で記録した日以降 ── *@
         @if (CostSeries.Count > 0 || AssetSeries.Count > 0)
         {
-            <div class="cat-head" style="margin-top:18px"><span>推移</span></div>
+            <div class="cat-head" style="margin-top:18px">
+                <span>推移</span>
+                <div class="pf-trend-period">
+                    @foreach (var p in TrendPeriods)
+                    {
+                        <button class="period-btn @(_trendPeriod == p.Key ? "active" : "")" @onclick="() => SetTrendPeriod(p.Key)">@p.Label</button>
+                    }
+                </div>
+            </div>
             <div class="graph-grid pf-trend-grid">
                 <div class="graph-card">
                     <h4>総資産・元本の推移</h4>
@@ -822,6 +830,23 @@
     private List<ChartPoint> CostSeries = new();    // 元本（取得原価合計・円。取引履歴から全期間算出）
     private List<ChartPoint> PnlSeries = new();     // 評価損益（総資産 − 取得原価・円。スナップショット以降）
 
+    // 推移の表示期間（1W/1M/3M/6M/1Y/ALL）。
+    private string _trendPeriod = "ALL";
+    private static readonly (string Key, string Label)[] TrendPeriods =
+    {
+        ("1W", "1W"), ("1M", "1M"), ("3M", "3M"), ("6M", "6M"), ("1Y", "1Y"), ("ALL", "ALL"),
+    };
+    private DateTime? PeriodStart() => _trendPeriod switch
+    {
+        "1W" => DateTime.Today.AddDays(-7),
+        "1M" => DateTime.Today.AddMonths(-1),
+        "3M" => DateTime.Today.AddMonths(-3),
+        "6M" => DateTime.Today.AddMonths(-6),
+        "1Y" => DateTime.Today.AddYears(-1),
+        _ => null,   // ALL
+    };
+    private void SetTrendPeriod(string p) { _trendPeriod = p; BuildTimeSeries(); }
+
     // 折れ線設定（家計簿の NewLineOptions と同流儀）。チャートごとに専用インスタンス。
     private static ApexChartOptions<ChartPoint> NewLineOpt() => new()
     {
@@ -829,11 +854,15 @@
         Stroke = new Stroke { Curve = Curve.Smooth },
         Yaxis = new List<YAxis> { new YAxis { Labels = new YAxisLabels { Formatter = "function(v){return '¥'+Math.round(v).toLocaleString()}" } } }
     };
-    // 総資産・元本は実日付で重ねるため日時軸（総資産=今日以降／元本=全期間でも時間軸で正しく整列）。
+    // 総資産・元本は実日付で重ねるため日時軸（総資産=今日以降／元本=全期間でも時間軸で正しく整列）。軸ラベルは yy/MM。
     private static ApexChartOptions<ChartPoint> NewDateLineOpt()
     {
         var o = NewLineOpt();
-        o.Xaxis = new XAxis { Type = XAxisType.Datetime };
+        o.Xaxis = new XAxis
+        {
+            Type = XAxisType.Datetime,
+            Labels = new XAxisLabels { Format = "yy/MM", DatetimeUTC = false }
+        };
         return o;
     }
     private readonly ApexChartOptions<ChartPoint> AssetLineOpt = NewDateLineOpt();
@@ -845,22 +874,33 @@
 
     private void BuildTimeSeries()
     {
-        var snaps = Store.Data.Snapshots.OrderBy(s => s.At, StringComparer.Ordinal).ToList();
+        var start = PeriodStart();                                   // null=ALL
+        string? startStr = start?.ToString("yyyy-MM-dd");
+        bool InRange(string ymd) => startStr == null || string.CompareOrdinal(ymd, startStr) >= 0;
+        string DatePart(string at) => at.Length >= 10 ? at[..10] : at;
+
+        var snaps = Store.Data.Snapshots
+            .Where(s => DateTime.TryParse(s.At, out _) && InRange(DatePart(s.At)))
+            .OrderBy(s => s.At, StringComparer.Ordinal).ToList();
 
         // 総資産＝スナップショット（過去価格が無いので記録以降のみ）。日時軸。
         AssetSeries = snaps
-            .Where(s => DateTime.TryParse(s.At, out _))
             .Select(s => new ChartPoint { XDate = DateTime.Parse(s.At), Value = s.Values.Sum(v => v.ValuationJpy) })
             .ToList();
 
-        // 元本＝取引履歴（買付/売却/配当再投資の各日付＋今日）から全期間算出。価格不要なので最初の購入時点まで遡れる。
+        // 元本＝取引履歴（買付/売却/配当再投資の各日付＋今日）から算出。価格不要なので最初の購入時点まで遡れる。
+        // 期間指定時は期間開始日にアンカー点を置き、その時点の積み上がり額から線を始める。
         var costDates = new SortedSet<string>(StringComparer.Ordinal);
         foreach (var b in Store.Data.Buys) if (b.Date.Length >= 10) costDates.Add(b.Date[..10]);
         foreach (var sl in Store.Data.Sells) if (sl.Date.Length >= 10) costDates.Add(sl.Date[..10]);
         foreach (var d in Store.Data.Dividends) if (d.Quantity != 0 && d.Date.Length >= 10) costDates.Add(d.Date[..10]);
         costDates.Add(DateTime.Today.ToString("yyyy-MM-dd"));   // 直近まで線を伸ばす
-        CostSeries = costDates
+        var costDateList = costDates.Where(InRange).ToList();
+        if (startStr != null) costDateList.Insert(0, startStr);     // 期間開始のアンカー
+        CostSeries = costDateList
             .Where(dt => DateTime.TryParse(dt, out _))
+            .Distinct()
+            .OrderBy(dt => dt, StringComparer.Ordinal)
             .Select(dt => new ChartPoint { XDate = DateTime.Parse(dt), Value = CostBasisJpyAsOf(dt, 0m) })
             .ToList();
 
@@ -868,7 +908,7 @@
         PnlSeries = snaps.Select(s =>
         {
             decimal val = s.Values.Sum(v => v.ValuationJpy);
-            decimal cost = CostBasisJpyAsOf(s.At.Length >= 10 ? s.At[..10] : s.At, s.UsdJpyRate);
+            decimal cost = CostBasisJpyAsOf(DatePart(s.At), s.UsdJpyRate);
             return new ChartPoint { Label = SnapLabel(s.At), Value = val - cost };
         }).ToList();
 
