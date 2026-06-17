@@ -297,6 +297,41 @@
   font-size: 16px;
 }
 
+/* スマホ：カードの並べ替え（タッチでD&D不可のため ▲▼ ボタンを右に添える） */
+.app-shell.is-mobile .list-card-wrap {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.app-shell.is-mobile .list-card-wrap > .list-card {
+  flex: 1;
+  min-width: 0;   /* 長い銘柄名でカードが縮まず ▲▼ が押し出されるのを防ぐ */
+  margin-bottom: 0;
+}
+
+.app-shell.is-mobile .list-card-move {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.app-shell.is-mobile .list-card-move button {
+  flex: 1;
+  width: 38px;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 8px;
+  color: var(--accent);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.app-shell.is-mobile .list-card-move button:disabled {
+  opacity: .3;
+}
+
 /* カテゴリ用：色スウォッチ＋名前＋ › を横並び */
 .cat-card-row {
   display: flex;
