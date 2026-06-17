@@ -332,15 +332,169 @@
   display: none;
 }
 
-/* 内訳一覧（⑥⑦）：5列は詰まるので割合(%)列を省略しドット/名前/金額/件数の4列に */
-.app-shell.is-mobile .spend-row {
+/* 内訳一覧（⑥⑦）：5列は詰まるので割合(%)列を省略しドット/名前/金額/件数の4列に。
+   （資産構成カード pf-comp-card は割合を残したいので除外） */
+.app-shell.is-mobile .graph-card-full:not(.pf-comp-card) .spend-row {
   grid-template-columns: 14px 1fr auto auto;
   gap: 6px;
   font-size: 12.5px;
 }
 
-.app-shell.is-mobile .spend-row > :nth-child(4) {
+.app-shell.is-mobile .graph-card-full:not(.pf-comp-card) .spend-row > :nth-child(4) {
   display: none;
+}
+
+/* =====================================================
+   資産（Portfolio）：スマホ調整
+   ===================================================== */
+/* 戻るは下部バーがあるため隠す */
+.app-shell.is-mobile .pf-head .btn {
+  display: none;
+}
+
+/* 保有一覧はサマリーカード（list-card）に切替済み。損益の色文字を見やすく */
+.app-shell.is-mobile .list-card-sub .pf-pos,
+.app-shell.is-mobile .list-card-sub .pf-neg {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 資産構成リスト：スマホは ドット/名称/評価額/割合 を詰めて4列で残す */
+.app-shell.is-mobile .pf-comp-card .spend-row {
+  grid-template-columns: 14px 1fr auto auto;
+  gap: 6px;
+  font-size: 12.5px;
+}
+
+/* 大きいダイアログ（新規登録・取引設定）はスマホでほぼ全幅に */
+.app-shell.is-mobile .dialog-overlay {
+  padding: 8px;
+}
+
+.app-shell.is-mobile .pf-add-box,
+.app-shell.is-mobile .pf-tx-box {
+  width: 100%;
+  max-width: none;
+  max-height: 92dvh;
+}
+
+/* 総資産バー：縦積み（総資産 → 元本/評価損益 → 価格更新）に整理 */
+.app-shell.is-mobile .pf-summary-bar {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.app-shell.is-mobile .pf-sum-main {
+  flex-wrap: wrap;
+  align-items: baseline;
+}
+
+.app-shell.is-mobile .pf-sum-label {
+  white-space: nowrap;
+}
+
+.app-shell.is-mobile .pf-sum-sub {
+  flex-basis: 100%;   /* 元本・評価損益を次の行へ */
+}
+
+.app-shell.is-mobile .pf-sum-meta {
+  justify-content: space-between;
+}
+
+/* 取引・設定ダイアログの設定群：ラベル横並びだと文字が潰れるので縦積み（ラベル上・全幅） */
+.app-shell.is-mobile .pf-tx-settings {
+  flex-direction: column;
+  gap: 10px;
+}
+
+.app-shell.is-mobile .pf-tx-settings label,
+.app-shell.is-mobile .pf-tx-price > label {
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  gap: 4px;
+}
+
+.app-shell.is-mobile .pf-tx-settings select,
+.app-shell.is-mobile .pf-tx-settings input {
+  width: 100%;
+}
+
+/* 買付/売却/配当の各取引は、スマホではラベル付きの縦積みカードに（横スクロール回避） */
+.app-shell.is-mobile .pf-tx-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 取引カードの折りたたみヘッダ（サマリー＋▼） */
+.app-shell.is-mobile .pf-tx-cardhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  border: none;
+  background: none;
+  font: inherit;
+  color: var(--ink);
+  cursor: pointer;
+  padding: 0;
+}
+
+.app-shell.is-mobile .pf-tx-sum {
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+}
+
+.app-shell.is-mobile .pf-tx-chev {
+  color: var(--sub);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.app-shell.is-mobile .pf-tx-frow {
+  display: flex;
+  gap: 8px;
+}
+
+.app-shell.is-mobile .pf-tx-f {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.app-shell.is-mobile .pf-tx-f > span {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--sub);
+}
+
+.app-shell.is-mobile .pf-tx-f input,
+.app-shell.is-mobile .pf-tx-f .pf-tx-amt,
+.app-shell.is-mobile .pf-tx-f .pf-tx-date {
+  width: 100%;
+}
+
+.app-shell.is-mobile .pf-tx-f-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.app-shell.is-mobile .pf-tx-del {
+  align-self: flex-end;
+  color: var(--bad);
 }
 
 /* 固定費：スマホのヘッダは口座フィルターだけ右に残す */
