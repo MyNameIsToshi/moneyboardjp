@@ -309,6 +309,25 @@
   min-width: 0;
 }
 
+/* =====================================================
+   統計（GraphPage）：スマホ調整
+   ===================================================== */
+/* 戻るは下部バーがあるため隠す（タイトルだけ残す） */
+.app-shell.is-mobile .graph-header .btn {
+  display: none;
+}
+
+/* 内訳一覧（⑥⑦）：5列は詰まるので割合(%)列を省略しドット/名前/金額/件数の4列に */
+.app-shell.is-mobile .spend-row {
+  grid-template-columns: 14px 1fr auto auto;
+  gap: 6px;
+  font-size: 12.5px;
+}
+
+.app-shell.is-mobile .spend-row > :nth-child(4) {
+  display: none;
+}
+
 /* 固定費：スマホのヘッダは口座フィルターだけ右に残す */
 .app-shell.is-mobile .fc-head {
   display: flex;
