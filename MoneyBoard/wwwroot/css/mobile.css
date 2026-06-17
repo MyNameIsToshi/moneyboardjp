@@ -219,6 +219,26 @@
   flex: 1;
 }
 
+/* シート内のチェックボックス行（口座のボーナス受取など） */
+.sheet-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.sheet-check input {
+  width: auto;
+  min-height: 0;
+  padding: 0;
+}
+
+/* シート内の色パレットはタップしやすく大きめに */
+.app-shell.is-mobile .sheet-field .cat-color {
+  width: 30px;
+  height: 30px;
+}
+
 /* ボーナス行（シート内）：固定幅をやめて等分に（狭幅で溢れないように） */
 .app-shell.is-mobile .bonus-row,
 .app-shell.is-mobile .bonus-row-head {
@@ -275,6 +295,18 @@
 .list-card-chev {
   color: var(--sub);
   font-size: 16px;
+}
+
+/* カテゴリ用：色スウォッチ＋名前＋ › を横並び */
+.cat-card-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cat-card-row .list-card-name {
+  flex: 1;
+  min-width: 0;
 }
 
 /* 固定費：スマホのヘッダは口座フィルターだけ右に残す */

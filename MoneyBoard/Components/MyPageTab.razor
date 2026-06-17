@@ -16,17 +16,6 @@
     </div>
 </div>
 
-<div class="mypage-section">
-    <button class="mypage-collapse" @onclick='() => ToggleSection("fixed")'>
-        <span>固定費設定</span>
-        <span class="mypage-chevron">@(IsOpen("fixed") ? "▼" : "▶")</span>
-    </button>
-    @if (IsOpen("fixed"))
-    {
-        <div class="mypage-collapse-body"><FixedCostTab /></div>
-    }
-</div>
-
 @if (Svc.IsOwner)
 {
     <div class="mypage-section">
@@ -88,6 +77,17 @@
         }
     </div>
 }
+
+<div class="mypage-section">
+    <button class="mypage-collapse" @onclick='() => ToggleSection("fixed")'>
+        <span>固定費設定</span>
+        <span class="mypage-chevron">@(IsOpen("fixed") ? "▼" : "▶")</span>
+    </button>
+    @if (IsOpen("fixed"))
+    {
+        <div class="mypage-collapse-body"><FixedCostTab /></div>
+    }
+</div>
 
 <div class="mypage-section">
     <button class="mypage-collapse" @onclick='() => ToggleSection("account")'>
