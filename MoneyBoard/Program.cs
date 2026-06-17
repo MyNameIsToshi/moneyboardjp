@@ -22,6 +22,7 @@ builder.Services.AddScoped<LedgerService>();
 builder.Services.AddScoped<PortfolioService>();
 builder.Services.AddScoped<PortfolioStore>();
 builder.Services.AddScoped<QuoteService>();
+builder.Services.AddScoped<ViewportService>();
 builder.Services.AddApexCharts();
 
 await builder.Build().RunAsync();

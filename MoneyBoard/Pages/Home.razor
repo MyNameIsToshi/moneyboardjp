@@ -43,7 +43,6 @@
         <div class="tabs">
             <button class="tab @(ActiveTab == "monthly" ? "active" : "")" disabled="@TabDisabled" @onclick='() => SetTab("monthly")'>月次管理</button>
             <button class="tab @(ActiveTab == "card" ? "active" : "")" disabled="@TabDisabled" @onclick='() => SetTab("card")'>カード</button>
-            <button class="tab @(ActiveTab == "fixed" ? "active" : "")" disabled="@TabDisabled" @onclick='() => SetTab("fixed")'>固定費設定</button>
             <button class="tab @(ActiveTab == "mypage" ? "active" : "")" disabled="@TabDisabled" @onclick='() => SetTab("mypage")'>マイページ</button>
         </div>
 
@@ -66,13 +65,17 @@
         {
             @if (ActiveTab == "monthly")  { <MonthlyTab @key="ReloadKey" RequestTab="SetTab" /> }
             @if (ActiveTab == "card")     { <CardTab @key="ReloadKey" /> }
-            @if (ActiveTab == "fixed")    { <FixedCostTab @key="ReloadKey" /> }
             @if (ActiveTab == "mypage")   { <MyPageTab @key="ReloadKey" /> }
         }
     }
 </div>
 
 @code {
+    // 下部ナビ（スマホ）からは "/?tab=xxx" で遷移する。クエリでタブを切り替える。
+    [Parameter, SupplyParameterFromQuery(Name = "tab")] public string? Tab { get; set; }
+
+    private static readonly string[] ValidTabs = { "monthly", "card", "mypage" };
+
     private string ActiveTab = "monthly";
     private bool Loaded = false;
     private bool LoadFailed = false;
@@ -102,6 +105,13 @@
         ReloadKey++;
         ShowConflictNotice = true;
         InvokeAsync(StateHasChanged);
+    }
+
+    // クエリ ?tab= が有効値なら採用（未指定はデスクトップのタブ操作に委ねる）。
+    protected override void OnParametersSet()
+    {
+        if (!string.IsNullOrEmpty(Tab) && ValidTabs.Contains(Tab))
+            ActiveTab = Tab;
     }
 
     public void Dispose() => Svc.StateReloadedExternally -= OnExternalReload;

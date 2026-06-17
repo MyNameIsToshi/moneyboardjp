@@ -1,3 +1,30 @@
 @inherits LayoutComponentBase
-@Body
+@inject ViewportService Viewport
+@implements IDisposable
 
+@* IsMobile を全ページへ配布。スマホ時はアプリシェル（縦flex）で
+   中身(.app-scroll)だけ内部スクロールさせ、下部バーを最下段に常時在席させる。 *@
+<CascadingValue Value="Viewport.IsMobile" Name="IsMobile">
+    <div class="app-shell @(Viewport.IsMobile ? "is-mobile" : "")">
+        <div class="app-scroll">
+            @Body
+        </div>
+        @if (Viewport.IsMobile)
+        {
+            <BottomNav />
+        }
+    </div>
+</CascadingValue>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        Viewport.Changed += OnViewportChanged;
+        await Viewport.InitAsync();
+        StateHasChanged();
+    }
+
+    private void OnViewportChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Viewport.Changed -= OnViewportChanged;
+}
