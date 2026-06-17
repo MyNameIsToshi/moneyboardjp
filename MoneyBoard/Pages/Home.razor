@@ -3,6 +3,7 @@
 @using System.Reflection
 @inject LedgerService Svc
 @inject AuthService Auth
+@inject NavigationManager Nav
 
 <div class="wrap">
     <div class="home-head">
@@ -127,5 +128,6 @@
             LoadFailed = true;
     }
 
-    private void SetTab(string tab) => ActiveTab = tab;
+    // タブ切替は URL(?tab=) 経由に統一（下部バーのハイライトやカード行からの遷移と同期させる）。
+    private void SetTab(string tab) => Nav.NavigateTo($"/?tab={tab}");
 }
