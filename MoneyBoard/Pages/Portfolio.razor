@@ -174,7 +174,7 @@
                             <button class="list-card" @onclick="() => OpenTx(h.Id)">
                                 <div class="list-card-main">
                                     <span class="list-card-name">@DisplayName(h)</span>
-                                    <span class="list-card-amount">@MoneyOpt(h, val)</span>
+                                    <span class="list-card-amount">@MoneyOpt(h, val)@if (DayChangePct(h) is decimal dp) {<span class="pf-day @PnlClass(dp)">@DayChangeLabel(h, dp, DayChangeAmount(h, s.Quantity))</span>}</span>
                                 </div>
                                 <div class="list-card-sub">
                                     <span class="pf-badge">@AccountLabel(h.Account)</span>
@@ -215,7 +215,7 @@
                         <span class="pf-num">@Qty(s.Quantity)</span>
                         <span class="pf-num">@Price(h, s.AvgUnitPrice)</span>
                         <span class="pf-num">@Money(h, s.CostBasis)</span>
-                        <span class="pf-num">@MoneyOpt(h, val)</span>
+                        <span class="pf-num">@MoneyOpt(h, val)@if (DayChangePct(h) is decimal dp) {<span class="pf-day @PnlClass(dp)">@DayChangeLabel(h, dp, DayChangeAmount(h, s.Quantity))</span>}</span>
                         <span class="pf-num @PnlClass(upnl ?? 0)">@MoneySignedOpt(h, upnl)<span class="pf-pnl-pct">@PnlPct(upnl, s.CostBasis)</span></span>
                         <button class="btn-sm" @onclick="() => OpenTx(h.Id)">取引</button>
                         <button class="x" @onclick="() => AskDelete(h)">✕</button>
@@ -737,7 +737,31 @@
 
     // ── 現在価格・評価額 ──
     private decimal CurPrice(string holdingId) => Store.Data.CurrentPrices.GetValueOrDefault(holdingId);
+    private decimal PrevPrice(string holdingId) => Store.Data.PrevPrices.GetValueOrDefault(holdingId);
     private static string CurPriceLabel(Holding h) => h.Class == AssetClass.Fund ? "現在基準価額" : "現在価格";
+
+    // ── 前日比（銘柄の値動き。現在/前日のどちらかが無ければ非表示）──
+    // %はネイティブ価格ベース（為替を含まない銘柄の値動き）。金額は評価額の表示通貨に一致させ、
+    // 現在/前日の評価額の差＝銘柄の値動きぶん（為替は現在レートで固定）として出す。
+    private decimal? DayChangePct(Holding h)
+    {
+        decimal cur = CurPrice(h.Id), prev = PrevPrice(h.Id);
+        return (cur > 0 && prev > 0) ? (cur - prev) / prev * 100m : (decimal?)null;
+    }
+    private decimal? DayChangeAmount(Holding h, decimal qty)
+    {
+        decimal cur = CurPrice(h.Id), prev = PrevPrice(h.Id);
+        if (cur <= 0 || prev <= 0) return null;
+        var vNow = PortfolioMath.Valuation(h, qty, cur, Store.Data.UsdJpyRate);
+        var vPrev = PortfolioMath.Valuation(h, qty, prev, Store.Data.UsdJpyRate);
+        return (vNow.HasValue && vPrev.HasValue) ? vNow.Value - vPrev.Value : (decimal?)null;
+    }
+    private string DayChangeLabel(Holding h, decimal pct, decimal? amount)
+    {
+        var s = (pct >= 0 ? "+" : "") + pct.ToString("0.0") + "%";
+        if (amount.HasValue) s += " (" + MoneySigned(h, amount.Value) + ")";
+        return s;
+    }
 
     private decimal? Valuation(Holding h, decimal qty) =>
         PortfolioMath.Valuation(h, qty, CurPrice(h.Id), Store.Data.UsdJpyRate);
@@ -815,19 +839,25 @@
             int hit = 0, target = stocks.Count + fundHoldings.Count;
             foreach (var h in stocks)
             {
-                if (res.Prices.TryGetValue(YahooSymbol(h).ToUpperInvariant(), out var p) && p > 0)
+                var key = YahooSymbol(h).ToUpperInvariant();
+                if (res.Prices.TryGetValue(key, out var p) && p > 0)
                 {
                     Store.Data.CurrentPrices[h.Id] = p;
                     hit++;
                 }
+                if (res.PrevClose.TryGetValue(key, out var pv) && pv > 0)
+                    Store.Data.PrevPrices[h.Id] = pv;
             }
             foreach (var h in fundHoldings)
             {
-                if (res.FundPrices.TryGetValue(h.AssocFundCd.Trim().ToUpperInvariant(), out var p) && p > 0)
+                var key = h.AssocFundCd.Trim().ToUpperInvariant();
+                if (res.FundPrices.TryGetValue(key, out var p) && p > 0)
                 {
                     Store.Data.CurrentPrices[h.Id] = p;
                     hit++;
                 }
+                if (res.FundPrevClose.TryGetValue(key, out var pv) && pv > 0)
+                    Store.Data.PrevPrices[h.Id] = pv;
             }
             Store.Data.PricedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
             RecordSnapshot();

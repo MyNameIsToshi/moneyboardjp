@@ -59,23 +59,25 @@ public partial class DataApi
 
             var result = new QuoteResponse { At = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm") };
 
-            // 株価・為替（Yahoo）と投信基準価額（投信協会）を並行取得（少数前提）。
-            var priceTasks = symbols.Select(async s => (Key: s.ToUpperInvariant(), Price: await FetchPriceAsync(s))).ToList();
-            var fundTasks = funds.Select(async f => (Key: f.AssocFundCd.Trim().ToUpperInvariant(), Price: await FetchFundPriceAsync(f.Isin?.Trim() ?? "", f.AssocFundCd.Trim()))).ToList();
+            // 株価・為替（Yahoo）と投信基準価額（投信協会）を並行取得（少数前提）。現在値＋前日終値を併せて取る。
+            var priceTasks = symbols.Select(async s => (Key: s.ToUpperInvariant(), Q: await FetchPriceAsync(s))).ToList();
+            var fundTasks = funds.Select(async f => (Key: f.AssocFundCd.Trim().ToUpperInvariant(), Q: await FetchFundPriceAsync(f.Isin?.Trim() ?? "", f.AssocFundCd.Trim()))).ToList();
             var rateTask = FetchPriceAsync(RateSymbol);
             await Task.WhenAll(priceTasks.Cast<Task>().Concat(fundTasks.Cast<Task>()).Append(rateTask));
 
             foreach (var t in priceTasks)
             {
-                var (key, price) = t.Result;
-                if (price is > 0) result.Prices[key] = price.Value;
+                var (key, q) = t.Result;
+                if (q.Price is > 0) result.Prices[key] = q.Price.Value;
+                if (q.Prev is > 0) result.PrevClose[key] = q.Prev.Value;
             }
             foreach (var t in fundTasks)
             {
-                var (key, price) = t.Result;
-                if (price is > 0) result.FundPrices[key] = price.Value;
+                var (key, q) = t.Result;
+                if (q.Latest is > 0) result.FundPrices[key] = q.Latest.Value;
+                if (q.Prev is > 0) result.FundPrevClose[key] = q.Prev.Value;
             }
-            if (rateTask.Result is > 0) result.UsdJpyRate = rateTask.Result!.Value;
+            if (rateTask.Result.Price is > 0) result.UsdJpyRate = rateTask.Result.Price.Value;
 
             return new OkObjectResult(result);
         }
@@ -86,35 +88,41 @@ public partial class DataApi
         }
     }
 
-    // Yahoo Finance chart API から現在値を取得。取得不能は null。
-    private static async Task<decimal?> FetchPriceAsync(string symbol)
+    // Yahoo Finance chart API から現在値＋前日終値を取得。取得不能は null。
+    private static async Task<(decimal? Price, decimal? Prev)> FetchPriceAsync(string symbol)
     {
         try
         {
             var url = $"https://query1.finance.yahoo.com/v8/finance/chart/{Uri.EscapeDataString(symbol)}?interval=1d&range=1d";
             using var resp = await QuoteHttp.GetAsync(url);
-            if (!resp.IsSuccessStatusCode) return null;
+            if (!resp.IsSuccessStatusCode) return (null, null);
             using var stream = await resp.Content.ReadAsStreamAsync();
             using var doc = await JsonDocument.ParseAsync(stream);
             var root = doc.RootElement;
-            if (!root.TryGetProperty("chart", out var chart)) return null;
+            if (!root.TryGetProperty("chart", out var chart)) return (null, null);
             if (!chart.TryGetProperty("result", out var arr)
-                || arr.ValueKind != JsonValueKind.Array || arr.GetArrayLength() == 0) return null;
-            if (!arr[0].TryGetProperty("meta", out var meta)) return null;
+                || arr.ValueKind != JsonValueKind.Array || arr.GetArrayLength() == 0) return (null, null);
+            if (!arr[0].TryGetProperty("meta", out var meta)) return (null, null);
+            decimal? price = null, prev = null;
             if (meta.TryGetProperty("regularMarketPrice", out var p) && p.ValueKind == JsonValueKind.Number)
-                return p.GetDecimal();
-            return null;
+                price = p.GetDecimal();
+            // 前日終値は chartPreviousClose（無ければ previousClose）。前日比の算出に使う。
+            if (meta.TryGetProperty("chartPreviousClose", out var pc) && pc.ValueKind == JsonValueKind.Number)
+                prev = pc.GetDecimal();
+            else if (meta.TryGetProperty("previousClose", out var pc2) && pc2.ValueKind == JsonValueKind.Number)
+                prev = pc2.GetDecimal();
+            return (price, prev);
         }
         catch
         {
-            return null;   // 1銘柄の失敗で全体を落とさない
+            return (null, null);   // 1銘柄の失敗で全体を落とさない
         }
     }
 
     // 投信協会（投信総合検索ライブラリ）の基準価額CSV から最新の基準価額（円・1万口あたり）を取得。
     // CSV は Shift-JIS だが日付列以外は ASCII 数字。Shift-JIS の2バイト目にカンマ(0x2C)は現れないため
     // Latin1（バイト1:1）でデコードしてカンマ分割すれば基準価額列(index 1)を安全に取り出せる。
-    private static async Task<decimal?> FetchFundPriceAsync(string isin, string assocFundCd)
+    private static async Task<(decimal? Latest, decimal? Prev)> FetchFundPriceAsync(string isin, string assocFundCd)
     {
         try
         {
@@ -123,11 +131,12 @@ public partial class DataApi
             var url = $"https://toushin-lib.fwg.ne.jp/FdsWeb/FDST030000/csv-file-download" +
                       $"?isinCd={Uri.EscapeDataString(isin)}&associFundCd={Uri.EscapeDataString(assocFundCd)}";
             using var resp = await QuoteHttp.GetAsync(url);
-            if (!resp.IsSuccessStatusCode) return null;
+            if (!resp.IsSuccessStatusCode) return (null, null);
             var bytes = await resp.Content.ReadAsByteArrayAsync();
             var text = System.Text.Encoding.Latin1.GetString(bytes);
 
-            decimal? latest = null;   // CSVは古い順なので最後の有効行を採用
+            // CSVは古い順。最後の有効行＝最新、その1つ前＝前営業日（前日比用）。
+            decimal? latest = null, prev = null;
             bool first = true;
             foreach (var line in text.Split('\n'))
             {
@@ -137,13 +146,16 @@ public partial class DataApi
                 if (decimal.TryParse(cols[1].Trim(),
                         System.Globalization.NumberStyles.Any,
                         System.Globalization.CultureInfo.InvariantCulture, out var v) && v > 0)
+                {
+                    prev = latest;
                     latest = v;
+                }
             }
-            return latest;
+            return (latest, prev);
         }
         catch
         {
-            return null;
+            return (null, null);
         }
     }
 }
