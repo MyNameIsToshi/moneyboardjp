@@ -82,15 +82,33 @@
                 }
                 else
                 {
-                    <div class="cd-head">
-                        <span class="sortable" @onclick="@(() => SetSort("date"))">@SortHead("date", "利用日")</span>
-                        <span class="sortable" @onclick="@(() => SetSort("name"))">@SortHead("name", "利用先")</span>
-                        <span class="sortable" @onclick="@(() => SetSort("category"))">@SortHead("category", "カテゴリ")</span>
-                        <span class="sortable" @onclick="@(() => SetSort("amount"))">@SortHead("amount", "金額")</span>
-                        <span></span>
-                    </div>
+                    @if (!IsMobile)
+                    {
+                        <div class="cd-head">
+                            <span class="sortable" @onclick="@(() => SetSort("date"))">@SortHead("date", "利用日")</span>
+                            <span class="sortable" @onclick="@(() => SetSort("name"))">@SortHead("name", "利用先")</span>
+                            <span class="sortable" @onclick="@(() => SetSort("category"))">@SortHead("category", "カテゴリ")</span>
+                            <span class="sortable" @onclick="@(() => SetSort("amount"))">@SortHead("amount", "金額")</span>
+                            <span></span>
+                        </div>
+                    }
                     @foreach (var d in details)
                     {
+                        @if (IsMobile)
+                        {
+                            <button class="list-card" @onclick="() => OpenDetail(d.Id)">
+                                <div class="list-card-main">
+                                    <span class="list-card-name">@(string.IsNullOrEmpty(d.Name) ? "(利用先なし)" : d.Name)</span>
+                                    <span class="list-card-amount">@Yen(d.Amount)</span>
+                                </div>
+                                <div class="list-card-sub">
+                                    <span>@d.Date ・ <span class="color-dot" style="background:@DotColor(d.CategoryId)"></span> @CatName(d.CategoryId)</span>
+                                    <span class="list-card-chev">›</span>
+                                </div>
+                            </button>
+                        }
+                        else
+                        {
                         <div class="cd-row">
                             <input class="cd-date" type="date" value="@d.Date" @onchange="e => OnDateChange(d, e.Value)" />
                             <input class="cd-name" @bind="d.Name" @bind:after="() => OnNameChanged(d)" placeholder="利用先" />
@@ -107,6 +125,7 @@
                             <AmountInput CssClass="cd-amt" Value="@d.Amount" ValueChanged="v => { d.Amount = v; OnAmountChanged(); }" />
                             <button class="x" @onclick="() => RemoveDetail(d.Id)">✕</button>
                         </div>
+                        }
                     }
                 }
             </div>
@@ -232,8 +251,75 @@
                OnConfirm="DiscardBulk"
                OnCancel="KeepEditingBulk" />
 
+<!-- スマホ：明細カードのタップで開く編集シート -->
+<BottomSheet IsVisible="@(EditingDetail is not null)" Title="明細を編集" OnClose="CloseDetail">
+    <ChildContent>
+        @if (EditingDetail is { } d)
+        {
+            <div class="sheet-field">
+                <label>利用日</label>
+                <input type="date" value="@d.Date" @onchange="e => OnDateChange(d, e.Value)" />
+            </div>
+            <div class="sheet-field">
+                <label>利用先</label>
+                <input @bind="d.Name" @bind:after="() => OnNameChanged(d)" placeholder="利用先" />
+            </div>
+            <div class="sheet-field">
+                <label>カテゴリ</label>
+                <select @bind="d.CategoryId" @bind:after="Save">
+                    <option value="">未分類</option>
+                    @foreach (var c in Svc.CategoriesOrdered)
+                    {
+                        <option value="@c.Id">@c.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="sheet-field">
+                <label>金額</label>
+                <AmountInput CssClass="ra" Value="@d.Amount" ValueChanged="v => { d.Amount = v; OnAmountChanged(); }" />
+            </div>
+        }
+    </ChildContent>
+    <FooterContent>
+        <button class="btn danger" @onclick="DeleteEditingDetail">削除</button>
+        <button class="btn primary" style="margin-left:auto" @onclick="CloseDetail">完了</button>
+    </FooterContent>
+</BottomSheet>
+
 @code {
+    [CascadingParameter(Name = "IsMobile")] public bool IsMobile { get; set; }
+
     private MonthData Mo = new();
+
+    // スマホ：明細編集シートで開いている明細（直接編集・即時保存）
+    private string? _editDetailId;
+    private bool _isNewDetail;   // ＋追加で開いた新規明細か（未入力で閉じたら破棄）
+    private CardDetail? EditingDetail => _editDetailId is null ? null : Mo.CardDetails.FirstOrDefault(d => d.Id == _editDetailId);
+    private void OpenDetail(string id) { _editDetailId = id; _isNewDetail = false; }
+    private string CatName(string? catId) => Svc.CategoryById(catId)?.Name ?? "未分類";
+
+    private void CloseDetail()
+    {
+        // 利用先が空・金額0のまま閉じた新規明細は追加しない（破棄）。
+        if (_isNewDetail && EditingDetail is { } d && string.IsNullOrWhiteSpace(d.Name) && d.Amount == 0)
+        {
+            var id = _editDetailId;
+            _editDetailId = null;
+            _isNewDetail = false;
+            if (id != null) RemoveDetail(id);
+            return;
+        }
+        _editDetailId = null;
+        _isNewDetail = false;
+    }
+
+    // シートから削除：シートを閉じてから削除（明細は確認なしで即削除＝従来挙動）
+    private void DeleteEditingDetail()
+    {
+        var id = _editDetailId;
+        _editDetailId = null;
+        if (id != null) RemoveDetail(id);
+    }
 
     protected override void OnInitialized() => Mo = Svc.EnsureMonth(Svc.CardMonth);
 
@@ -337,9 +423,11 @@
 
     private void AddDetail(string cardId)
     {
-        Mo.CardDetails.Add(new CardDetail { CardId = cardId, Date = DateTime.Today.ToString("yyyy-MM-dd") });
+        var d = new CardDetail { CardId = cardId, Date = DateTime.Today.ToString("yyyy-MM-dd") };
+        Mo.CardDetails.Add(d);
         Svc.RecalcCards(Svc.CardMonth);
         Save();
+        if (IsMobile) { _editDetailId = d.Id; _isNewDetail = true; }   // スマホは作成後すぐ編集シートを開く
     }
 
     private void RemoveDetail(string id)

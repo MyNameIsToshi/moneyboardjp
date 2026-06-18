@@ -1,0 +1,617 @@
+/* =====================================================
+   スマホ用 横断スタイル（フェーズA：土台）
+   - 表示制御は MainLayout が付与する .app-shell.is-mobile を真とする
+     （ブレークポイント 640px は ViewportService 側の単一定義）。
+   ===================================================== */
+
+/* --- アプリシェル（スマホ） ---
+   縦flexで画面高ぴったり。中身(.app-scroll)だけ内部スクロールさせ、
+   下部バーは最下段に在席（position:fixed のモバイル不具合を回避）。 */
+.app-shell.is-mobile {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+}
+
+.app-shell.is-mobile .app-scroll {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* --- 下部タブバー（in-flow・常時最下段・BottomNav.razor） --- */
+.app-shell.is-mobile .botnav {
+  flex: 0 0 auto;
+}
+
+.botnav {
+  display: flex;
+  background: var(--card);
+  border-top: 1px solid var(--line);
+  padding-bottom: env(safe-area-inset-bottom);
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, .05);
+}
+
+.botnav-item {
+  position: relative;
+  flex: 1;
+  min-height: 52px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  color: var(--sub);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 7px 0 6px;
+}
+
+/* アクティブタブを明確化：accent色＋太字＋上端インジケータ＋淡い背景 */
+.botnav-item.active {
+  color: var(--accent);
+  background: var(--okbg);
+}
+
+.botnav-item.active::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 30px;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: var(--accent);
+}
+
+.botnav-item.active .bn-lab {
+  font-weight: 700;
+}
+
+.bn-ico {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.bn-lab {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+
+/* --- スマホ時の全体調整（is-mobile クラス駆動） --- */
+/* 上部の横タブはスマホでは下部バーに置換するため隠す */
+.app-shell.is-mobile .tabs {
+  display: none;
+}
+
+/* --- フォーム部品（スマホ共通） --- */
+/* <16px だと iOS が focus 時に自動ズームするため 16px に統一（ズーム防止） */
+.app-shell.is-mobile input:not([type="radio"]):not([type="checkbox"]),
+.app-shell.is-mobile select,
+.app-shell.is-mobile textarea {
+  font-size: 16px;
+}
+
+/* タップしやすいボタン高さ */
+.app-shell.is-mobile .btn {
+  min-height: 40px;
+}
+
+/* --- マイページ：アクセス管理の行を狭幅で折り返す --- */
+.app-shell.is-mobile .access-row {
+  flex-wrap: wrap;
+}
+
+.app-shell.is-mobile .access-actions {
+  width: 100%;
+  justify-content: flex-end;
+}
+
+/* =====================================================
+   ボトムシート（共通編集UI・BottomSheet.razor）
+   ===================================================== */
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(0, 0, 0, .4);
+}
+
+.sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 301;
+  display: flex;
+  flex-direction: column;
+  max-height: 90dvh;
+  background: var(--card);
+  border-top-left-radius: 18px;
+  border-top-right-radius: 18px;
+  box-shadow: 0 -8px 30px rgba(0, 0, 0, .2);
+  animation: sheet-up .22s ease;
+}
+
+@keyframes sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+  flex: 0 0 auto;
+}
+
+.sheet-title {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.sheet-close {
+  border: none;
+  background: none;
+  color: var(--sub);
+  font-size: 18px;
+  cursor: pointer;
+  min-width: 40px;
+  min-height: 40px;
+}
+
+.sheet-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 14px 16px;
+}
+
+.sheet-foot {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line);
+}
+
+/* シート内のラベル付きフィールド（縦積み） */
+.sheet-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 14px;
+}
+
+.sheet-field > label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sub);
+}
+
+.sheet-field input,
+.sheet-field select {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 10px;
+  font: inherit;
+  background: #fff;
+}
+
+.sheet-field input.ra {
+  text-align: right;
+}
+
+/* シート内で横並びにしたい部品（年月セレクト等） */
+.sheet-inline {
+  display: flex;
+  gap: 8px;
+}
+
+.sheet-inline > * {
+  flex: 1;
+}
+
+/* シート内のチェックボックス行（口座のボーナス受取など） */
+.sheet-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.sheet-check input {
+  width: auto;
+  min-height: 0;
+  padding: 0;
+}
+
+/* シート内の色パレットはタップしやすく大きめに */
+.app-shell.is-mobile .sheet-field .cat-color {
+  width: 30px;
+  height: 30px;
+}
+
+/* ボーナス行（シート内）：固定幅をやめて等分に（狭幅で溢れないように） */
+.app-shell.is-mobile .bonus-row,
+.app-shell.is-mobile .bonus-row-head {
+  grid-template-columns: 1fr 1fr 1fr 28px;
+}
+
+/* =====================================================
+   一覧のサマリーカード（タップで編集シートを開く）
+   ===================================================== */
+.list-card {
+  width: 100%;
+  text-align: left;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  font: inherit;
+  color: var(--ink);
+}
+
+.list-card-main {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.list-card-name {
+  font-size: 15px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.list-card-amount {
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.list-card-sub {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 4px;
+  font-size: 12.5px;
+  color: var(--sub);
+}
+
+.list-card-chev {
+  color: var(--sub);
+  font-size: 16px;
+}
+
+/* スマホ：カードの並べ替え（タッチでD&D不可のため ▲▼ ボタンを右に添える） */
+.app-shell.is-mobile .list-card-wrap {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.app-shell.is-mobile .list-card-wrap > .list-card {
+  flex: 1;
+  min-width: 0;   /* 長い銘柄名でカードが縮まず ▲▼ が押し出されるのを防ぐ */
+  margin-bottom: 0;
+}
+
+.app-shell.is-mobile .list-card-move {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.app-shell.is-mobile .list-card-move button {
+  flex: 1;
+  width: 38px;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 8px;
+  color: var(--accent);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.app-shell.is-mobile .list-card-move button:disabled {
+  opacity: .3;
+}
+
+/* カテゴリ用：色スウォッチ＋名前＋ › を横並び */
+.cat-card-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cat-card-row .list-card-name {
+  flex: 1;
+  min-width: 0;
+}
+
+/* =====================================================
+   月次（MonthlyTab）：スマホ調整
+   ===================================================== */
+/* 統計/資産ボタンは下部バーにあるためスマホでは隠す */
+.app-shell.is-mobile .top .stat-btn {
+  display: none;
+}
+
+/* 行内の名前入力が縮まず ✕ が画面外へ押し出される問題を防ぐ（flex の min-width:auto 対策）。
+   固定費(🔒)行など 名前＋金額＋✕ が詰まる行で効く。 */
+.app-shell.is-mobile .row input.name,
+.app-shell.is-mobile .row select.name {
+  min-width: 0;
+}
+
+/* =====================================================
+   統計（GraphPage）：スマホ調整
+   ===================================================== */
+/* 戻るは下部バーがあるため隠す（タイトルだけ残す） */
+.app-shell.is-mobile .graph-header .btn {
+  display: none;
+}
+
+/* 内訳一覧（⑥⑦）：5列は詰まるので割合(%)列を省略しドット/名前/金額/件数の4列に。
+   （資産構成カード pf-comp-card は割合を残したいので除外） */
+.app-shell.is-mobile .graph-card-full:not(.pf-comp-card) .spend-row {
+  grid-template-columns: 14px 1fr auto auto;
+  gap: 6px;
+  font-size: 12.5px;
+}
+
+.app-shell.is-mobile .graph-card-full:not(.pf-comp-card) .spend-row > :nth-child(4) {
+  display: none;
+}
+
+/* =====================================================
+   資産（Portfolio）：スマホ調整
+   ===================================================== */
+/* 戻るは下部バーがあるため隠す */
+.app-shell.is-mobile .pf-head .btn {
+  display: none;
+}
+
+/* 保有一覧はサマリーカード（list-card）に切替済み。損益の色文字を見やすく */
+.app-shell.is-mobile .list-card-sub .pf-pos,
+.app-shell.is-mobile .list-card-sub .pf-neg {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 資産構成リスト：スマホは ドット/名称/評価額/割合 を詰めて4列で残す */
+.app-shell.is-mobile .pf-comp-card .spend-row {
+  grid-template-columns: 14px 1fr auto auto;
+  gap: 6px;
+  font-size: 12.5px;
+}
+
+/* 大きいダイアログ（新規登録・取引設定）はスマホでほぼ全幅に */
+.app-shell.is-mobile .dialog-overlay {
+  padding: 8px;
+}
+
+.app-shell.is-mobile .pf-add-box,
+.app-shell.is-mobile .pf-tx-box,
+.app-shell.is-mobile .dialog-box.bulk-box {
+  width: 100%;
+  max-width: none;
+  max-height: 92dvh;
+}
+
+/* 一括ダイアログ：リストが長くても 適用/キャンセル を最下部に固定（中のリストだけスクロール） */
+.app-shell.is-mobile .dialog-box.bulk-box {
+  display: flex;
+  flex-direction: column;
+}
+
+.app-shell.is-mobile .bulk-box .bulk-list {
+  flex: 1 1 auto;
+  max-height: none;
+}
+
+.app-shell.is-mobile .bulk-box .dialog-btns {
+  flex: 0 0 auto;
+}
+
+/* =====================================================
+   カード明細（CardTab）：スマホ調整
+   ===================================================== */
+/* 明細はサマリーカード（list-card）＋編集シートに統一。サブ行のカテゴリ色ドットを行内表示 */
+.app-shell.is-mobile .list-card-sub .color-dot {
+  display: inline-block;
+  vertical-align: middle;
+  margin: 0 2px;
+}
+
+/* 一括カテゴリ：行が5列で溢れるので2行に */
+.app-shell.is-mobile .bulk-head {
+  display: none;
+}
+
+.app-shell.is-mobile .bulk-row {
+  grid-template-columns: 24px 1fr auto;
+  grid-template-areas:
+    "check store total"
+    "check cat   count";
+  gap: 4px 8px;
+  align-items: center;
+}
+
+.app-shell.is-mobile .bulk-row > .bulk-check { grid-area: check; align-self: center; }
+.app-shell.is-mobile .bulk-row > .bulk-store { grid-area: store; }
+.app-shell.is-mobile .bulk-row > .bulk-total { grid-area: total; }
+.app-shell.is-mobile .bulk-row > .bulk-cat-cell { grid-area: cat; }
+.app-shell.is-mobile .bulk-row > .bulk-count { grid-area: count; text-align: right; font-size: 12px; color: var(--sub); }
+
+/* 一括設定ヘッダを詰める：ラベル / カテゴリ＋設定ボタン / 絞り込み の3行 */
+.app-shell.is-mobile .bulk-batch {
+  gap: 8px;
+  padding: 8px 10px;
+}
+
+.app-shell.is-mobile .bulk-batch > span {
+  flex-basis: 100%;
+}
+
+.app-shell.is-mobile .bulk-batch-cat {
+  width: auto;
+  flex: 1;
+}
+
+.app-shell.is-mobile .bulk-filter {
+  flex-basis: 100%;
+  margin-left: 0;
+  justify-content: flex-end;
+}
+
+/* 総資産バー：縦積み（総資産 → 元本/評価損益 → 価格更新）に整理 */
+.app-shell.is-mobile .pf-summary-bar {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.app-shell.is-mobile .pf-sum-main {
+  flex-wrap: wrap;
+  align-items: baseline;
+}
+
+.app-shell.is-mobile .pf-sum-label {
+  white-space: nowrap;
+}
+
+.app-shell.is-mobile .pf-sum-sub {
+  flex-basis: 100%;   /* 元本・評価損益を次の行へ */
+}
+
+.app-shell.is-mobile .pf-sum-meta {
+  justify-content: space-between;
+}
+
+/* 取引・設定ダイアログの設定群：ラベル横並びだと文字が潰れるので縦積み（ラベル上・全幅） */
+.app-shell.is-mobile .pf-tx-settings {
+  flex-direction: column;
+  gap: 10px;
+}
+
+.app-shell.is-mobile .pf-tx-settings label,
+.app-shell.is-mobile .pf-tx-price > label {
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  gap: 4px;
+}
+
+.app-shell.is-mobile .pf-tx-settings select,
+.app-shell.is-mobile .pf-tx-settings input {
+  width: 100%;
+}
+
+/* 買付/売却/配当の各取引は、スマホではラベル付きの縦積みカードに（横スクロール回避） */
+.app-shell.is-mobile .pf-tx-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 取引カードの折りたたみヘッダ（サマリー＋▼） */
+.app-shell.is-mobile .pf-tx-cardhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  border: none;
+  background: none;
+  font: inherit;
+  color: var(--ink);
+  cursor: pointer;
+  padding: 0;
+}
+
+.app-shell.is-mobile .pf-tx-sum {
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+}
+
+.app-shell.is-mobile .pf-tx-chev {
+  color: var(--sub);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.app-shell.is-mobile .pf-tx-frow {
+  display: flex;
+  gap: 8px;
+}
+
+.app-shell.is-mobile .pf-tx-f {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.app-shell.is-mobile .pf-tx-f > span {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--sub);
+}
+
+.app-shell.is-mobile .pf-tx-f input,
+.app-shell.is-mobile .pf-tx-f .pf-tx-amt,
+.app-shell.is-mobile .pf-tx-f .pf-tx-date {
+  width: 100%;
+}
+
+.app-shell.is-mobile .pf-tx-f-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.app-shell.is-mobile .pf-tx-del {
+  align-self: flex-end;
+  color: var(--bad);
+}
+
+/* 固定費：スマホのヘッダは口座フィルターだけ右に残す */
+.app-shell.is-mobile .fc-head {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.app-shell.is-mobile .fc-head > span:not(.fc-th-filter) {
+  display: none;
+}
+
+/* フィルターメニューが右端で見切れないよう、スマホは右端アンカーで左に展開 */
+.app-shell.is-mobile .fc-filter-menu {
+  left: auto;
+  right: 0;
+}

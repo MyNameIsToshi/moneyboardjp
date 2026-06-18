@@ -1,0 +1,36 @@
+@* 汎用ボトムシート（スマホの編集用）。下からせり上がる全幅シート。
+   一覧の項目をタップ→このシートで縦に編集する共通パターンに使う。
+   既存ダイアログと同様、外側クリックでは閉じない（CloseOnBackdrop 既定 false）。 *@
+@if (IsVisible)
+{
+    <div class="sheet-backdrop" @onclick="OnBackdropClick"></div>
+    <div class="sheet">
+        <div class="sheet-head">
+            <span class="sheet-title">@Title</span>
+            <button class="sheet-close" @onclick="OnClose" aria-label="閉じる">✕</button>
+        </div>
+        <div class="sheet-body">
+            @ChildContent
+        </div>
+        @if (FooterContent is not null)
+        {
+            <div class="sheet-foot">
+                @FooterContent
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public RenderFragment? FooterContent { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public bool CloseOnBackdrop { get; set; } = false;
+
+    private async Task OnBackdropClick()
+    {
+        if (CloseOnBackdrop) await OnClose.InvokeAsync();
+    }
+}

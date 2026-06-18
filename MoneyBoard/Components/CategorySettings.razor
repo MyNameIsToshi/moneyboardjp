@@ -13,6 +13,24 @@ else
 {
     @foreach (var c in Ordered)
     {
+        @if (IsMobile)
+        {
+            <div class="list-card-wrap">
+                <button class="list-card" @onclick="() => OpenEdit(c.Id)">
+                    <div class="cat-card-row">
+                        <span class="cat-swatch" style="background:@c.Color"></span>
+                        <span class="list-card-name">@(string.IsNullOrEmpty(c.Name) ? "(名称未設定)" : c.Name)</span>
+                        <span class="list-card-chev">›</span>
+                    </div>
+                </button>
+                <div class="list-card-move">
+                    <button @onclick="() => Move(c, -1)" disabled="@(c == Ordered.First())" aria-label="上へ">▲</button>
+                    <button @onclick="() => Move(c, 1)" disabled="@(c == Ordered.Last())" aria-label="下へ">▼</button>
+                </div>
+            </div>
+        }
+        else
+        {
         <div class="cat-row @(DragOverId == c.Id ? "drag-over" : "")"
              draggable="true"
              @ondragstart="() => OnDragStart(c.Id)"
@@ -33,6 +51,7 @@ else
             </div>
             <button class="x" @onclick="() => Remove(c.Id)">✕</button>
         </div>
+        }
     }
 }
 
@@ -40,7 +59,63 @@ else
     カテゴリ未設定の明細は「未分類（灰色）」として扱われます。
 </div>
 
+<!-- スマホ：サマリーカードのタップで開く編集シート -->
+<BottomSheet IsVisible="@(Editing is not null)" Title="カテゴリを編集" OnClose="CloseEdit">
+    <ChildContent>
+        @if (Editing is not null)
+        {
+            <div class="sheet-field">
+                <label>カテゴリ名</label>
+                <input @bind="Editing.Name" @bind:after="Save" placeholder="カテゴリ名" />
+            </div>
+            <div class="sheet-field">
+                <label>色</label>
+                <div class="cat-palette">
+                    @foreach (var color in Palette)
+                    {
+                        <button class="cat-color @(Editing.Color == color ? "sel" : "")"
+                                style="background:@color"
+                                @onclick="() => SetColor(Editing, color)" title="@color"></button>
+                    }
+                </div>
+            </div>
+        }
+    </ChildContent>
+    <FooterContent>
+        <button class="btn danger" @onclick="DeleteEditing">削除</button>
+        <button class="btn primary" style="margin-left:auto" @onclick="CloseEdit">完了</button>
+    </FooterContent>
+</BottomSheet>
+
 @code {
+    [CascadingParameter(Name = "IsMobile")] public bool IsMobile { get; set; }
+
+    // スマホ：編集シートで開いているカテゴリ（直接編集・即時保存）。
+    private string? _editId;
+    private bool _isNew;   // ＋追加で開いた新規カテゴリか（未入力のまま閉じたら破棄する）
+    private Category? Editing => _editId is null ? null : Svc.State.Categories.FirstOrDefault(c => c.Id == _editId);
+    private void OpenEdit(string id) { _editId = id; _isNew = false; }
+
+    private void CloseEdit()
+    {
+        // カテゴリ名が空のまま閉じた新規カテゴリは追加しない（破棄）。
+        if (_isNew && Editing is { } c && string.IsNullOrWhiteSpace(c.Name))
+        {
+            Svc.State.Categories.RemoveAll(x => x.Id == _editId);
+            Save();
+        }
+        _editId = null;
+        _isNew = false;
+    }
+
+    // シートから削除：シートを閉じてから削除（カテゴリは確認なしで即削除＝従来挙動）。
+    private void DeleteEditing()
+    {
+        var id = _editId;
+        _editId = null;
+        if (id != null) Remove(id);
+    }
+
     // 12色パレット
     private static readonly string[] Palette =
     {
@@ -57,16 +132,30 @@ else
         // 未使用の色を優先的に割り当てる
         var used = Svc.State.Categories.Select(c => c.Color).ToHashSet();
         var color = Palette.FirstOrDefault(p => !used.Contains(p)) ?? Palette[0];
-        Svc.State.Categories.Add(new Category
+        var c = new Category
         {
             Name = "",
             Color = color,
             SortOrder = Svc.State.Categories.Count
-        });
+        };
+        Svc.State.Categories.Add(c);
         Save();
+        if (IsMobile) { _editId = c.Id; _isNew = true; }   // スマホは作成後すぐ編集シートを開く
     }
 
     private void SetColor(Category c, string color) { c.Color = color; Save(); }
+
+    // スマホ：▲▼ で並べ替え（dir=-1 上 / +1 下）。SortOrder を 0..n に振り直す。
+    private void Move(Category c, int dir)
+    {
+        var list = Svc.State.Categories.OrderBy(x => x.SortOrder).ToList();
+        int i = list.IndexOf(c);
+        int j = i + dir;
+        if (i < 0 || j < 0 || j >= list.Count) return;
+        (list[i], list[j]) = (list[j], list[i]);
+        for (int k = 0; k < list.Count; k++) list[k].SortOrder = k;
+        Save();
+    }
 
     private void Remove(string id) { Svc.State.Categories.RemoveAll(c => c.Id == id); Save(); }
 
