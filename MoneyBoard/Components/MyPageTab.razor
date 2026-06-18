@@ -14,6 +14,10 @@
             <span>@Auth.User?.Email でログイン中</span>
         }
     </div>
+    @if (!Auth.IsBypass)
+    {
+        <button class="btn account-logout" @onclick="() => ShowLogoutConfirm = true">ログアウト</button>
+    }
 </div>
 
 @if (Svc.IsOwner)
@@ -122,10 +126,25 @@
     }
 </div>
 
+<ConfirmDialog IsVisible="ShowLogoutConfirm"
+               Title="ログアウト"
+               Message="ログアウトしますか？"
+               ConfirmText="ログアウト"
+               OnConfirm="ConfirmLogout"
+               OnCancel="() => ShowLogoutConfirm = false" />
+
 @code {
     // 各設定セクションは折りたたみ式（既定は畳んだ状態）
     private readonly HashSet<string> _open = new();
     private bool IsOpen(string key) => _open.Contains(key);
+
+    // ログアウトは確認ダイアログを挟む（誤タップでのサインアウト防止）。
+    private bool ShowLogoutConfirm = false;
+    private async Task ConfirmLogout()
+    {
+        ShowLogoutConfirm = false;
+        await Auth.SignOutAsync();
+    }
 
     private AccessInfo? _access;
     private int PendingCount => _access?.Pending.Count ?? 0;

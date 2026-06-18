@@ -15,6 +15,11 @@
   font-weight: 600;
 }
 
+/* アカウント欄のログアウトボタン（メール表示の下） */
+.account-logout {
+  margin-top: 12px;
+}
+
 .mypage-collapse {
   width: 100%;
   display: flex;
