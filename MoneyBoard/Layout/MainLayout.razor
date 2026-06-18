@@ -1,5 +1,8 @@
 @inherits LayoutComponentBase
 @inject ViewportService Viewport
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject LedgerService Svc
 @implements IDisposable
 
 @* IsMobile を全ページへ配布。スマホ時はアプリシェル（縦flex）で
@@ -20,11 +23,30 @@
     protected override async Task OnInitializedAsync()
     {
         Viewport.Changed += OnViewportChanged;
+        Nav.LocationChanged += OnLocationChanged;
         await Viewport.InitAsync();
         StateHasChanged();
     }
 
     private void OnViewportChanged() => InvokeAsync(StateHasChanged);
 
-    public void Dispose() => Viewport.Changed -= OnViewportChanged;
+    // スマホはタブ/ページ遷移ごとに内部スクロールを先頭へ戻す（位置の持ち越しを防ぐ）。
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        if (!Viewport.IsMobile) return;
+        // 月次→カードの「該当カードへスクロール」遷移中は、その後の scrollIntoView を
+        // 上書きしないよう先頭リセットを抑止する。
+        if (Svc.ScrollToCardId != null) return;
+        InvokeAsync(async () =>
+        {
+            try { await JS.InvokeVoidAsync("moneyboardViewport.scrollAppTop"); }
+            catch { /* JS 未準備時は無視 */ }
+        });
+    }
+
+    public void Dispose()
+    {
+        Viewport.Changed -= OnViewportChanged;
+        Nav.LocationChanged -= OnLocationChanged;
+    }
 }
