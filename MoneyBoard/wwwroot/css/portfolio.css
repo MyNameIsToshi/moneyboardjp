@@ -1,6 +1,17 @@
 /* =====================================================
    証券ポートフォリオ (Portfolio.razor)
    ===================================================== */
+/* 最上部（タイトル＋総資産バー）をスクロール追従で固定（統計の graph-sticky と同流儀）。
+   PC はウィンドウ、スマホは .app-scroll の先頭に貼り付く。 */
+.pf-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--paper);
+  padding-top: 8px;
+  margin-bottom: 6px;
+}
+
 .pf-head {
   display: flex;
   align-items: center;

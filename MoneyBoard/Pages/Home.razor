@@ -2,7 +2,6 @@
 @implements IDisposable
 @using System.Reflection
 @inject LedgerService Svc
-@inject AuthService Auth
 @inject NavigationManager Nav
 
 <div class="wrap">
@@ -14,13 +13,6 @@
                 <span class="app-ver">@AppVersion</span>
             }
         </div>
-        @if (!Auth.IsBypass && Auth.User is not null)
-        {
-            <div class="account">
-                <span class="account-email" title="@Auth.User.Email">@Auth.User.Email</span>
-                <button class="add-line" @onclick="Auth.SignOutAsync">ログアウト</button>
-            </div>
-        }
     </div>
 
     @if (Svc.IsPending)

@@ -15,6 +15,12 @@ window.moneyboardViewport = (function () {
             if (mql.addEventListener) mql.addEventListener('change', onChange);
             else mql.addListener(onChange); // 古い Safari 向けフォールバック
             return mql.matches;
+        },
+        // スマホのアプリシェルは中身(.app-scroll)だけが内部スクロールするため、
+        // タブ/ページ遷移時にスクロール位置が維持される。遷移ごとに先頭へ戻す。
+        scrollAppTop: function () {
+            var el = document.querySelector('.app-scroll');
+            if (el) el.scrollTop = 0;
         }
     };
 })();

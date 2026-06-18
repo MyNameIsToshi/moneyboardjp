@@ -6,9 +6,40 @@
 @inject NavigationManager Nav
 
 <div class="wrap">
-    <div class="pf-head">
-        <div class="app-title">ポートフォリオ</div>
-        <button class="btn" @onclick='() => Nav.NavigateTo("/")'>← 戻る</button>
+    <div class="pf-sticky">
+        <div class="pf-head">
+            <div class="app-title">ポートフォリオ</div>
+            <button class="btn" @onclick='() => Nav.NavigateTo("/")'>← 戻る</button>
+        </div>
+
+        @if (Loaded && !Store.IsPending && !LoadFailed)
+        {
+            <div class="pf-summary-bar">
+                <div class="pf-sum-main">
+                    <span class="pf-sum-label">総資産（円）</span>
+                    <span class="pf-sum-total">@TotalJpyDisplay</span>
+                    <div class="pf-sum-sub">
+                        <span>元本 ¥@TotalCostJpy.ToString("#,0")</span>
+                        <span>評価損益 <b class="@PnlClass(TotalPnlJpy)">@SignedYen(TotalPnlJpy)@PnlPct(TotalPnlJpy, TotalCostJpy)</b></span>
+                    </div>
+                </div>
+                <div class="pf-sum-meta">
+                    @if (!string.IsNullOrEmpty(Store.Data.PricedAt))
+                    {
+                        <span>価格更新 @Store.Data.PricedAt</span>
+                        @if (Store.Data.UsdJpyRate > 0)
+                        {
+                            <span>・USD/JPY @Store.Data.UsdJpyRate.ToString("#,0.##")</span>
+                        }
+                    }
+                    <button class="btn-sm" disabled="@_updating" @onclick="() => UpdatePrices()">@(_updating ? "更新中…" : "価格更新")</button>
+                </div>
+            </div>
+            @if (_updateMsg != null)
+            {
+                <div class="pf-hint pf-neg">@_updateMsg</div>
+            }
+        }
     </div>
 
     @if (Store.IsPending)
@@ -29,32 +60,6 @@
     }
     else
     {
-        <div class="pf-summary-bar">
-            <div class="pf-sum-main">
-                <span class="pf-sum-label">総資産（円）</span>
-                <span class="pf-sum-total">@TotalJpyDisplay</span>
-                <div class="pf-sum-sub">
-                    <span>元本 ¥@TotalCostJpy.ToString("#,0")</span>
-                    <span>評価損益 <b class="@PnlClass(TotalPnlJpy)">@SignedYen(TotalPnlJpy)@PnlPct(TotalPnlJpy, TotalCostJpy)</b></span>
-                </div>
-            </div>
-            <div class="pf-sum-meta">
-                @if (!string.IsNullOrEmpty(Store.Data.PricedAt))
-                {
-                    <span>価格更新 @Store.Data.PricedAt</span>
-                    @if (Store.Data.UsdJpyRate > 0)
-                    {
-                        <span>・USD/JPY @Store.Data.UsdJpyRate.ToString("#,0.##")</span>
-                    }
-                }
-                <button class="btn-sm" disabled="@_updating" @onclick="() => UpdatePrices()">@(_updating ? "更新中…" : "価格更新")</button>
-            </div>
-        </div>
-        @if (_updateMsg != null)
-        {
-            <div class="pf-hint pf-neg">@_updateMsg</div>
-        }
-
         @* ── 資産構成（クラス別／銘柄別の構成比ドーナツ）── *@
         @if (CompositionData.Count > 0)
         {
