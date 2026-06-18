@@ -407,10 +407,77 @@
 }
 
 .app-shell.is-mobile .pf-add-box,
-.app-shell.is-mobile .pf-tx-box {
+.app-shell.is-mobile .pf-tx-box,
+.app-shell.is-mobile .dialog-box.bulk-box {
   width: 100%;
   max-width: none;
   max-height: 92dvh;
+}
+
+/* 一括ダイアログ：リストが長くても 適用/キャンセル を最下部に固定（中のリストだけスクロール） */
+.app-shell.is-mobile .dialog-box.bulk-box {
+  display: flex;
+  flex-direction: column;
+}
+
+.app-shell.is-mobile .bulk-box .bulk-list {
+  flex: 1 1 auto;
+  max-height: none;
+}
+
+.app-shell.is-mobile .bulk-box .dialog-btns {
+  flex: 0 0 auto;
+}
+
+/* =====================================================
+   カード明細（CardTab）：スマホ調整
+   ===================================================== */
+/* 明細はサマリーカード（list-card）＋編集シートに統一。サブ行のカテゴリ色ドットを行内表示 */
+.app-shell.is-mobile .list-card-sub .color-dot {
+  display: inline-block;
+  vertical-align: middle;
+  margin: 0 2px;
+}
+
+/* 一括カテゴリ：行が5列で溢れるので2行に */
+.app-shell.is-mobile .bulk-head {
+  display: none;
+}
+
+.app-shell.is-mobile .bulk-row {
+  grid-template-columns: 24px 1fr auto;
+  grid-template-areas:
+    "check store total"
+    "check cat   count";
+  gap: 4px 8px;
+  align-items: center;
+}
+
+.app-shell.is-mobile .bulk-row > .bulk-check { grid-area: check; align-self: center; }
+.app-shell.is-mobile .bulk-row > .bulk-store { grid-area: store; }
+.app-shell.is-mobile .bulk-row > .bulk-total { grid-area: total; }
+.app-shell.is-mobile .bulk-row > .bulk-cat-cell { grid-area: cat; }
+.app-shell.is-mobile .bulk-row > .bulk-count { grid-area: count; text-align: right; font-size: 12px; color: var(--sub); }
+
+/* 一括設定ヘッダを詰める：ラベル / カテゴリ＋設定ボタン / 絞り込み の3行 */
+.app-shell.is-mobile .bulk-batch {
+  gap: 8px;
+  padding: 8px 10px;
+}
+
+.app-shell.is-mobile .bulk-batch > span {
+  flex-basis: 100%;
+}
+
+.app-shell.is-mobile .bulk-batch-cat {
+  width: auto;
+  flex: 1;
+}
+
+.app-shell.is-mobile .bulk-filter {
+  flex-basis: 100%;
+  margin-left: 0;
+  justify-content: flex-end;
 }
 
 /* 総資産バー：縦積み（総資産 → 元本/評価損益 → 価格更新）に整理 */
