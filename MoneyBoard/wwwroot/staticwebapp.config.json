@@ -1,0 +1,17 @@
+{
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": [
+      "/_framework/*",
+      "/_content/*",
+      "/css/*",
+      "/js/*",
+      "/api/*",
+      "/*.{png,svg,ico,css,js,json,wasm,dll,dat,blat,br,woff,woff2,txt,xml}"
+    ]
+  },
+  "routes": [
+    { "route": "/index.html", "headers": { "cache-control": "no-cache" } },
+    { "route": "/_framework/blazor.boot.json", "headers": { "cache-control": "no-cache" } }
+  ]
+}
