@@ -71,10 +71,10 @@
   color: #fff;
 }
 
-/* 保有銘柄の行（銘柄名 / 口座 / 数量 / 平均取得単価 / 元本 / 評価額 / 評価損益 / 取引 / 削除）*/
+/* 保有銘柄の行（銘柄名(口座を下に) / 元本 / 平均取得単価 / 数量 / 現在価格 / 評価額＋損益 / 前日比 / 取引 / 削除）*/
 .pf-grid {
   display: grid;
-  grid-template-columns: 1.1fr 0.7fr 0.6fr 0.9fr 0.95fr 0.95fr 1.35fr auto 32px;
+  grid-template-columns: 1.3fr 0.95fr 0.9fr 0.6fr 0.9fr 1.35fr 0.95fr 56px 32px;
   gap: 8px;
   align-items: center;
 }
@@ -155,9 +155,26 @@
 }
 
 .pf-hname {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.pf-hname-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.pf-hname-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* 銘柄名の下に小さく口座バッジ（バッジだけ文字幅。名前は列幅で省略） */
+.pf-badge-sub {
+  align-self: flex-start;
+  margin-top: 2px;
+  font-size: 10px;
+  padding: 1px 6px;
 }
 
 .pf-badge {
@@ -316,6 +333,10 @@
 .pf-tx-grid-amt {
   grid-template-columns: 1.1fr 0.95fr 0.95fr 0.95fr 32px;
 }
+/* 取得金額列＋ESPP列（円建てTSM・社員）の6列（約定日 数量 単価 取得金額 ESPP 削除）*/
+.pf-tx-grid-espp-amt {
+  grid-template-columns: 1fr 0.85fr 0.85fr 0.95fr 48px 32px;
+}
 .pf-tx-grid-head {
   font-size: 12px;
   color: var(--sub);
@@ -378,11 +399,19 @@
   font-size: 11px;
   margin-left: 2px;
 }
-/* 前日比（評価額の下に小さく併記） */
+/* 前日比（スマホ：評価損益の下に「前日 …」） */
 .pf-day {
   display: block;
   font-size: 11px;
   font-weight: 500;
   line-height: 1.3;
   margin-top: 1px;
+}
+/* 評価額の下に積む評価損益（PC一覧） */
+.pf-sub-pnl {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+  margin-top: 2px;
 }

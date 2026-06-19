@@ -314,6 +314,17 @@
   font-size: 16px;
 }
 
+/* 保有カードの明細行（元本・平均・数量・現在価格） */
+.list-card-detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--sub);
+  font-variant-numeric: tabular-nums;
+}
+
 /* スマホ：カードの並べ替え（タッチでD&D不可のため ▲▼ ボタンを右に添える） */
 .app-shell.is-mobile .list-card-wrap {
   display: flex;
