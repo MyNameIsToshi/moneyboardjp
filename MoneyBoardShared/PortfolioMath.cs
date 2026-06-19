@@ -40,7 +40,9 @@ public static class PortfolioMath
         decimal LotCost(BuyLot b) => b.Amount > 0 ? b.Amount : b.Quantity * b.UnitPrice * CostFactor(b) / div;
         // 取得総額（建て通貨）＝買付ロットの実取得原価の合計。
         decimal totalCost = hb.Sum(LotCost);
-        // 平均取得単価（基準価額/単価・表示用）＝数量加重平均（ESPP は割引後の実価格・再投資株は$0で薄まる）
+        // 平均取得単価（基準価額/単価・表示用）＝単価の数量加重平均。米国株は単価＝ドルなのでドルの加重平均、
+        // 日本株は円/株、投信は基準価額。ESPP は割引後の実価格・再投資株は$0で薄まる。
+        // （元本＝取得金額を入れた円拠出でも、単価・平均取得単価はドル建て＝価格通貨で表示する）
         decimal avg = boughtQty > 0 ? hb.Sum(b => b.Quantity * b.UnitPrice * CostFactor(b)) / boughtQty : 0m;
         // 1口/1株あたり実取得原価（建て通貨）。取得原価・実現損益はこれで按分（平均取得単価法）。
         decimal costPerUnit = boughtQty > 0 ? totalCost / boughtQty : 0m;

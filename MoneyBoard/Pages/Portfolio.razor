@@ -161,24 +161,35 @@
                 if (items.Count == 0) continue;
                 <div class="pf-group-head">
                     <span>@grp.Label</span>
-                    <span class="pf-group-note">@ClassDelayNote(grp.Class)</span>
+                    <span class="pf-group-meta">
+                        @if (grp.Class == AssetClass.UsStock)
+                        {
+                            <span class="pf-ccy-toggle" title="評価額・評価損益の表示通貨（元本は買った通貨のまま）">
+                                <button class="@(_usCcy == Currency.Jpy ? "on" : "")" @onclick="() => SetUsCcy(Currency.Jpy)">円</button>
+                                <button class="@(_usCcy == Currency.Usd ? "on" : "")" @onclick="() => SetUsCcy(Currency.Usd)">ドル</button>
+                            </span>
+                        }
+                        <span class="pf-group-note">@ClassDelayNote(grp.Class)</span>
+                    </span>
                 </div>
                 @if (IsMobile)
                 {
                     @foreach (var h in items)
                     {
                         var s = Summary(h);
-                        var val = Valuation(h, s.Quantity);
                         var upnl = UnrealizedPnl(h, s);
                         <div class="list-card-wrap">
                             <button class="list-card" @onclick="() => OpenTx(h.Id)">
                                 <div class="list-card-main">
                                     <span class="list-card-name">@DisplayName(h)</span>
-                                    <span class="list-card-amount">@MoneyOpt(h, val)</span>
+                                    <span class="list-card-amount">@MoneyDispOpt(h, ValDisp(h, s.Quantity))</span>
                                 </div>
                                 <div class="list-card-sub">
                                     <span class="pf-badge">@AccountLabel(h.Account)</span>
-                                    <span class="@PnlClass(upnl ?? 0)">@MoneySignedOpt(h, upnl)@PnlPct(upnl, s.CostBasis)</span>
+                                    <span class="@PnlClass(upnl ?? 0)">@MoneyDispSignedOpt(h, UpnlDisp(h, s))@PnlPct(upnl, s.CostBasis)@if (DayChangePct(h) is decimal dp) {<span class="pf-day @PnlClass(dp)">前日 @MoneyDispSignedOpt(h, DayChangeAmount(h, s.Quantity)) (@DayPct(dp))</span>}</span>
+                                </div>
+                                <div class="list-card-detail">
+                                    <span>現在価格 @CurPriceDisp(h)</span>
                                 </div>
                             </button>
                             <div class="list-card-move">
@@ -191,16 +202,16 @@
                 else
                 {
                 <div class="pf-grid pf-grid-head">
-                    <span>銘柄名</span><span>口座</span>
-                    <span class="pf-num">数量</span><span class="pf-num">平均取得単価</span>
-                    <span class="pf-num">元本</span><span class="pf-num">評価額</span><span class="pf-num">評価損益</span>
+                    <span>銘柄名</span>
+                    <span class="pf-num">元本</span><span class="pf-num">平均取得単価</span><span class="pf-num">数量</span><span class="pf-num">現在価格</span>
+                    <span class="pf-num">評価額／損益</span><span class="pf-num">前日比</span>
                     <span></span><span></span>
                 </div>
                 @foreach (var h in items)
                 {
                     var s = Summary(h);
-                    var val = Valuation(h, s.Quantity);
                     var upnl = UnrealizedPnl(h, s);
+                    var day = DayChangePct(h);
                     <div class="pf-grid pf-row @(_dragOverId == h.Id ? "pf-drag-over" : "")"
                          draggable="true" @key="h.Id"
                          @ondragstart="() => _dragId = h.Id"
@@ -210,13 +221,13 @@
                          @ondrop="() => OnDrop(h)"
                          @ondrop:preventDefault="true"
                          @ondragend="OnDragEnd">
-                        <span class="pf-hname" title="@DisplayName(h)"><span class="pf-drag-handle" title="ドラッグで並べ替え">⠿</span>@DisplayName(h)</span>
-                        <span class="pf-badge">@AccountLabel(h.Account)</span>
-                        <span class="pf-num">@Qty(s.Quantity)</span>
-                        <span class="pf-num">@Price(h, s.AvgUnitPrice)</span>
+                        <span class="pf-hname" title="@DisplayName(h)"><span class="pf-drag-handle" title="ドラッグで並べ替え">⠿</span><span class="pf-hname-body"><span class="pf-hname-name">@DisplayName(h)</span><span class="pf-badge pf-badge-sub">@AccountLabel(h.Account)</span></span></span>
                         <span class="pf-num">@Money(h, s.CostBasis)</span>
-                        <span class="pf-num">@MoneyOpt(h, val)</span>
-                        <span class="pf-num @PnlClass(upnl ?? 0)">@MoneySignedOpt(h, upnl)<span class="pf-pnl-pct">@PnlPct(upnl, s.CostBasis)</span></span>
+                        <span class="pf-num">@Price(h, s.AvgUnitPrice)</span>
+                        <span class="pf-num">@Qty(s.Quantity)</span>
+                        <span class="pf-num">@CurPriceDisp(h)</span>
+                        <span class="pf-num">@MoneyDispOpt(h, ValDisp(h, s.Quantity))<span class="pf-sub-pnl @PnlClass(upnl ?? 0)">@MoneyDispSignedOpt(h, UpnlDisp(h, s))<span class="pf-pnl-pct">@PnlPct(upnl, s.CostBasis)</span></span></span>
+                        <span class="pf-num @(day is decimal dc ? PnlClass(dc) : "")">@if (day is decimal dv){@MoneyDispSignedOpt(h, DayChangeAmount(h, s.Quantity))<span class="pf-day">@DayPct(dv)</span>}else{<text>—</text>}</span>
                         <button class="btn-sm" @onclick="() => OpenTx(h.Id)">取引</button>
                         <button class="x" @onclick="() => AskDelete(h)">✕</button>
                     </div>
@@ -386,7 +397,7 @@
 
             @if (h.Class == AssetClass.UsStock)
             {
-                <div class="pf-hint">円建て＝単価は「円/株」（拠出した円÷株数・為替入力は不要）／ドル建て＝単価は「$/株」。現在価格は後の段階で自動取得して評価額に反映します。</div>
+                <div class="pf-hint">米国株の単価は常に「$/株」（ドルで値が付くため）。<b>円で拠出</b>した場合は「取得金額」に拠出した円を入れると、その額が元本（円）になります（為替換算なし）。<b>自分でドル転</b>して買った場合は「ドル建て」にすると元本もドルになります。</div>
             }
 
             <div class="pf-tx-price">
@@ -417,15 +428,18 @@
                     var fund = h.Class == AssetClass.Fund;              // 投信は取得金額（受渡金額）列
                     var fx = h.CostCurrency == Currency.Usd;            // ドル建てのみ約定為替レート列
                     var espp = ShowEspp(h);                              // TSM かつ社員のみ ESPP 列
-                    var gridCls = fund ? "pf-tx-grid-amt"
+                    // 取得金額（拠出した円）列：投信＋円建て株（円で拠出＝為替換算せず元本にする）。ドル建ては約定為替で対応。
+                    var amt = fund || (h.Class != AssetClass.Fund && h.CostCurrency == Currency.Jpy);
+                    var gridCls = amt && espp ? "pf-tx-grid-espp-amt"
+                        : amt ? "pf-tx-grid-amt"
                         : fx && espp ? "pf-tx-grid-fx-espp" : fx ? "pf-tx-grid-fx" : espp ? "pf-tx-grid-espp" : "";
                     @if (!IsMobile)
                     {
                         <div class="pf-tx-grid @gridCls pf-tx-grid-head">
                             <span>約定日</span><span class="pf-num">数量</span><span class="pf-num">@UnitLabel(h)</span>
                             @if (fx) { <span class="pf-num">約定為替</span> }
+                            @if (amt) { <span class="pf-num">取得金額(¥)</span> }
                             @if (espp) { <span class="pf-num">ESPP</span> }
-                            @if (fund) { <span class="pf-num">取得金額</span> }
                             <span></span>
                         </div>
                     }
@@ -452,7 +466,7 @@
                                         <AmountInput CssClass="pf-tx-amt" Decimals="4" Value="@b.UnitPrice" ValueChanged="v => { b.UnitPrice = v; TxDirty(); }" />
                                     </label>
                                 </div>
-                                @if (fx || fund)
+                                @if (fx || amt)
                                 {
                                     <div class="pf-tx-frow">
                                         @if (fx)
@@ -461,9 +475,9 @@
                                                 <AmountInput CssClass="pf-tx-amt" Decimals="2" Value="@b.FxRate" ValueChanged="v => { b.FxRate = v; TxDirty(); }" />
                                             </label>
                                         }
-                                        @if (fund)
+                                        @if (amt)
                                         {
-                                            <label class="pf-tx-f"><span>取得金額</span>
+                                            <label class="pf-tx-f"><span>取得金額(¥)</span>
                                                 <AmountInput CssClass="pf-tx-amt" Decimals="0" Value="@b.Amount" ValueChanged="v => { b.Amount = v; TxDirty(); }" />
                                             </label>
                                         }
@@ -489,13 +503,13 @@
                             {
                                 <AmountInput CssClass="pf-tx-amt" Decimals="2" Value="@b.FxRate" ValueChanged="v => { b.FxRate = v; TxDirty(); }" />
                             }
+                            @if (amt)
+                            {
+                                <AmountInput CssClass="pf-tx-amt" Decimals="0" Value="@b.Amount" ValueChanged="v => { b.Amount = v; TxDirty(); }" />
+                            }
                             @if (espp)
                             {
                                 <input type="checkbox" class="pf-tx-espp" checked="@b.IsEspp" @onchange="e => { b.IsEspp = (bool)(e.Value ?? false); TxDirty(); }" />
-                            }
-                            @if (fund)
-                            {
-                                <AmountInput CssClass="pf-tx-amt" Decimals="0" Value="@b.Amount" ValueChanged="v => { b.Amount = v; TxDirty(); }" />
                             }
                             <button class="x" @onclick="() => { _editBuys.Remove(b); TxDirty(); }">✕</button>
                         </div>
@@ -512,6 +526,10 @@
                     @if (fund)
                     {
                         <div class="pf-hint">「取得金額」に SBI の受渡金額（実際に支払った円）を入れると、その額をそのまま取得原価にします（空欄は 口数×基準価額÷10,000 で計算するため丸め差が出ます）。</div>
+                    }
+                    else if (amt)
+                    {
+                        <div class="pf-hint">円で拠出した銘柄は「取得金額」に実際に支払った円を入れると、その額をそのまま元本にします（為替換算しないのでズレません）。空欄なら 数量×単価 で計算します。</div>
                     }
                 }
                 else
@@ -703,11 +721,51 @@
     private static string Money(Holding h, decimal v) =>
         CurSym(h) + (h.CostCurrency == Currency.Usd ? v.ToString("#,0.##") : v.ToString("#,0"));
     private static string MoneySigned(Holding h, decimal v) => (v > 0 ? "+" : "") + Money(h, v);
-    private static string Price(Holding h, decimal v) => CurSym(h) + v.ToString("#,0.##");
+    // 価格（単価・平均取得単価・現在価格）の通貨。米国株はドルで値が付くので常に $（円建てでも）。日本株・投信は ¥。
+    private static string PriceCcySym(Holding h) => h.Class == AssetClass.UsStock ? "$" : "¥";
+    private static string Price(Holding h, decimal v) => PriceCcySym(h) + v.ToString("#,0.##");
     // 評価額・評価損益は現在価格が無いと算出できないため null 許容。未取得は "—"。
     private static string MoneyOpt(Holding h, decimal? v) => v.HasValue ? Money(h, v.Value) : "—";
     private static string MoneySignedOpt(Holding h, decimal? v) => v.HasValue ? MoneySigned(h, v.Value) : "—";
     private static string PnlClass(decimal v) => v > 0 ? "pf-pos" : v < 0 ? "pf-neg" : "";
+
+    // ── 評価額・評価損益の表示通貨（米国株グループのみ円/ドル切替。日本株・投信は常に円）──
+    // 元本は建て通貨のまま（CostCurrency）。ここで切り替えるのは評価額・評価損益・前日比の表示通貨のみ。
+    private Currency _usCcy = Currency.Jpy;   // 既定は円表示（総資産・元本サマリーと揃える）
+    private void SetUsCcy(Currency c) => _usCcy = c;
+    private Currency DispCcy(Holding h) => h.Class == AssetClass.UsStock ? _usCcy : Currency.Jpy;
+    private static string CcySym(Currency c) => c == Currency.Usd ? "$" : "¥";
+    // 建て通貨(native)額→表示通貨への換算係数。換算が要るのに為替未取得なら 0（呼び出し側で「—」）。
+    private decimal CcyFactor(Holding h)
+    {
+        if (h.Class != AssetClass.UsStock || _usCcy == h.CostCurrency) return 1m;
+        decimal fx = Store.Data.UsdJpyRate;
+        if (fx <= 0) return 0m;
+        return _usCcy == Currency.Jpy ? fx : 1m / fx;
+    }
+    private string MoneyDisp(Holding h, decimal v)
+    {
+        var c = DispCcy(h);
+        return CcySym(c) + (c == Currency.Usd ? v.ToString("#,0.##") : v.ToString("#,0"));
+    }
+    private string MoneyDispSigned(Holding h, decimal v) => (v > 0 ? "+" : "") + MoneyDisp(h, v);
+    private string MoneyDispOpt(Holding h, decimal? v) => v.HasValue ? MoneyDisp(h, v.Value) : "—";
+    private string MoneyDispSignedOpt(Holding h, decimal? v) => v.HasValue ? MoneyDispSigned(h, v.Value) : "—";
+    // 表示通貨での評価額・評価損益（米国株は _usCcy に従う・換算不可は null）。
+    private decimal? ValDisp(Holding h, decimal qty)
+    {
+        var v = Valuation(h, qty);
+        if (!v.HasValue) return null;
+        var f = CcyFactor(h);
+        return f <= 0 ? (decimal?)null : v.Value * f;
+    }
+    private decimal? UpnlDisp(Holding h, HoldingSummary s)
+    {
+        var v = UnrealizedPnl(h, s);
+        if (!v.HasValue) return null;
+        var f = CcyFactor(h);
+        return f <= 0 ? (decimal?)null : v.Value * f;
+    }
     // 評価損益率＝評価損益 ÷ 取得原価 ×100。金額の後ろに " (+12.3%)" として併記。価格未取得・原価0は空。
     private static string PnlPct(decimal? upnl, decimal costBasis)
     {
@@ -715,7 +773,7 @@
         decimal p = upnl.Value / costBasis * 100m;
         return " (" + (p >= 0 ? "+" : "") + p.ToString("0.0") + "%)";
     }
-    private static string UnitLabel(Holding h) => h.Class == AssetClass.Fund ? "基準価額" : "単価";
+    private static string UnitLabel(Holding h) => h.Class == AssetClass.Fund ? "基準価額" : h.Class == AssetClass.UsStock ? "単価($)" : "単価";
     private static string AccountLabel(AccountKind a) => a switch
     {
         AccountKind.NisaGrowth => "NISA成長",
@@ -737,7 +795,32 @@
 
     // ── 現在価格・評価額 ──
     private decimal CurPrice(string holdingId) => Store.Data.CurrentPrices.GetValueOrDefault(holdingId);
+    private decimal PrevPrice(string holdingId) => Store.Data.PrevPrices.GetValueOrDefault(holdingId);
     private static string CurPriceLabel(Holding h) => h.Class == AssetClass.Fund ? "現在基準価額" : "現在価格";
+    // 一覧の現在価格（単価と同じ価格通貨：米国株=$ / 日本株・投信=¥）。未取得は「—」。
+    private string CurPriceDisp(Holding h) { var p = CurPrice(h.Id); return p > 0 ? Price(h, p) : "—"; }
+
+    // ── 前日比（銘柄の値動き。現在/前日のどちらかが無ければ非表示）──
+    // %はネイティブ価格ベース（為替を含まない銘柄の値動き）。金額は評価額の表示通貨に一致させ、
+    // 現在/前日の評価額の差＝銘柄の値動きぶん（為替は現在レートで固定）として出す。
+    private decimal? DayChangePct(Holding h)
+    {
+        decimal cur = CurPrice(h.Id), prev = PrevPrice(h.Id);
+        return (cur > 0 && prev > 0) ? (cur - prev) / prev * 100m : (decimal?)null;
+    }
+    // 前日比（銘柄の値動き％・表示通貨に依らない）。PC は専用「前日比」列に素の％、スマホは損益の下に「前日 …」。
+    private static string DayPct(decimal pct) => (pct >= 0 ? "+" : "") + pct.ToString("0.0") + "%";
+    // 前日比の金額（評価額の表示通貨に合わせる）＝現在/前日の評価額の差。現在/前日のどちらかが無ければ null。
+    private decimal? DayChangeAmount(Holding h, decimal qty)
+    {
+        decimal cur = CurPrice(h.Id), prev = PrevPrice(h.Id);
+        if (cur <= 0 || prev <= 0) return null;
+        var vNow = PortfolioMath.Valuation(h, qty, cur, Store.Data.UsdJpyRate);
+        var vPrev = PortfolioMath.Valuation(h, qty, prev, Store.Data.UsdJpyRate);
+        if (!vNow.HasValue || !vPrev.HasValue) return null;
+        var f = CcyFactor(h);
+        return f <= 0 ? (decimal?)null : (vNow.Value - vPrev.Value) * f;
+    }
 
     private decimal? Valuation(Holding h, decimal qty) =>
         PortfolioMath.Valuation(h, qty, CurPrice(h.Id), Store.Data.UsdJpyRate);
@@ -815,19 +898,25 @@
             int hit = 0, target = stocks.Count + fundHoldings.Count;
             foreach (var h in stocks)
             {
-                if (res.Prices.TryGetValue(YahooSymbol(h).ToUpperInvariant(), out var p) && p > 0)
+                var key = YahooSymbol(h).ToUpperInvariant();
+                if (res.Prices.TryGetValue(key, out var p) && p > 0)
                 {
                     Store.Data.CurrentPrices[h.Id] = p;
                     hit++;
                 }
+                if (res.PrevClose.TryGetValue(key, out var pv) && pv > 0)
+                    Store.Data.PrevPrices[h.Id] = pv;
             }
             foreach (var h in fundHoldings)
             {
-                if (res.FundPrices.TryGetValue(h.AssocFundCd.Trim().ToUpperInvariant(), out var p) && p > 0)
+                var key = h.AssocFundCd.Trim().ToUpperInvariant();
+                if (res.FundPrices.TryGetValue(key, out var p) && p > 0)
                 {
                     Store.Data.CurrentPrices[h.Id] = p;
                     hit++;
                 }
+                if (res.FundPrevClose.TryGetValue(key, out var pv) && pv > 0)
+                    Store.Data.PrevPrices[h.Id] = pv;
             }
             Store.Data.PricedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
             RecordSnapshot();
@@ -1124,7 +1213,7 @@
     private decimal _bQty;
     private decimal _bPrice;
 
-    private string BuyPriceLabel => _nClass == AssetClass.Fund ? "基準価額" : "単価";
+    private string BuyPriceLabel => _nClass == AssetClass.Fund ? "基準価額" : _nClass == AssetClass.UsStock ? "単価($)" : "単価";
 
     private bool CanAdd => !string.IsNullOrWhiteSpace(_nName) && _bQty != 0;
 

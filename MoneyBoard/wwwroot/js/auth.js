@@ -8,6 +8,10 @@
     appId: "1:686851896467:web:5335637a9fd7763778c966"
   };
   firebase.initializeApp(firebaseConfig);
+  // セッションをブラウザに永続保存（既定でも LOCAL だが明示）。
+  // ※ 会社PC等でブラウザがサイトデータ（localStorage/IndexedDB）を消す設定だと、
+  //   ここを明示してもログイン状態は保持できない（Google側Cookieのみ残るのはそのため）。
+  firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(function () {});
 
   var started = false;
   window.mbAuth = {

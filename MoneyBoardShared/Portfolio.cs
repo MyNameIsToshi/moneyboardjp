@@ -89,6 +89,7 @@ public class PortfolioData
 
     // ── 現在価格（価格更新ボタン or 投信の手入力）。評価額・評価損益の算出に使う ──
     public Dictionary<string, decimal> CurrentPrices { get; set; } = new();  // holdingId → 現在単価（ネイティブ通貨・投信は基準価額）
+    public Dictionary<string, decimal> PrevPrices { get; set; } = new();     // holdingId → 前日終値（ネイティブ通貨・投信は前営業日の基準価額）。前日比の算出に使う
     public decimal UsdJpyRate { get; set; }    // 直近の USD/JPY（ドル建て/円建て米国株の円換算に使用）
     public string PricedAt { get; set; } = ""; // 価格更新日時 "yyyy-MM-dd HH:mm"
 }
@@ -113,6 +114,8 @@ public class QuoteResponse
     public decimal UsdJpyRate { get; set; }
     public Dictionary<string, decimal> Prices { get; set; } = new();      // 株シンボル(大文字)→終値（ネイティブ通貨）
     public Dictionary<string, decimal> FundPrices { get; set; } = new();  // 協会コード(大文字)→基準価額（円・1万口あたり）
+    public Dictionary<string, decimal> PrevClose { get; set; } = new();      // 株シンボル(大文字)→前日終値（ネイティブ通貨）
+    public Dictionary<string, decimal> FundPrevClose { get; set; } = new();  // 協会コード(大文字)→前営業日の基準価額（円・1万口あたり）
     public string At { get; set; } = "";   // 取得時刻（UTC）
 }
 
