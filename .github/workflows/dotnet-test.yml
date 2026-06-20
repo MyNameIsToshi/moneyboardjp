@@ -11,6 +11,11 @@ on:
     branches:
       - main
 
+# PR コメント投稿に必要（main への PR 時にカバレッジを固定コメントで出す）
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   unit-tests:
     name: Unit tests (MoneyBoardShared)
@@ -53,3 +58,28 @@ jobs:
             MoneyBoardShared.Tests/TestResults/**/coverage.cobertura.xml
             MoneyBoardApi.Tests/TestResults/**/coverage.cobertura.xml
           if-no-files-found: warn
+
+      # cobertura XML 2本（Shared/API）をマージして markdown サマリを生成
+      - name: Coverage summary
+        if: always()
+        uses: irongut/CodeCoverageSummary@v1.3.0
+        with:
+          filename: "**/coverage.cobertura.xml"
+          badge: true
+          format: markdown
+          output: both          # コンソール＋ code-coverage-results.md
+          hide_complexity: true
+
+      # PR が無い実行（dev push 等）でも Actions の実行ページで数値が見えるように
+      - name: Write coverage to job summary
+        if: always()
+        run: cat code-coverage-results.md >> "$GITHUB_STEP_SUMMARY"
+
+      # main への PR のときだけ、固定コメントを上書き更新で投稿する
+      - name: Post coverage to PR
+        if: always() && github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: coverage
+          recreate: true
+          path: code-coverage-results.md
