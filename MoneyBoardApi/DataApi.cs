@@ -201,8 +201,8 @@ public partial class DataApi(ILogger<DataApi> logger, CosmosClient cosmos, Fireb
         return System.Text.Encoding.UTF8.GetString(ms.GetBuffer(), 0, (int)ms.Length);
     }
 
-    // 異常に巨大なコレクションを拒否（DoS / 破損データ対策）。
-    private static bool IsStructurallyValid(DataEnvelope env, out string reason)
+    // 異常に巨大なコレクションを拒否（DoS / 破損データ対策）。internal=MoneyBoardApi.Tests から検証。
+    internal static bool IsStructurallyValid(DataEnvelope env, out string reason)
     {
         if (env.Settings != null)
         {

@@ -96,8 +96,22 @@ public partial class DataApi
             var url = $"https://query1.finance.yahoo.com/v8/finance/chart/{Uri.EscapeDataString(symbol)}?interval=1d&range=1d";
             using var resp = await QuoteHttp.GetAsync(url);
             if (!resp.IsSuccessStatusCode) return (null, null);
-            using var stream = await resp.Content.ReadAsStreamAsync();
-            using var doc = await JsonDocument.ParseAsync(stream);
+            var json = await resp.Content.ReadAsStringAsync();
+            return ParseYahooQuote(json);
+        }
+        catch
+        {
+            return (null, null);   // 1銘柄の失敗で全体を落とさない
+        }
+    }
+
+    // Yahoo chart レスポンス(JSON)から現在値＋前日終値を抽出する純粋ロジック。internal=テストから検証。
+    // 前日終値は chartPreviousClose（無ければ previousClose）。欠落・不正JSONは null。
+    internal static (decimal? Price, decimal? Prev) ParseYahooQuote(string json)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
             if (!root.TryGetProperty("chart", out var chart)) return (null, null);
             if (!chart.TryGetProperty("result", out var arr)
@@ -106,7 +120,6 @@ public partial class DataApi
             decimal? price = null, prev = null;
             if (meta.TryGetProperty("regularMarketPrice", out var p) && p.ValueKind == JsonValueKind.Number)
                 price = p.GetDecimal();
-            // 前日終値は chartPreviousClose（無ければ previousClose）。前日比の算出に使う。
             if (meta.TryGetProperty("chartPreviousClose", out var pc) && pc.ValueKind == JsonValueKind.Number)
                 prev = pc.GetDecimal();
             else if (meta.TryGetProperty("previousClose", out var pc2) && pc2.ValueKind == JsonValueKind.Number)
@@ -115,7 +128,7 @@ public partial class DataApi
         }
         catch
         {
-            return (null, null);   // 1銘柄の失敗で全体を落とさない
+            return (null, null);
         }
     }
 
@@ -134,28 +147,33 @@ public partial class DataApi
             if (!resp.IsSuccessStatusCode) return (null, null);
             var bytes = await resp.Content.ReadAsByteArrayAsync();
             var text = System.Text.Encoding.Latin1.GetString(bytes);
-
-            // CSVは古い順。最後の有効行＝最新、その1つ前＝前営業日（前日比用）。
-            decimal? latest = null, prev = null;
-            bool first = true;
-            foreach (var line in text.Split('\n'))
-            {
-                if (first) { first = false; continue; }   // ヘッダ
-                var cols = line.Trim().Split(',');
-                if (cols.Length < 2) continue;
-                if (decimal.TryParse(cols[1].Trim(),
-                        System.Globalization.NumberStyles.Any,
-                        System.Globalization.CultureInfo.InvariantCulture, out var v) && v > 0)
-                {
-                    prev = latest;
-                    latest = v;
-                }
-            }
-            return (latest, prev);
+            return ParseFundCsv(text);
         }
         catch
         {
             return (null, null);
         }
+    }
+
+    // 投信協会CSV(Latin1デコード済みテキスト)から最新＋前営業日の基準価額を抽出する純粋ロジック。internal=テストから検証。
+    // CSVは古い順・1行目はヘッダ。基準価額は列[1]。最後の有効行＝最新、その1つ前＝前営業日。
+    internal static (decimal? Latest, decimal? Prev) ParseFundCsv(string text)
+    {
+        decimal? latest = null, prev = null;
+        bool first = true;
+        foreach (var line in text.Split('\n'))
+        {
+            if (first) { first = false; continue; }   // ヘッダ
+            var cols = line.Trim().Split(',');
+            if (cols.Length < 2) continue;
+            if (decimal.TryParse(cols[1].Trim(),
+                    System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out var v) && v > 0)
+            {
+                prev = latest;
+                latest = v;
+            }
+        }
+        return (latest, prev);
     }
 }
