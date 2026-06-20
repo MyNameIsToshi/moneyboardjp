@@ -1,15 +1,29 @@
 using System.Globalization;
 using System.Text.Json;
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
+using Anthropic;
+using Anthropic.Models.Messages;
 using MoneyBoardShared;
 
 namespace MoneyBoardApi;
 
 // カード明細スクリーンショットを Claude(Vision)＋構造化出力で読み取り、CardDetail に変換する。
-// 取得（Anthropic API への HTTP 呼び出し）と解析（このファイルの ParseCardImageResponse）を分離し、
+// 取得（Anthropic API への HTTP 呼び出し＝ExtractCardAsync）と解析（ParseCardImageResponse）を分離し、
 // 解析だけを純粋ロジックとして MoneyBoardApi.Tests から検証する（価格パーサ ParseYahooQuote と同流儀）。
 // 出力型は CardCsvParser.Parse と同じ List<CardDetail> に揃え、既存の取込レビュー/重複除外/自動分類を再利用する。
 public partial class DataApi
 {
+    // Anthropic クライアントはキー設定時のみ生成（未設定環境では null → 503）。Functions Isolated で使い回す。
+    private static readonly AnthropicClient? Anthropic = CreateAnthropic();
+    private static AnthropicClient? CreateAnthropic()
+    {
+        var key = Environment.GetEnvironmentVariable("Anthropic__ApiKey");
+        return string.IsNullOrWhiteSpace(key) ? null : new AnthropicClient { ApiKey = key };
+    }
+
     // Claude へ渡す抽出指示。構造化出力スキーマ（items[] = {date, name, amount}）と対で使う。
     internal const string CardImagePrompt =
         "これはクレジットカードの利用明細のスクリーンショットです。" +
@@ -23,6 +37,85 @@ public partial class DataApi
     internal const string CardImageSchema = """
     {"type":"object","properties":{"items":{"type":"array","items":{"type":"object","properties":{"date":{"type":"string","description":"利用日 yyyy-MM-dd"},"name":{"type":"string","description":"利用先・摘要"},"amount":{"type":"number","description":"金額（返金・割引は負）"}},"required":["date","name","amount"],"additionalProperties":false}}},"required":["items"],"additionalProperties":false}
     """;
+
+    // POST /api/extract-card → カード明細スクショ(base64画像)を Claude(Haiku 4.5・Vision+構造化出力)で読み取り、
+    // CardDetail のリストを返す。承認ユーザーのみ。キーはサーバー側のみ（Anthropic__ApiKey、WASMには置かない）。
+    [Function("ExtractCard")]
+    public async Task<IActionResult> ExtractCard(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "extract-card")] HttpRequest req)
+    {
+        try
+        {
+            var container = GetContainer();
+            var (_, _, authError) = await AuthorizeAsync(container, req);
+            if (authError is not null) return authError;
+
+            if (Anthropic is null) return new StatusCodeResult(StatusCodes.Status503ServiceUnavailable);
+
+            if (req.ContentLength > MaxBodyBytes)
+                return new StatusCodeResult(StatusCodes.Status413RequestEntityTooLarge);
+            var body = await ReadBodyCappedAsync(req.Body);
+            if (body == null) return new StatusCodeResult(StatusCodes.Status413RequestEntityTooLarge);
+            var reqData = JsonSerializer.Deserialize<ExtractCardRequest>(body, JsonOptions) ?? new ExtractCardRequest();
+
+            if (string.IsNullOrWhiteSpace(reqData.Image) || string.IsNullOrWhiteSpace(reqData.CardId))
+                return new BadRequestResult();
+
+            var rows = await ExtractCardAsync(reqData.Image.Trim(), reqData.MediaType, reqData.CardId.Trim());
+            return new OkObjectResult(rows);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "ExtractCard failed");
+            return new StatusCodeResult(StatusCodes.Status502BadGateway);
+        }
+    }
+
+    // 取得：Claude へ画像＋指示を投げ、構造化出力(JSON)を ParseCardImageResponse で CardDetail に変換する薄いラッパ。
+    private static async Task<List<CardDetail>> ExtractCardAsync(string base64Image, string? mediaType, string cardId)
+    {
+        var schema = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(CardImageSchema)!;
+        var resp = await Anthropic!.Messages.Create(new MessageCreateParams
+        {
+            Model = Model.ClaudeHaiku4_5,
+            MaxTokens = 8000,
+            OutputConfig = new OutputConfig { Format = new JsonOutputFormat { Schema = schema } },
+            Messages =
+            [
+                new()
+                {
+                    Role = Role.User,
+                    Content = new List<ContentBlockParam>
+                    {
+                        new ImageBlockParam
+                        {
+                            Source = new Base64ImageSource { Data = base64Image, MediaType = ToMediaType(mediaType) }
+                        },
+                        new TextBlockParam { Text = CardImagePrompt },
+                    },
+                },
+            ],
+        });
+
+        // 構造化出力により先頭の text ブロックは items[] の JSON。
+        var json = resp.Content.Select(b => b.Value).OfType<TextBlock>().FirstOrDefault()?.Text ?? "";
+        return ParseCardImageResponse(json, cardId);
+    }
+
+    private static MediaType ToMediaType(string? m) => (m ?? "").ToLowerInvariant() switch
+    {
+        "image/jpeg" or "image/jpg" => MediaType.ImageJpeg,
+        "image/gif" => MediaType.ImageGif,
+        "image/webp" => MediaType.ImageWebP,
+        _ => MediaType.ImagePng,
+    };
+
+    private sealed class ExtractCardRequest
+    {
+        public string CardId { get; set; } = "";
+        public string Image { get; set; } = "";        // base64（data: プレフィックス無し）
+        public string? MediaType { get; set; }           // "image/png" 等。未指定は png 扱い
+    }
 
     // Claude の構造化出力 JSON（{"items":[{date,name,amount}]}）を CardDetail のリストに変換する純粋ロジック。
     // internal=テストから検証。不正JSON・items 欠落は空リスト。日付不正/名前空/金額不正の行は個別に除外する。
