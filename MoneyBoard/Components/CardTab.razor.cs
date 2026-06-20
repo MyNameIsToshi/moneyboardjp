@@ -215,6 +215,158 @@ public partial class CardTab
         }
     }
 
+    // ── カード明細スクショ読み取り（Claude Vision）。当月へ増分追加（CSVと違い全置換しない）──
+    // X(旧Twitter)風：選択/貼り付けした画像をプレビューで溜め置き（ステージング）し、
+    // 「読み取り開始」でまとめて読み取る。複数回の貼り付け・追加選択ができる。
+    private string? _shotCardId;            // スクショ取込対象カード（ダイアログ表示中は非null）
+    private ElementReference _shotInput;    // 複数選択ファイル input
+    private bool _shotBusy;                 // 読み取り中（多重実行・閉じる操作を抑止）
+    private int _shotTotal, _shotDone;      // 進捗表示用
+    private DotNetObjectReference<CardTab>? _shotRef;   // 貼り付けコールバック用
+    private readonly List<ProcessedImage> _shotStaged = new();   // 溜め置き中の画像
+    private const int ShotMaxDim = 1600;    // 長辺の上限（縮小して本文上限内＋トークン削減）
+    private const double ShotQuality = 0.85;
+    private const int ShotMaxCount = 10;    // 一度に読み取れる枚数の上限
+
+    private async Task OpenShot(string cardId)
+    {
+        _shotCardId = cardId;
+        _shotBusy = false; _shotTotal = 0; _shotDone = 0;
+        _shotStaged.Clear();
+        if (!IsMobile)   // PC は Ctrl+V 貼り付けを購読（スマホは貼り付け非対応）
+        {
+            _shotRef ??= DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("cardImage.attachPaste", _shotRef, ShotMaxDim, ShotQuality);
+        }
+    }
+
+    private async Task CloseShot()
+    {
+        if (_shotBusy) return;
+        if (!IsMobile) await JS.InvokeVoidAsync("cardImage.detachPaste");
+        _shotCardId = null;
+        _shotStaged.Clear();
+    }
+
+    // ファイル選択（複数可）→ JS で縮小 → ステージングへ追加
+    private async Task OnShotFilesSelected()
+    {
+        if (_shotCardId == null || _shotBusy) return;
+        var imgs = await JS.InvokeAsync<ProcessedImage[]>("cardImage.fromInput", _shotInput, ShotMaxDim, ShotQuality);
+        AddToStaging(imgs);
+    }
+
+    // Ctrl+V 貼り付け（JS から呼ばれる）→ ステージングへ追加
+    [JSInvokable]
+    public Task OnPastedImages(ProcessedImage[] imgs)
+    {
+        if (_shotCardId == null || _shotBusy) return Task.CompletedTask;
+        AddToStaging(imgs);
+        return Task.CompletedTask;
+    }
+
+    // 縮小済み画像を溜め置きに加える（上限 ShotMaxCount まで。超過分は捨てて通知）。
+    private void AddToStaging(ProcessedImage[] imgs)
+    {
+        if (imgs == null || imgs.Length == 0) return;
+        int space = ShotMaxCount - _shotStaged.Count;
+        int added = 0;
+        foreach (var im in imgs)
+        {
+            if (added >= space) break;
+            _shotStaged.Add(im);
+            added++;
+        }
+        ImportMessage = added < imgs.Length
+            ? $"画像は一度に最大 {ShotMaxCount} 枚までです（{imgs.Length - added} 枚は追加できませんでした）"
+            : null;
+        StateHasChanged();
+    }
+
+    // プレビュー用の data URL（縮小済み base64 をそのまま表示）。
+    private static string ThumbSrc(ProcessedImage im) => $"data:{im.MediaType};base64,{im.Data}";
+
+    private void RemoveStaged(int index)
+    {
+        if (_shotBusy) return;
+        if (index >= 0 && index < _shotStaged.Count) _shotStaged.RemoveAt(index);
+    }
+
+    // 溜め置きした画像をまとめて読み取る。
+    private async Task StartShotRead()
+    {
+        if (_shotCardId == null || _shotBusy || _shotStaged.Count == 0) return;
+        await ProcessShotImages(_shotStaged.ToArray());
+    }
+
+    // 各画像を /api/extract-card で読み取り、当月へ増分追加する。
+    private async Task ProcessShotImages(ProcessedImage[] imgs)
+    {
+        var cardId = _shotCardId;
+        if (cardId == null || imgs == null || imgs.Length == 0) return;
+
+        _shotBusy = true; _shotTotal = imgs.Length; _shotDone = 0; StateHasChanged();
+
+        var all = new List<CardDetail>();
+        string? error = null;
+        try
+        {
+            foreach (var im in imgs)   // 1枚ずつ呼んで集約
+            {
+                all.AddRange(await Store.ExtractCardImageAsync(cardId, im.Data, im.MediaType));
+                _shotDone++; StateHasChanged();
+            }
+        }
+        catch (AccessPendingException) { error = "アクセス承認待ちのため利用できません。"; }
+        catch (Exception ex) { error = $"スクショの読み取りに失敗しました: {ex.Message}"; }
+
+        if (error != null)
+        {
+            _shotBusy = false; _shotCardId = null; _shotStaged.Clear(); ImportMessage = error;
+            if (!IsMobile) await JS.InvokeVoidAsync("cardImage.detachPaste");
+            StateHasChanged();
+            return;
+        }
+
+        // 当月へ増分追加：カテゴリ自動分類 → 過去月の重複（再掲）除外 → 当月の完全一致を除外 → 追加
+        foreach (var r in all) r.CardId = cardId;
+        Svc.ApplyCategoryRules(all);
+        var (kept, excludedEarlier) = Svc.DedupAgainstEarlierMonths(Svc.CardMonth, cardId, all);
+
+        int excludedHere = 0;
+        var toAdd = new List<CardDetail>();
+        foreach (var r in kept)
+        {
+            bool dup = Mo.CardDetails.Any(d => d.CardId == cardId && d.Date == r.Date && d.Name == r.Name && d.Amount == r.Amount)
+                       || toAdd.Any(d => d.Date == r.Date && d.Name == r.Name && d.Amount == r.Amount);
+            if (dup) { excludedHere++; continue; }   // 再実行・複数枚の重複追加を防ぐ
+            toAdd.Add(r);
+        }
+
+        Mo.CardDetails.AddRange(toAdd);
+        Svc.RecalcCards(Svc.CardMonth);
+        Save();
+
+        var name = Svc.CardById(cardId)?.Name;
+        var label = LedgerService.Label(Svc.CardMonth);
+        int totalExcluded = excludedEarlier + excludedHere;
+        ImportMessage = totalExcluded > 0
+            ? $"「{name}」にスクショから明細 {toAdd.Count} 件を追加しました（{label}・{_shotTotal} 枚／重複 {totalExcluded} 件を除外）"
+            : $"「{name}」にスクショから明細 {toAdd.Count} 件を追加しました（{label}・{_shotTotal} 枚）";
+
+        _shotBusy = false; _shotCardId = null; _shotStaged.Clear();
+        if (!IsMobile) await JS.InvokeVoidAsync("cardImage.detachPaste");
+        StateHasChanged();
+    }
+
+    public void Dispose() => _shotRef?.Dispose();
+
+    public sealed class ProcessedImage
+    {
+        public string Data { get; set; } = "";          // base64（data: プレフィックス無し）
+        public string MediaType { get; set; } = "image/jpeg";
+    }
+
     // ── 一括カテゴリ（利用先ごと・当月適用＋ルール記憶）──
     private const string KeepSentinel = "__keep__";
     private bool ShowBulk;
