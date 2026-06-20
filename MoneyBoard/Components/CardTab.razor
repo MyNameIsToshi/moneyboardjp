@@ -456,7 +456,7 @@
             await stream.CopyToAsync(ms);
             var bytes = ms.ToArray();
             var spec = CardCsvParser.Specs[format];
-            // PayPay と楽天は UTF-8(BOM可)、その他(JCB/Amazon/au PAY)は Shift-JIS。種別ごとにデコードを切り替える。
+            // PayPay と楽天は UTF-8(BOM可)、その他(JCB/三井住友/au PAY)は Shift-JIS。種別ごとにデコードを切り替える。
             bool hasBom = bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF;
             var text = spec.IsUtf8
                 ? System.Text.Encoding.UTF8.GetString(hasBom ? bytes[3..] : bytes)
