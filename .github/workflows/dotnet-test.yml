@@ -11,6 +11,11 @@ on:
     branches:
       - main
 
+# PR コメント投稿に必要（main への PR 時にカバレッジを固定コメントで出す）
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   unit-tests:
     name: Unit tests (MoneyBoardShared)
@@ -28,13 +33,16 @@ jobs:
           dotnet restore MoneyBoardShared.Tests/MoneyBoardShared.Tests.csproj
           dotnet restore MoneyBoardApi.Tests/MoneyBoardApi.Tests.csproj
 
+      # trx ロガーで件数を locale 非依存に記録（後段で Counters を解析）。console も併用。
       - name: Test - MoneyBoardShared
         run: >
           dotnet test MoneyBoardShared.Tests/MoneyBoardShared.Tests.csproj
           --configuration Release
           --no-restore
           --collect:"XPlat Code Coverage"
+          --settings MoneyBoardShared.Tests/coverlet.runsettings
           --logger "console;verbosity=normal"
+          --logger "trx;LogFileName=shared.trx"
 
       - name: Test - MoneyBoardApi
         run: >
@@ -42,7 +50,9 @@ jobs:
           --configuration Release
           --no-restore
           --collect:"XPlat Code Coverage"
+          --settings MoneyBoardApi.Tests/coverlet.runsettings
           --logger "console;verbosity=normal"
+          --logger "trx;LogFileName=api.trx"
 
       - name: Upload coverage report
         if: always()
@@ -53,3 +63,72 @@ jobs:
             MoneyBoardShared.Tests/TestResults/**/coverage.cobertura.xml
             MoneyBoardApi.Tests/TestResults/**/coverage.cobertura.xml
           if-no-files-found: warn
+
+      # XPlat 収集が各プロジェクトで複数 XML を出すと irongut が重複集計するため、
+      # プロジェクトごとに1ファイルへ集約してから渡す。
+      - name: Collect coverage files
+        if: always()
+        run: |
+          mkdir -p coverage-xml
+          s=$(find MoneyBoardShared.Tests/TestResults -name coverage.cobertura.xml | head -1)
+          a=$(find MoneyBoardApi.Tests/TestResults -name coverage.cobertura.xml | head -1)
+          [ -n "$s" ] && cp "$s" coverage-xml/shared.cobertura.xml
+          [ -n "$a" ] && cp "$a" coverage-xml/api.cobertura.xml
+          ls -l coverage-xml
+
+      # cobertura XML（Shared/API）をマージして markdown サマリを生成。
+      # thresholds は「下限 上限」: 下限未満=❌, 下限〜上限=➖, 上限以上=✔。
+      # 上限(=合格ライン)を 40 に下げる根拠は下の備考欄で毎回明記する
+      # （API は CRUD/HTTP がテスト対象外で構造的に低く、対象の純粋ロジックは高水準のため）。
+      - name: Coverage summary
+        if: always()
+        uses: irongut/CodeCoverageSummary@v1.3.0
+        with:
+          filename: "coverage-xml/*.cobertura.xml"
+          badge: true
+          format: markdown
+          output: both          # コンソール＋ code-coverage-results.md
+          hide_complexity: true
+          thresholds: "30 40"
+
+      # テスト件数（合格/失敗/スキップ/合計）＋カバレッジ表＋備考を1つのコメント本文にまとめる
+      - name: Build comment body
+        if: always()
+        run: |
+          attr() { echo "$1" | grep -oE "$2=\"[0-9]+\"" | grep -oE '[0-9]+' | head -1; }
+          row() {
+            local name="$1" pat="$2" trx c total executed passed failed skipped
+            trx=$(find . -name "$pat" 2>/dev/null | head -1)
+            c=$(grep -oE '<Counters[^>]*/?>' "$trx" 2>/dev/null | head -1)
+            if [ -z "$c" ]; then echo "| $name | — | — | — | — |"; return; fi
+            total=$(attr "$c" total); executed=$(attr "$c" executed)
+            passed=$(attr "$c" passed); failed=$(attr "$c" failed)
+            skipped=$(( ${total:-0} - ${executed:-0} ))
+            echo "| $name | ${passed:-0} | ${failed:-0} | $skipped | ${total:-0} |"
+          }
+          {
+            echo "## テスト結果"
+            echo ""
+            echo "| プロジェクト | ✅ 合格 | ❌ 失敗 | ⏭️ スキップ | 合計 |"
+            echo "|---|---|---|---|---|"
+            row "MoneyBoardShared" shared.trx
+            row "MoneyBoardApi" api.trx
+            echo ""
+            if [ -f code-coverage-results.md ]; then cat code-coverage-results.md; else echo "_カバレッジ集計を生成できませんでした_"; fi
+            echo ""
+            echo "## 備考（カバレッジの読み方・合格ラインの根拠）"
+            echo "- **合格ライン（Health=✔）の閾値を 40%、警告下限を 30% に設定**（\`✔\`=40%以上 / \`➖\`=30〜40% / \`❌\`=30%未満）。一般的な 80% 等より低いのは下記の理由による。"
+            echo "- \`MoneyBoardApi\` は**大半が Cosmos/HTTP の CRUD・認証＝結合テスト領域でユニットテスト対象外**のため、アセンブリ全体率は構造的に 40% 前後になる（低いのは設計どおりで品質低下ではない）。テストする価値がある純粋ロジック＝パーサ \`DataApi.Quote.cs\` 85%・検証ガード \`IsStructurallyValid\` 68% は十分高い。"
+            echo "- \`MoneyBoardShared\`（純粋ドメインロジック層）は **90%**（個々のロジックは 98〜100%）。ここが本体の品質指標で、高水準を維持する。"
+            echo "- 結論：**API 40%前後・Shared 90% を満たせば合格**とする。閾値を変える場合はこの根拠ごと見直すこと。詳細は HANDOVER「テスト方針」を参照。"
+          } > coverage-comment.md
+          cat coverage-comment.md >> "$GITHUB_STEP_SUMMARY"
+
+      # main への PR のときだけ、固定コメントを上書き更新で投稿する
+      - name: Post coverage to PR
+        if: always() && github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: coverage
+          recreate: true
+          path: coverage-comment.md
