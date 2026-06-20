@@ -87,6 +87,15 @@ public class PortfolioMathTests
     }
 
     [Fact]
+    public void Summarize_NoBuys_ReturnsZeros()
+    {
+        var s = PortfolioMath.Summarize(H(), Array.Empty<BuyLot>(), Array.Empty<SellLot>(), Array.Empty<Dividend>());
+        Assert.Equal(0m, s.Quantity);
+        Assert.Equal(0m, s.AvgUnitPrice);     // 買付なし＝加重平均0（ゼロ除算しない）
+        Assert.Equal(0m, s.CostBasis);
+    }
+
+    [Fact]
     public void Valuation_ZeroQuantityIsZero_NoPriceIsNull()
     {
         var h = H();

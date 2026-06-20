@@ -1,6 +1,7 @@
 # .NET
 **/bin/
 **/obj/
+**/TestResults/
 
 # Secrets
 **/local.settings.json

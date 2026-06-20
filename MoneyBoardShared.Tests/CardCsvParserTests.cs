@@ -78,4 +78,27 @@ public class CardCsvParserTests
         foreach (CardCsvFormat fmt in Enum.GetValues<CardCsvFormat>())
             Assert.True(CardCsvParser.Specs.ContainsKey(fmt), $"{fmt} のフォーマット定義が無い");
     }
+
+    [Fact]
+    public void Parse_SkipsRowsWithTooFewColumns_AndUnparsableAmount()
+    {
+        // JCB は最低5列必要。列不足・金額が数値でない行は黙って除外される。
+        var csv = string.Join("\n",
+            "A,B,2026/04/01",                  // 列不足（金額列なし）→除外
+            "A,B,2026/04/02,店,---",            // 金額が数値でない→除外
+            "A,B,2026/04/03,店,500");           // 正常
+        var rows = CardCsvParser.Parse(CardCsvFormat.Jcb, csv, "c");
+
+        Assert.Equal(500m, Assert.Single(rows).Amount);
+    }
+
+    [Fact]
+    public void Parse_UnescapesDoubledQuoteInsideQuotedField()
+    {
+        // RFC4180：引用フィールド内の "" は1個の " を表す。
+        var csv = "A,B,2026/04/01,\"24\"\"モニター\",30000";
+        var rows = CardCsvParser.Parse(CardCsvFormat.Jcb, csv, "c");
+
+        Assert.Equal("24\"モニター", Assert.Single(rows).Name);
+    }
 }
