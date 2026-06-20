@@ -1,5 +1,14 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
+  <!--
+    役割（憲章）：フロント(Blazor WASM)とバックエンド(Functions API)の共有ライブラリ。
+      - 共通の契約・モデル（Models / StorageContracts）… API も使用
+      - UI/永続化に依存しない純粋ドメインロジック（LedgerMath / LedgerEngine /
+        PortfolioMath / CardCsvParser / SchemaMigration / Ym）… 現状フロント専用だが、
+        「純粋＝テスト可能」な置き場としてここに集約する（MoneyBoardShared.Tests から検証）。
+    ※ ここには UI（Razor）・JS interop・HTTP・Cosmos など外部依存を持ち込まない。
+  -->
+
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>

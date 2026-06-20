@@ -29,5 +29,10 @@
     <ProjectReference Include="..\MoneyBoardShared\MoneyBoardShared.csproj" />
   </ItemGroup>
 
+  <!-- テストプロジェクトから internal の純粋ロジック（IsStructurallyValid / 価格パーサ）を検証する -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="MoneyBoardApi.Tests" />
+  </ItemGroup>
+
 </Project>
 

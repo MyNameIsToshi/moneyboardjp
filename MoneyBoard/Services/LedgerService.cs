@@ -100,21 +100,8 @@ public class LedgerService(AppStateStore store)
     }
 
     // ── カード明細 → 月次 Debit 反映 ──────────────────
-    // 各カードの「その月の明細合計」を、紐づく口座の Debit(CardId付き) に反映する。
-    private void ExpandCards(string ym, MonthData mo)
-    {
-        foreach (var card in State.Cards.Where(c => !c.IsDeleted).OrderBy(c => c.SortOrder))
-        {
-            if (!mo.Ledgers.TryGetValue(card.AccountId, out var ledger)) continue;
-            var sum = mo.CardDetails.Where(d => d.CardId == card.Id).Sum(d => d.Amount);
-            // 請求額が設定されていれば口座引き落としはその額（リボ・分割）。未設定なら明細合計＝一括。
-            var amount = mo.CardBilled.TryGetValue(card.Id, out var billed) ? billed : sum;
-            var debit = ledger.Debits.FirstOrDefault(d => d.CardId == card.Id);
-            if (debit == null)
-                ledger.Debits.Add(new Debit { Name = card.Name, Amount = amount, CardId = card.Id });
-            else { debit.Name = card.Name; debit.Amount = amount; }
-        }
-    }
+    // 計算本体は LedgerEngine.ExpandCards（純粋ロジック・テスト対象）へ委譲する。
+    private void ExpandCards(string ym, MonthData mo) => LedgerEngine.ExpandCards(State, mo);
 
     // カードの「今月の請求額」を取得（null=未設定＝一括払い）。
     public decimal? CardBilledOf(string ym, string cardId) =>
@@ -184,41 +171,7 @@ public class LedgerService(AppStateStore store)
     // リボ/分割は完済まで毎月CSVに同じ明細が再掲されるため、初出月だけ残して二重計上を防ぐ。
     // 照合は ym より前の月のみ（＝最初の出現を残す。月をまたぐ取込は時系列順が前提）。
     public (List<CardDetail> kept, int excluded) DedupAgainstEarlierMonths(string ym, string cardId, List<CardDetail> parsed)
-    {
-        var earlier = new HashSet<string>();
-        foreach (var (m, mo) in State.Months)
-        {
-            if (string.Compare(m, ym) >= 0) continue;   // ym 以降は対象外（初出を残すため過去のみ照合）
-            foreach (var d in mo.CardDetails.Where(d => d.CardId == cardId))
-                earlier.Add(DetailKey(d));
-        }
-
-        var kept = new List<CardDetail>();
-        int excluded = 0;
-        foreach (var d in parsed)
-        {
-            if (earlier.Contains(DetailKey(d))) { excluded++; continue; }
-            kept.Add(d);
-        }
-        return (kept, excluded);
-    }
-
-    private static string DetailKey(CardDetail d) => $"{d.Date}|{NormalizeStore(d.Name)}|{d.Amount}";
-
-    // 請求先の表記ゆれ吸収：全角ASCII・全角空白を半角化し、前後/連続空白を正規化する。
-    // String.Normalize は WASM(browser) 非対応のため、globalization API を使わず手動変換する。
-    private static string NormalizeStore(string? s)
-    {
-        if (string.IsNullOrEmpty(s)) return "";
-        var sb = new System.Text.StringBuilder(s.Length);
-        foreach (var ch in s)
-        {
-            if (ch >= '！' && ch <= '～') sb.Append((char)(ch - 0xFEE0));  // 全角ASCII→半角
-            else if (ch == '　') sb.Append(' ');                                // 全角空白→半角
-            else sb.Append(ch);
-        }
-        return string.Join(' ', sb.ToString().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
-    }
+        => LedgerEngine.DedupAgainstEarlierMonths(State, ym, cardId, parsed);
 
     // ── カテゴリ/カード参照 ──────────────────────────
     public List<Category> CategoriesOrdered => State.Categories.OrderBy(c => c.SortOrder).ToList();
@@ -228,51 +181,18 @@ public class LedgerService(AppStateStore store)
     public Card? CardById(string id) => State.Cards.FirstOrDefault(c => c.Id == id);
 
     // ── 固定費計算 ───────────────────────────────────
-    public static bool IsFixedCostActive(FixedCost fc, string ym)
-    {
-        var target = Ym.Parse(ym);
-        if (fc.StartBound() is { } start && target < start) return false;
-        if (fc.EndBound() is { } end && target > end) return false;
-        return true;
-    }
+    public static bool IsFixedCostActive(FixedCost fc, string ym) => LedgerEngine.IsFixedCostActive(fc, ym);
 
-    public static decimal GetFixedCostAmount(FixedCost fc, int month)
-    {
-        var bonus = fc.BonusSettings.FirstOrDefault(b => b.Month == month);
-        return bonus?.Type switch
-        {
-            BonusType.Add => fc.Amount + bonus.Amount,
-            BonusType.Separate => bonus.Amount,
-            _ => fc.Amount
-        };
-    }
+    public static decimal GetFixedCostAmount(FixedCost fc, int month) => LedgerEngine.GetFixedCostAmount(fc, month);
 
     // ── 残高計算 ─────────────────────────────────────
-    // 月初残高 = 前月末から自動連鎖。前月の同口座台帳が無い「起点月」のみ開始残高(Confirmed)を使う。
-    public decimal OpeningOf(string ym, string accountId)
-    {
-        if (!State.Months.TryGetValue(ym, out var mo)) return 0;
-        if (!mo.Ledgers.TryGetValue(accountId, out var l)) return 0;
-        var prev = PrevYm(ym);
-        return State.Months.TryGetValue(prev, out var pm) && pm.Ledgers.ContainsKey(accountId)
-            ? CloseOf(prev, accountId)
-            : l.Confirmed;
-    }
+    // 月初/月末残高は前月末から自動連鎖。計算本体は LedgerEngine（純粋ロジック・テスト対象）へ委譲する。
+    public decimal OpeningOf(string ym, string accountId) => LedgerEngine.OpeningOf(State, ym, accountId);
 
     // 起点月（前月の同口座台帳が無い）か。起点月だけ開始残高を手入力できる。
-    public bool IsOpeningAnchor(string ym, string accountId)
-    {
-        var prev = PrevYm(ym);
-        return !(State.Months.TryGetValue(prev, out var pm) && pm.Ledgers.ContainsKey(accountId));
-    }
+    public bool IsOpeningAnchor(string ym, string accountId) => LedgerEngine.IsOpeningAnchor(State, ym, accountId);
 
-    public decimal CloseOf(string ym, string accountId)
-    {
-        if (!State.Months.TryGetValue(ym, out var mo)) return 0;
-        if (!mo.Ledgers.ContainsKey(accountId)) return 0;
-        var account = State.Accounts.FirstOrDefault(a => a.Id == accountId);
-        return LedgerMath.Close(mo, accountId, OpeningOf(ym, accountId), account?.IsBonusAccount == true);
-    }
+    public decimal CloseOf(string ym, string accountId) => LedgerEngine.CloseOf(State, ym, accountId);
 
     // ── 口座/固定費の参照・操作 ──────────────────────
     public string? AccountName(string id) => State.Accounts.FirstOrDefault(a => a.Id == id)?.Name;

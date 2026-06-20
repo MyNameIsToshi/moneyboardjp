@@ -78,4 +78,45 @@ public static class PortfolioMath
             return usdJpyRate > 0 ? raw * usdJpyRate : (decimal?)null;
         return raw;
     }
+
+    /// <summary>
+    /// 指定日（"yyyy-MM-dd"）時点の取得原価合計（円換算）。買付/売却を日付で絞り平均取得単価法で算出。
+    /// ドル建ては買付ロットごとの「約定為替レート」で円換算（実際の拠出円に一致）。約定レート未設定ロットは
+    /// fallback（snapRate&gt;0 ならそれ、無ければ data.UsdJpyRate）で代用。
+    /// </summary>
+    public static decimal CostBasisJpyAsOf(PortfolioData data, string date, decimal snapRate)
+    {
+        decimal total = 0m;
+        decimal fallback = snapRate > 0 ? snapRate : data.UsdJpyRate;   // 約定レート未設定ロットの代用
+        foreach (var h in data.Holdings.Where(h => !h.IsDeleted))
+        {
+            int divsor = Divisor(h.Class);
+            var buys = data.Buys.Where(b => b.HoldingId == h.Id && string.CompareOrdinal(b.Date, date) <= 0).ToList();
+            // 配当再投資株（取得コスト$0）も as-of で取得数量に含める（Summarize と整合）
+            decimal reinvest = data.Dividends.Where(d => d.HoldingId == h.Id && string.CompareOrdinal(d.Date, date) <= 0).Sum(d => d.Quantity);
+            if (buys.Count == 0 && reinvest == 0) continue;
+            decimal bq = buys.Sum(b => b.Quantity) + reinvest;
+            decimal sq = data.Sells.Where(s => s.HoldingId == h.Id && string.CompareOrdinal(s.Date, date) <= 0).Sum(s => s.Quantity);
+            decimal qty = bq - sq;
+            if (qty <= 0 || bq <= 0) continue;
+
+            // 1ロットの実取得原価（建て通貨）。Amount(受渡金額)があればそのまま、無ければ数量×単価÷Divisor×ESPP係数。
+            decimal LotNative(BuyLot b) => b.Amount > 0 ? b.Amount : b.Quantity * b.UnitPrice * CostFactor(b) / divsor;
+            // 取得総額（円）。ドル建ては各ロットを約定レート(無ければ fallback)で円換算。
+            decimal boughtJpy = h.CostCurrency == Currency.Usd
+                ? buys.Sum(b => LotNative(b) * (b.FxRate > 0 ? b.FxRate : fallback))
+                : buys.Sum(LotNative);
+            // 現在保有分の元本＝取得総額 ×(現在数量 / 取得数量)。再投資株は$0で取得総額に寄与しないので平均が薄まる。
+            total += boughtJpy * (qty / bq);
+        }
+        return total;
+    }
+
+    /// <summary>Yahoo Finance 用シンボル。日本株は証券コードに .T を付与（既に "." 付きはそのまま）、米国株はティッカーそのまま。</summary>
+    public static string YahooSymbol(Holding h)
+    {
+        var s = h.Symbol.Trim();
+        if (h.Class == AssetClass.JpStock && s.Length > 0 && !s.Contains('.')) return s + ".T";
+        return s;
+    }
 }

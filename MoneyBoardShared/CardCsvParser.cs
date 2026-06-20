@@ -1,11 +1,10 @@
 using System.Globalization;
 using System.Text;
-using MoneyBoardShared;
 
-namespace MoneyBoard.Services;
+namespace MoneyBoardShared;
 
-/// <summary>取り込めるカード明細 CSV の種別。</summary>
-public enum CardCsvFormat { Jcb, Amazon, PayPay, AuPay }
+/// <summary>取り込めるカード明細 CSV の種別。Vpass=三井住友カード（Vpass明細CSV。Amazon Mastercard 等）。</summary>
+public enum CardCsvFormat { Jcb, Vpass, PayPay, AuPay, Rakuten }
 
 /// <summary>
 /// カード明細 CSV を種別ごとの列マッピングでパースして CardDetail のリストにする。
@@ -22,13 +21,16 @@ public static class CardCsvParser
         new Dictionary<CardCsvFormat, FormatSpec>
         {
             // JCB:    [2]利用日 [3]利用先 [4]金額（先頭にカード情報・末尾に合計）
-            [CardCsvFormat.Jcb]    = new("JCB",           IsUtf8: false, DateCol: 2, NameCol: 3, AmountCol: 4),
-            // Amazon Mastercard: [0]利用日 [1]利用先 [2]金額（1行目=カード情報・末尾=合計行）
-            [CardCsvFormat.Amazon] = new("Amazon Master", IsUtf8: false, DateCol: 0, NameCol: 1, AmountCol: 2),
+            [CardCsvFormat.Jcb]     = new("JCBカード",      IsUtf8: false, DateCol: 2, NameCol: 3, AmountCol: 4),
+            // Vpass=三井住友カード(Vpass明細CSV。Amazon Mastercard 等): [0]利用日 [1]利用先 [2]金額（1行目=カード情報・末尾=合計行）
+            [CardCsvFormat.Vpass]   = new("三井住友カード", IsUtf8: false, DateCol: 0, NameCol: 1, AmountCol: 2),
             // PayPay(UTF-8): [0]利用日 [1]利用店名 [5]利用金額（ヘッダ行あり）
-            [CardCsvFormat.PayPay] = new("PayPay",        IsUtf8: true,  DateCol: 0, NameCol: 1, AmountCol: 5),
+            [CardCsvFormat.PayPay]  = new("PayPayカード",   IsUtf8: true,  DateCol: 0, NameCol: 1, AmountCol: 5),
             // au PAY: [2]ご利用日 [3]ご利用店名 [4]ご利用金額（ヘッダ行あり）
-            [CardCsvFormat.AuPay]  = new("au PAY",        IsUtf8: false, DateCol: 2, NameCol: 3, AmountCol: 4),
+            [CardCsvFormat.AuPay]   = new("au PAYカード",   IsUtf8: false, DateCol: 2, NameCol: 3, AmountCol: 4),
+            // 楽天カード(enavi): [0]利用日 [1]利用店舗・商品名 [4]利用金額。UTF-8(BOM付き)。
+            // 実CSV(enavi)で検証済み。列=利用日/利用店舗・商品名/利用者/支払方法/利用金額/手数料・利息/支払総額/…/当月請求額/繰越残高/新規サイン。
+            [CardCsvFormat.Rakuten] = new("楽天カード",    IsUtf8: true,  DateCol: 0, NameCol: 1, AmountCol: 4),
         };
 
     public static List<CardDetail> Parse(CardCsvFormat format, string text, string cardId)
