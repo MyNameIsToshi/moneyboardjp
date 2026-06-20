@@ -1,8 +1,7 @@
 using System.Globalization;
 using System.Text;
-using MoneyBoardShared;
 
-namespace MoneyBoard.Services;
+namespace MoneyBoardShared;
 
 /// <summary>取り込めるカード明細 CSV の種別。</summary>
 public enum CardCsvFormat { Jcb, Amazon, PayPay, AuPay }
