@@ -4,7 +4,7 @@ using System.Text;
 namespace MoneyBoardShared;
 
 /// <summary>取り込めるカード明細 CSV の種別。</summary>
-public enum CardCsvFormat { Jcb, Amazon, PayPay, AuPay }
+public enum CardCsvFormat { Jcb, Amazon, PayPay, AuPay, Rakuten }
 
 /// <summary>
 /// カード明細 CSV を種別ごとの列マッピングでパースして CardDetail のリストにする。
@@ -21,13 +21,16 @@ public static class CardCsvParser
         new Dictionary<CardCsvFormat, FormatSpec>
         {
             // JCB:    [2]利用日 [3]利用先 [4]金額（先頭にカード情報・末尾に合計）
-            [CardCsvFormat.Jcb]    = new("JCB",           IsUtf8: false, DateCol: 2, NameCol: 3, AmountCol: 4),
+            [CardCsvFormat.Jcb]     = new("JCB",           IsUtf8: false, DateCol: 2, NameCol: 3, AmountCol: 4),
             // Amazon Mastercard: [0]利用日 [1]利用先 [2]金額（1行目=カード情報・末尾=合計行）
-            [CardCsvFormat.Amazon] = new("Amazon Master", IsUtf8: false, DateCol: 0, NameCol: 1, AmountCol: 2),
+            [CardCsvFormat.Amazon]  = new("Amazon Master", IsUtf8: false, DateCol: 0, NameCol: 1, AmountCol: 2),
             // PayPay(UTF-8): [0]利用日 [1]利用店名 [5]利用金額（ヘッダ行あり）
-            [CardCsvFormat.PayPay] = new("PayPay",        IsUtf8: true,  DateCol: 0, NameCol: 1, AmountCol: 5),
+            [CardCsvFormat.PayPay]  = new("PayPay",        IsUtf8: true,  DateCol: 0, NameCol: 1, AmountCol: 5),
             // au PAY: [2]ご利用日 [3]ご利用店名 [4]ご利用金額（ヘッダ行あり）
-            [CardCsvFormat.AuPay]  = new("au PAY",        IsUtf8: false, DateCol: 2, NameCol: 3, AmountCol: 4),
+            [CardCsvFormat.AuPay]   = new("au PAY",        IsUtf8: false, DateCol: 2, NameCol: 3, AmountCol: 4),
+            // 楽天カード(enavi): [0]利用日 [1]利用店名・商品名 [4]利用金額（ヘッダ行あり・末尾に明細外の集計行）
+            // ※ 標準的な enavi 明細CSV の列構成。実CSV未検証（楽天カード入手時に列ズレを確認）。
+            [CardCsvFormat.Rakuten] = new("楽天カード",    IsUtf8: false, DateCol: 0, NameCol: 1, AmountCol: 4),
         };
 
     public static List<CardDetail> Parse(CardCsvFormat format, string text, string cardId)
