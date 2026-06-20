@@ -1,0 +1,43 @@
+name: Tests
+
+# dev への push と main への PR で単体テストを自動実行する。
+# main への PR では、このチェックを必須にする（Settings → Branches の保護ルール）ことで
+# テストが緑でないとマージできないマージゲートになる。
+on:
+  push:
+    branches:
+      - dev
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  unit-tests:
+    name: Unit tests (MoneyBoardShared)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore MoneyBoardShared.Tests/MoneyBoardShared.Tests.csproj
+
+      - name: Test (with coverage)
+        run: >
+          dotnet test MoneyBoardShared.Tests/MoneyBoardShared.Tests.csproj
+          --configuration Release
+          --no-restore
+          --collect:"XPlat Code Coverage"
+          --logger "console;verbosity=normal"
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: MoneyBoardShared.Tests/TestResults/**/coverage.cobertura.xml
+          if-no-files-found: warn
