@@ -38,22 +38,23 @@ public class CardCsvParserTests
     }
 
     [Fact]
-    public void Parse_Rakuten_StandardEnaviLayout()
+    public void Parse_Rakuten_RealEnaviLayout()
     {
-        // 楽天(enavi): [0]利用日 [1]利用店名・商品名 [4]利用金額。ヘッダ行と、日付の無い内訳行は除外される。
+        // 楽天(enavi)の実ヘッダ：[0]利用日 [1]利用店舗・商品名 [4]利用金額。ヘッダ行・末尾の集計行は除外される。
+        // ※ Parse は復号済みテキストを受けるため文字コード(UTF-8 BOM)はここでは関与しない（デコードは CardTab 側）。
         var csv = string.Join("\n",
-            "利用日,利用店名・商品名,利用者,支払方法,利用金額,支払手数料,支払総額",
-            "2026/01/20,楽天市場,本人,1回払い,3000,0,3000",
-            "2026/01/22,スーパー,本人,1回払い,\"2,480\",0,2480",
-            ",分割内訳,本人,分割,1000,0,1000");        // 日付なし継続行→除外
+            "利用日,利用店舗・商品名,利用者,支払方法,利用金額,手数料/利息,支払総額,6月支払金額,当月請求額,7月繰越残高,新規サイン",
+            "2026/05/11,楽天キャッシュチャージ,本人,1回払い,10000,0,10000,10000,10000,0,*",
+            "2026/05/02,ＥＮＥＯＳ－ＳＳ,本人,1回払い,\"2,480\",0,2480,2480,2480,0,*");
 
         var rows = CardCsvParser.Parse(CardCsvFormat.Rakuten, csv, "rk");
 
         Assert.Equal(2, rows.Count);
-        Assert.Equal("2026-01-20", rows[0].Date);
-        Assert.Equal("楽天市場", rows[0].Name);
-        Assert.Equal(3000m, rows[0].Amount);
-        Assert.Equal(2480m, rows[1].Amount);
+        Assert.Equal("2026-05-11", rows[0].Date);
+        Assert.Equal("楽天キャッシュチャージ", rows[0].Name);
+        Assert.Equal(10000m, rows[0].Amount);
+        Assert.Equal("ＥＮＥＯＳ－ＳＳ", rows[1].Name);
+        Assert.Equal(2480m, rows[1].Amount);          // カンマ区切り金額もパース
     }
 
     [Fact]

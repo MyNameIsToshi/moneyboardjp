@@ -28,9 +28,9 @@ public static class CardCsvParser
             [CardCsvFormat.PayPay]  = new("PayPay",        IsUtf8: true,  DateCol: 0, NameCol: 1, AmountCol: 5),
             // au PAY: [2]ご利用日 [3]ご利用店名 [4]ご利用金額（ヘッダ行あり）
             [CardCsvFormat.AuPay]   = new("au PAY",        IsUtf8: false, DateCol: 2, NameCol: 3, AmountCol: 4),
-            // 楽天カード(enavi): [0]利用日 [1]利用店名・商品名 [4]利用金額（ヘッダ行あり・末尾に明細外の集計行）
-            // ※ 標準的な enavi 明細CSV の列構成。実CSV未検証（楽天カード入手時に列ズレを確認）。
-            [CardCsvFormat.Rakuten] = new("楽天カード",    IsUtf8: false, DateCol: 0, NameCol: 1, AmountCol: 4),
+            // 楽天カード(enavi): [0]利用日 [1]利用店舗・商品名 [4]利用金額。UTF-8(BOM付き)。
+            // 実CSV(enavi)で検証済み。列=利用日/利用店舗・商品名/利用者/支払方法/利用金額/手数料・利息/支払総額/…/当月請求額/繰越残高/新規サイン。
+            [CardCsvFormat.Rakuten] = new("楽天カード",    IsUtf8: true,  DateCol: 0, NameCol: 1, AmountCol: 4),
         };
 
     public static List<CardDetail> Parse(CardCsvFormat format, string text, string cardId)
