@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- カバレッジ計測のスコープを MoneyBoardShared.dll に限定する。
+     これが無いと、参照しているだけで実行しない他アセンブリや生成コードまで 0% で計上され、
+     カバレッジ率が実態より低く出てしまう。 -->
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat code coverage">
+        <Configuration>
+          <Format>cobertura</Format>
+          <!-- 計測対象は MoneyBoardShared のみ（テストアセンブリ・他参照は除外） -->
+          <Include>[MoneyBoardShared]*</Include>
+          <!-- 自動生成・コンパイラ生成・明示除外のコードは計測しない -->
+          <ExcludeByAttribute>GeneratedCodeAttribute,CompilerGeneratedAttribute,ExcludeFromCodeCoverageAttribute</ExcludeByAttribute>
+          <ExcludeByFile>**/obj/**/*.cs</ExcludeByFile>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>

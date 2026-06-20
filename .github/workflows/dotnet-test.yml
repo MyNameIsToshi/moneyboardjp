@@ -39,6 +39,7 @@ jobs:
           --configuration Release
           --no-restore
           --collect:"XPlat Code Coverage"
+          --settings MoneyBoardShared.Tests/coverlet.runsettings
           --logger "console;verbosity=normal"
 
       - name: Test - MoneyBoardApi
@@ -47,6 +48,7 @@ jobs:
           --configuration Release
           --no-restore
           --collect:"XPlat Code Coverage"
+          --settings MoneyBoardApi.Tests/coverlet.runsettings
           --logger "console;verbosity=normal"
 
       - name: Upload coverage report

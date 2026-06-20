@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- カバレッジ計測のスコープを MoneyBoardApi.dll に限定する。
+     これが無いと、参照する MoneyBoardShared 全体や Functions の自動生成コード（*.g.cs）まで
+     0% で計上され、API のカバレッジ率が実態より大きく薄まる。
+     ※ API は大半が Cosmos/HTTP オーケストレーション（テスト対象外＝設計どおり）のため、
+        スコープを正してもパーサ・検証ガード以外は 0% に近い点は想定どおり。 -->
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat code coverage">
+        <Configuration>
+          <Format>cobertura</Format>
+          <!-- 計測対象は MoneyBoardApi のみ（Shared・テストアセンブリは除外） -->
+          <Include>[MoneyBoardApi]*</Include>
+          <!-- 自動生成（Functions SDK の *.g.cs 等）・コンパイラ生成・明示除外は計測しない -->
+          <ExcludeByAttribute>GeneratedCodeAttribute,CompilerGeneratedAttribute,ExcludeFromCodeCoverageAttribute</ExcludeByAttribute>
+          <ExcludeByFile>**/obj/**/*.cs</ExcludeByFile>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>
