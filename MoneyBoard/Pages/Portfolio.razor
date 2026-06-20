@@ -864,13 +864,8 @@
     private bool _updating;
     private string? _updateMsg;
 
-    // 日本株は証券コードに .T を付与、米国株はティッカーそのまま（既に "." 付きはそのまま使う）。
-    private static string YahooSymbol(Holding h)
-    {
-        var s = h.Symbol.Trim();
-        if (h.Class == AssetClass.JpStock && s.Length > 0 && !s.Contains('.')) return s + ".T";
-        return s;
-    }
+    // 日本株は証券コードに .T を付与、米国株はティッカーそのまま。計算本体は PortfolioMath（純粋ロジック・テスト対象）。
+    private static string YahooSymbol(Holding h) => PortfolioMath.YahooSymbol(h);
 
     private async Task UpdatePrices(bool manual = true)
     {
@@ -1169,35 +1164,9 @@
         _trendRev++;
     }
 
-    // 指定日（"yyyy-MM-dd"）時点の取得原価合計（円換算）。買付/売却を日付で絞り平均取得単価法で算出。
-    // ドル建ては買付ロットごとの「約定為替レート」で円換算（実際の拠出円に一致）。未設定ロットは fallback レートで代用。
-    private decimal CostBasisJpyAsOf(string date, decimal snapRate)
-    {
-        decimal total = 0m;
-        decimal fallback = snapRate > 0 ? snapRate : Store.Data.UsdJpyRate;   // 約定レート未設定ロットの代用
-        foreach (var h in Store.Data.Holdings.Where(h => !h.IsDeleted))
-        {
-            int divsor = PortfolioMath.Divisor(h.Class);
-            var buys = Store.Data.Buys.Where(b => b.HoldingId == h.Id && string.CompareOrdinal(b.Date, date) <= 0).ToList();
-            // 配当再投資株（取得コスト$0）も as-of で取得数量に含める（Summarize と整合）
-            decimal reinvest = Store.Data.Dividends.Where(d => d.HoldingId == h.Id && string.CompareOrdinal(d.Date, date) <= 0).Sum(d => d.Quantity);
-            if (buys.Count == 0 && reinvest == 0) continue;
-            decimal bq = buys.Sum(b => b.Quantity) + reinvest;
-            decimal sq = Store.Data.Sells.Where(s => s.HoldingId == h.Id && string.CompareOrdinal(s.Date, date) <= 0).Sum(s => s.Quantity);
-            decimal qty = bq - sq;
-            if (qty <= 0 || bq <= 0) continue;
-
-            // 1ロットの実取得原価（建て通貨）。Amount(受渡金額)があればそのまま、無ければ数量×単価÷Divisor×ESPP係数。
-            decimal LotNative(BuyLot b) => b.Amount > 0 ? b.Amount : b.Quantity * b.UnitPrice * PortfolioMath.CostFactor(b) / divsor;
-            // 取得総額（円）。ドル建ては各ロットを約定レート(無ければ fallback)で円換算。
-            decimal boughtJpy = h.CostCurrency == Currency.Usd
-                ? buys.Sum(b => LotNative(b) * (b.FxRate > 0 ? b.FxRate : fallback))
-                : buys.Sum(LotNative);
-            // 現在保有分の元本＝取得総額 ×(現在数量 / 取得数量)。再投資株は$0で取得総額に寄与しないので平均が薄まる。
-            total += boughtJpy * (qty / bq);
-        }
-        return total;
-    }
+    // 指定日時点の取得原価合計（円換算）。計算本体は PortfolioMath（純粋ロジック・テスト対象）へ委譲する。
+    private decimal CostBasisJpyAsOf(string date, decimal snapRate) =>
+        PortfolioMath.CostBasisJpyAsOf(Store.Data, date, snapRate);
 
     // ── 新規銘柄登録 ──
     private bool _addOpen;

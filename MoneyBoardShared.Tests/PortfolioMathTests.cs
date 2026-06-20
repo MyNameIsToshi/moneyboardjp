@@ -135,4 +135,104 @@ public class PortfolioMathTests
         var h = H(AssetClass.Fund);
         Assert.Equal(12_000m, PortfolioMath.ValuationJpy(h, qty: 10000, nativePrice: 12000, usdJpyRate: 150));
     }
+
+    // ── YahooSymbol ──
+    [Theory]
+    [InlineData(AssetClass.JpStock, "7203", "7203.T")]   // 日本株は .T 付与
+    [InlineData(AssetClass.JpStock, "7203.T", "7203.T")] // 既に "." 付きはそのまま
+    [InlineData(AssetClass.JpStock, " 7203 ", "7203.T")] // 前後空白は除去してから付与
+    [InlineData(AssetClass.JpStock, "", "")]             // 空は空（誤って ".T" を付けない）
+    [InlineData(AssetClass.UsStock, "AAPL", "AAPL")]     // 米国株はそのまま
+    public void YahooSymbol_AppendsDotTOnlyForJpStock(AssetClass cls, string symbol, string expected)
+    {
+        var h = new Holding { Class = cls, Symbol = symbol };
+        Assert.Equal(expected, PortfolioMath.YahooSymbol(h));
+    }
+
+    // ── CostBasisJpyAsOf ──
+    private static BuyLot BuyOn(string date, decimal qty, decimal price, decimal fx = 0, decimal amount = 0, bool espp = false) =>
+        new() { HoldingId = "h", Date = date, Quantity = qty, UnitPrice = price, FxRate = fx, Amount = amount, IsEspp = espp };
+
+    [Fact]
+    public void CostBasisJpyAsOf_JpStock_SumsBuysUpToDate()
+    {
+        var data = new PortfolioData
+        {
+            Holdings = { new Holding { Id = "h", Class = AssetClass.JpStock, CostCurrency = Currency.Jpy } },
+            Buys =
+            {
+                BuyOn("2026-01-10", 10, 100),   // 1,000
+                BuyOn("2026-02-10", 10, 200),   // 2,000
+                BuyOn("2026-03-10", 10, 300),   // 期間外（asOf より後）→除外
+            },
+        };
+        // 2/15 時点：1月・2月の買付のみ＝3,000
+        Assert.Equal(3000m, PortfolioMath.CostBasisJpyAsOf(data, "2026-02-15", 0m));
+    }
+
+    [Fact]
+    public void CostBasisJpyAsOf_SellReducesHeldCostProportionally()
+    {
+        var data = new PortfolioData
+        {
+            Holdings = { new Holding { Id = "h", Class = AssetClass.JpStock, CostCurrency = Currency.Jpy } },
+            Buys = { BuyOn("2026-01-10", 20, 100) },                                  // 取得 20株・原価 2,000
+            Sells = { new SellLot { HoldingId = "h", Date = "2026-02-01", Quantity = 5 } },  // 5株売却→残15株
+        };
+        // 残元本＝2,000 ×(15/20)＝1,500
+        Assert.Equal(1500m, PortfolioMath.CostBasisJpyAsOf(data, "2026-02-15", 0m));
+    }
+
+    [Fact]
+    public void CostBasisJpyAsOf_UsdLot_UsesPerLotFxRate_FallbackWhenUnset()
+    {
+        var data = new PortfolioData
+        {
+            UsdJpyRate = 150m,   // fallback（約定レート未設定ロット用）
+            Holdings = { new Holding { Id = "h", Class = AssetClass.UsStock, CostCurrency = Currency.Usd } },
+            Buys =
+            {
+                BuyOn("2026-01-10", 10, 50, fx: 140m),   // $500 ×140 = 70,000
+                BuyOn("2026-02-10", 10, 50),             // $500 ×fallback150 = 75,000
+            },
+        };
+        Assert.Equal(145_000m, PortfolioMath.CostBasisJpyAsOf(data, "2026-02-15", 0m));
+    }
+
+    [Fact]
+    public void CostBasisJpyAsOf_SnapRateOverridesDataRateAsFallback()
+    {
+        var data = new PortfolioData
+        {
+            UsdJpyRate = 150m,
+            Holdings = { new Holding { Id = "h", Class = AssetClass.UsStock, CostCurrency = Currency.Usd } },
+            Buys = { BuyOn("2026-01-10", 10, 50) },   // 約定レート未設定→ snapRate を優先
+        };
+        // snapRate=130 を fallback に使用：$500 ×130 = 65,000
+        Assert.Equal(65_000m, PortfolioMath.CostBasisJpyAsOf(data, "2026-02-15", 130m));
+    }
+
+    [Fact]
+    public void CostBasisJpyAsOf_ReinvestedDividendAddsQtyButNoCost()
+    {
+        var data = new PortfolioData
+        {
+            Holdings = { new Holding { Id = "h", Class = AssetClass.JpStock, CostCurrency = Currency.Jpy } },
+            Buys = { BuyOn("2026-01-10", 10, 100) },                                       // 原価 1,000・10株
+            Dividends = { new Dividend { HoldingId = "h", Date = "2026-02-01", Quantity = 10 } },  // 再投資10株（$0）
+        };
+        // 取得数量20・原価1,000のまま、現在保有20株 → 1,000 ×(20/20)＝1,000
+        Assert.Equal(1000m, PortfolioMath.CostBasisJpyAsOf(data, "2026-02-15", 0m));
+    }
+
+    [Fact]
+    public void CostBasisJpyAsOf_ExcludesDeletedHoldings()
+    {
+        var data = new PortfolioData
+        {
+            Holdings = { new Holding { Id = "h", Class = AssetClass.JpStock, CostCurrency = Currency.Jpy, IsDeleted = true } },
+            Buys = { BuyOn("2026-01-10", 10, 100) },
+        };
+        Assert.Equal(0m, PortfolioMath.CostBasisJpyAsOf(data, "2026-02-15", 0m));
+    }
 }
