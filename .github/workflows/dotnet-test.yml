@@ -24,11 +24,21 @@ jobs:
           dotnet-version: 8.0.x
 
       - name: Restore
-        run: dotnet restore MoneyBoardShared.Tests/MoneyBoardShared.Tests.csproj
+        run: |
+          dotnet restore MoneyBoardShared.Tests/MoneyBoardShared.Tests.csproj
+          dotnet restore MoneyBoardApi.Tests/MoneyBoardApi.Tests.csproj
 
-      - name: Test (with coverage)
+      - name: Test - MoneyBoardShared
         run: >
           dotnet test MoneyBoardShared.Tests/MoneyBoardShared.Tests.csproj
+          --configuration Release
+          --no-restore
+          --collect:"XPlat Code Coverage"
+          --logger "console;verbosity=normal"
+
+      - name: Test - MoneyBoardApi
+        run: >
+          dotnet test MoneyBoardApi.Tests/MoneyBoardApi.Tests.csproj
           --configuration Release
           --no-restore
           --collect:"XPlat Code Coverage"
@@ -39,5 +49,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: coverage
-          path: MoneyBoardShared.Tests/TestResults/**/coverage.cobertura.xml
+          path: |
+            MoneyBoardShared.Tests/TestResults/**/coverage.cobertura.xml
+            MoneyBoardApi.Tests/TestResults/**/coverage.cobertura.xml
           if-no-files-found: warn
