@@ -35,6 +35,25 @@
                     <button class="btn-sm" disabled="@_updating" @onclick="() => UpdatePrices()">@(_updating ? "更新中…" : "価格更新")</button>
                 </div>
             </div>
+            @* ── 市場指標バー（固定6本・総資産と同じ帯。日報用スクショに収める）── *@
+            <div class="pf-index-bar">
+                @foreach (var ix in MarketIndices)
+                {
+                    var pct = IndexPct(ix.Symbol);
+                    <div class="pf-index-chip">
+                        <span class="pf-ix-name">@ix.Label</span>
+                        <span class="pf-ix-val">@IndexValueDisp(ix.Symbol, ix.Decimals)</span>
+                        @if (pct.HasValue)
+                        {
+                            <span class="pf-ix-pct @PnlClass(pct.Value)">@DayPct(pct.Value)</span>
+                        }
+                        else
+                        {
+                            <span class="pf-ix-pct">—</span>
+                        }
+                    </div>
+                }
+            </div>
             @if (_updateMsg != null)
             {
                 <div class="pf-hint pf-neg">@_updateMsg</div>

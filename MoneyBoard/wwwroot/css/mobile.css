@@ -532,6 +532,18 @@
   justify-content: space-between;
 }
 
+/* 市場指標バー：スマホは折り返さず横スクロールのチップ列にする（縦に伸びて総資産帯を押し下げない） */
+.app-shell.is-mobile .pf-index-bar {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 0 -2px 8px;
+  padding: 0 2px 2px;
+}
+.app-shell.is-mobile .pf-index-chip {
+  flex: 0 0 auto;
+}
+
 /* 取引・設定ダイアログの設定群：ラベル横並びだと文字が潰れるので縦積み（ラベル上・全幅） */
 .app-shell.is-mobile .pf-tx-settings {
   flex-direction: column;

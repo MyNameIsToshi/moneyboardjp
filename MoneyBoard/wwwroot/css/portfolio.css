@@ -125,6 +125,36 @@
   color: var(--sub);
 }
 
+/* 市場指標バー（固定6本のチップ列。総資産バーの直下＝同じ固定帯に在席）。
+   PC は折り返し1〜2行、スマホは横スクロール（mobile.css）。*/
+.pf-index-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  margin-bottom: 8px;
+}
+.pf-index-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  background: #f3f1ea;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.pf-ix-name {
+  color: var(--sub);
+}
+.pf-ix-val {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.pf-ix-pct {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
 /* 現在価格入力（取引ダイアログ）*/
 .pf-tx-price {
   display: flex;

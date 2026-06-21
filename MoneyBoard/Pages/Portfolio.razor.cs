@@ -212,6 +212,32 @@ public partial class Portfolio
     // 日本株は証券コードに .T を付与、米国株はティッカーそのまま。計算本体は PortfolioMath（純粋ロジック・テスト対象）。
     private static string YahooSymbol(Holding h) => PortfolioMath.YahooSymbol(h);
 
+    // ── 市場指標バー（固定6本・/portfolio 上部。日報用スクショに総資産と同じ帯で収める。AI不要・既存 /api/quote 再利用）──
+    // 値はポートフォリオ価格取得に相乗りで更新（非永続＝当日の表示専用）。先頭 ^ は API 側で URL エンコードされる。
+    // ⚠️ TOPIX は ^TOPX / 998405.T が Yahoo で取得不可のため ^TPX を使用（issue #26 の要検証を実地確認）。
+    private static readonly (string Symbol, string Label, int Decimals)[] MarketIndices =
+    {
+        ("^DJI", "NYダウ", 0),
+        ("^IXIC", "ナスダック", 0),
+        ("^GSPC", "S&P500", 2),
+        ("^N225", "日経平均", 0),
+        ("^TPX", "TOPIX", 2),
+        ("^KS11", "KOSPI", 0),
+    };
+    private readonly Dictionary<string, decimal> _indexCur = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, decimal> _indexPrev = new(StringComparer.OrdinalIgnoreCase);
+
+    // 指標の現在値（桁区切り・小数桁は指標ごと）。未取得・休場は「—」で画面を壊さない。
+    private string IndexValueDisp(string sym, int decimals) =>
+        _indexCur.TryGetValue(sym, out var c) && c > 0
+            ? c.ToString(decimals == 0 ? "#,0" : "#,0.00")
+            : "—";
+    // 前日比％（現在/前日終値のどちらかが無ければ非表示）。色・記号は前日比列と同流儀（DayPct/PnlClass を再利用）。
+    private decimal? IndexPct(string sym) =>
+        _indexCur.TryGetValue(sym, out var c) && _indexPrev.TryGetValue(sym, out var p) && c > 0 && p > 0
+            ? (c - p) / p * 100m
+            : (decimal?)null;
+
     private async Task UpdatePrices(bool manual = true)
     {
         if (_updating) return;
@@ -227,6 +253,9 @@ public partial class Portfolio
                 .ToList();
 
             var symbols = stocks.Select(YahooSymbol).Distinct().ToList();
+            // 市場指標（固定6本）を相乗りで取得。保有銘柄の取得件数カウントには含めない。
+            foreach (var ix in MarketIndices)
+                if (!symbols.Contains(ix.Symbol)) symbols.Add(ix.Symbol);
             var funds = fundHoldings
                 .Select(h => new FundRef { Isin = h.Isin.Trim(), AssocFundCd = h.AssocFundCd.Trim() })
                 .ToList();
@@ -257,6 +286,13 @@ public partial class Portfolio
                 }
                 if (res.FundPrevClose.TryGetValue(key, out var pv) && pv > 0)
                     Store.Data.PrevPrices[h.Id] = pv;
+            }
+            // 市場指標（保有とは独立。取得件数のメッセージには関与しない）。
+            foreach (var ix in MarketIndices)
+            {
+                var key = ix.Symbol.ToUpperInvariant();
+                if (res.Prices.TryGetValue(key, out var p) && p > 0) _indexCur[ix.Symbol] = p;
+                if (res.PrevClose.TryGetValue(key, out var pv) && pv > 0) _indexPrev[ix.Symbol] = pv;
             }
             Store.Data.PricedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
             RecordSnapshot();
