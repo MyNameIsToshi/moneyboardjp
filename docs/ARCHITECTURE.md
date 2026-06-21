@@ -332,6 +332,7 @@ Transfer
 | ポートフォリオ表示改善（米国株の円/ドル評価切替・円拠出の元本=取得金額・前日比列・現在価格列・口座をバッジ化）＋深いURLの404修正（staticwebapp.config.json）＋認証永続化明示 | ✅ 完了（本番反映済み・v1.3.2） |
 | Step4 前クリーンアップ（テスト基盤63→102・CI自動実行・純粋ロジック抽出 StatsMath/FixedCostPeriod/PortfolioMath・巨大razor4枚を code-behind 分離・楽天カード対応・表記統一） | ✅ 完了（本番反映済み・v1.3.3） |
 | Phase 4 土台＝カード明細スクショの AI 読み取り（Claude Vision/Haiku 4.5・🤖AIで読取・複数枚＋PC Ctrl+V貼付・X風ステージング・当月へ増分追加） | ✅ 完了（本番反映済み・v1.4.0） |
+| 市場指標バー（/portfolio 上部・固定5本のチップ列・前日比%・既存 `/api/quote` 再利用・AI不要） | ✅ 完了（dev・#26） |
 
 ---
 
@@ -370,7 +371,6 @@ Transfer
 
 | 機能 | issue | 備考 |
 |------|------|------|
-| 市場指標バー（/portfolio 上部） | #26 | 設計詳細は issue 本文。AI不要・既存 `/api/quote`(Yahoo) 再利用 |
 | カテゴリ自動推定（C案） | #27 | Phase 4 土台再利用（Milestone: Phase 5） |
 | 自然言語入力解析 | #28 | Phase 5 |
 | 月次コメント生成 | #29 | Phase 5 |
@@ -431,6 +431,7 @@ Transfer
 - **株＋為替＝Yahoo Finance v8**（`query1.finance.yahoo.com/v8/finance/chart/{sym}` の `meta.regularMarketPrice`、為替は `JPY=X`）。
 - **投信＝投信協会ライブラリ CSV**（`toushin-lib.fwg.ne.jp/FdsWeb/FDST030000/csv-file-download`）。**基準価額は「協会コード」で一意**（ISIN は有効値必須だが値は不問 →`FallbackIsin` で代替）。Shift-JIS は `Encoding.Latin1` でデコードしてカンマ分割（基準価額列は ASCII 数字）。
 - 旧 Stooq は JS ボット検証で死亡 → Yahoo へ移行。
+- **市場指標バー（#26）**：固定5本（`^DJI`/`^IXIC`/`^GSPC`/`^N225`/`^KS11`）を保有銘柄の価格取得に相乗りで取得し `/portfolio` 上部にチップ表示（非永続・前日比%）。先頭 `^` は `Uri.EscapeDataString` で URL エンコード済み。⚠️ **TOPIX は対象外**：Yahoo v8 は TOPIX 指数を配信していない（`^TOPX`・`998405.T` は空、`^TPX` は別物＝米国 OPRA オプション指数/USD・105pt 台）。ETF（`1306.T` 等）は前日比%は連動するが絶対値が指数値と桁違いになり日報スクショで誤解を招くため除外。日本株は日経平均で代表。
 - ⚠️ **リスク**：投信を協会コードのみで取得しているため、投信協会が将来 ISIN↔協会コードの相互検証を入れると全投信が落ちる（その時は `FundMaster`／`Holding.Isin` に実 ISIN を持たせて復旧）。
 
 ### 入力簡略化
