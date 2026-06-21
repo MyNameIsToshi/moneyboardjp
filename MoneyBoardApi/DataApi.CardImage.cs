@@ -21,7 +21,15 @@ public partial class DataApi
     private static AnthropicClient? CreateAnthropic()
     {
         var key = Environment.GetEnvironmentVariable("Anthropic__ApiKey");
-        return string.IsNullOrWhiteSpace(key) ? null : new AnthropicClient { ApiKey = key };
+        if (string.IsNullOrWhiteSpace(key)) return null;
+
+        // 本番(Azure SWA)の egress IP は Anthropic のエッジに 403(forbidden/"Request not allowed") で
+        // ブロックされるため、Anthropic__BaseUrl（例: Cloudflare AI Gateway）が指定されていれば
+        // そこへ中継する。未指定なら既定の api.anthropic.com（ローカル開発はこれで通る）。
+        var baseUrl = Environment.GetEnvironmentVariable("Anthropic__BaseUrl");
+        return string.IsNullOrWhiteSpace(baseUrl)
+            ? new AnthropicClient { ApiKey = key }
+            : new AnthropicClient { ApiKey = key, BaseUrl = baseUrl };
     }
 
     // Claude へ渡す抽出指示。構造化出力スキーマ（items[] = {date, name, amount}）と対で使う。
