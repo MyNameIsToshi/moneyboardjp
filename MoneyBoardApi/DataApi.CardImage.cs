@@ -72,11 +72,52 @@ public partial class DataApi
             var rows = await ExtractCardAsync(reqData.Image.Trim(), reqData.MediaType, reqData.CardId.Trim());
             return new OkObjectResult(rows);
         }
+        catch (Anthropic.Exceptions.AnthropicApiException ex)
+        {
+            // Anthropic からの上流エラー（401/403/429/5xx 等）。生の 401/403 を素通しすると
+            // フロントが「アクセス承認待ち(403)」と誤認するため、ステータスは 502 に統一し、
+            // 本文に上流の status とメッセージを載せて可視化する（ログにも全文を残す）。
+            var upstream = (int)ex.StatusCode;
+            logger.LogError(ex, "ExtractCard upstream error {Status}: {Body}", upstream, ex.ResponseBody);
+            return new ObjectResult(new ExtractCardError(upstream, SummarizeAnthropicError(ex.ResponseBody)))
+            {
+                StatusCode = StatusCodes.Status502BadGateway
+            };
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "ExtractCard failed");
-            return new StatusCodeResult(StatusCodes.Status502BadGateway);
+            return new ObjectResult(new ExtractCardError(null, "サーバー内部エラーが発生しました。"))
+            {
+                StatusCode = StatusCodes.Status502BadGateway
+            };
         }
+    }
+
+    // /api/extract-card の失敗時にフロントへ返すエラー本文（ユーザー表示・ログ切り分け用）。
+    private sealed record ExtractCardError(int? UpstreamStatus, string Message)
+    {
+        public string Error => "extract_card_error";
+    }
+
+    // Anthropic のエラー本文 JSON（{"error":{"type","message"}}）から人が読めるメッセージを作る。
+    // パースできなければ本文の先頭を切り出して返す（空なら定型文）。
+    private static string SummarizeAnthropicError(string? body)
+    {
+        if (string.IsNullOrWhiteSpace(body)) return "Anthropic API でエラーが発生しました。";
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            if (doc.RootElement.TryGetProperty("error", out var err) && err.ValueKind == JsonValueKind.Object)
+            {
+                var type = err.TryGetProperty("type", out var t) ? t.GetString() : null;
+                var msg = err.TryGetProperty("message", out var m) ? m.GetString() : null;
+                if (!string.IsNullOrWhiteSpace(msg))
+                    return string.IsNullOrWhiteSpace(type) ? msg! : $"{msg}（{type}）";
+            }
+        }
+        catch (JsonException) { /* JSON でなければ素の本文を使う */ }
+        return body.Length > 300 ? body[..300] : body;
     }
 
     // 取得：Claude へ画像＋指示を投げ、構造化出力(JSON)を ParseCardImageResponse で CardDetail に変換する薄いラッパ。
