@@ -1,5 +1,7 @@
 @inject LedgerService Svc
+@inject StorageService Store
 @inject IJSRuntime JS
+@implements IDisposable
 
 <div>
     <div class="top">
@@ -48,6 +50,7 @@
                     {
                         <button class="add-line" @onclick="() => AddDetail(card.Id)">＋ 明細を追加</button>
                         <button class="add-line" @onclick="() => OpenImport(card.Id)">📥 取込</button>
+                        <button class="add-line" @onclick="() => OpenShot(card.Id)">🤖 AIで読取</button>
                     }
                 </div>
 
@@ -155,6 +158,62 @@
             </div>
             <div class="dialog-btns">
                 <button class="btn" @onclick="() => _importCardId = null">キャンセル</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (_shotCardId != null)
+{
+    <div class="dialog-overlay" @onclick="CloseShot">
+        <div class="dialog-box import-pick shot-box" @onclick:stopPropagation="true">
+            <h4>🤖 AIで読取</h4>
+            <p class="shot-intro">
+                クレジットカード明細のスクリーンショットや写真を選択・貼り付けると、AIが内容を読み取って明細に追加します。
+            </p>
+            <div class="shot-body">
+                <label class="btn import-pick-item @((_shotBusy || _shotStaged.Count >= ShotMaxCount) ? "is-disabled" : "")">
+                    📷 画像を選択（複数可）
+                    <input type="file" accept="image/*" multiple @ref="_shotInput"
+                           @onchange="OnShotFilesSelected" class="import-input" disabled="@(_shotBusy || _shotStaged.Count >= ShotMaxCount)" />
+                </label>
+                @if (!IsMobile)
+                {
+                    <div class="shot-paste">PCはこのまま <b>Ctrl + V</b> で貼り付け（複数回OK・最大 @ShotMaxCount 枚）</div>
+                }
+                @if (_shotStaged.Count > 0)
+                {
+                    <div class="shot-thumbs">
+                        @for (var i = 0; i < _shotStaged.Count; i++)
+                        {
+                            var idx = i;
+                            <div class="shot-thumb">
+                                <img src="@ThumbSrc(_shotStaged[idx])" alt="" />
+                                @if (!_shotBusy)
+                                {
+                                    <button class="shot-thumb-x" @onclick="() => RemoveStaged(idx)" title="削除">×</button>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+                @if (_shotBusy)
+                {
+                    <div class="shot-status">読み取り中… @_shotDone / @_shotTotal 枚</div>
+                }
+                else if (_shotStaged.Count > 0)
+                {
+                    <div class="shot-status">@_shotStaged.Count 枚を選択中（読み取り開始でまとめて取込）</div>
+                }
+            </div>
+            <div class="dialog-message">
+                読み取った明細は当月（@LedgerService.Label(Svc.CardMonth)）の「@(Svc.CardById(_shotCardId)?.Name)」に追加されます。AIの読み取り結果は一覧で必ず確認・修正してください。
+            </div>
+            <div class="dialog-btns">
+                <button class="btn" @onclick="CloseShot" disabled="@_shotBusy">閉じる</button>
+                <button class="btn primary" @onclick="StartShotRead" disabled="@(_shotBusy || _shotStaged.Count == 0)">
+                    読み取り開始@(_shotStaged.Count > 0 ? $"（{_shotStaged.Count}枚）" : "")
+                </button>
             </div>
         </div>
     </div>

@@ -12,6 +12,7 @@ public class AccessPendingException : Exception { }
 public class StorageService(HttpClient http, AuthService auth)
 {
     private const string ApiPath = "api/data";
+    private const string ExtractCardPath = "api/extract-card";
 
     // サーバーから受け取った最新の etag（設定＋月ごと）。保存時に If-Match で送り返す。
     private string? _settingsEtag;
@@ -51,6 +52,18 @@ public class StorageService(HttpClient http, AuthService auth)
             state.Months[ym] = new MonthData { Ledgers = m.Ledgers, Transfers = m.Transfers, CardDetails = m.CardDetails, CardBilled = m.CardBilled };
         }
         return state;
+    }
+
+    /// <summary>カード明細スクショ(base64画像)を Claude で読み取り、抽出した CardDetail を返す。
+    /// 取込フローへ合流させるための取得のみ（保存は呼び出し側）。403=未承認は AccessPendingException。</summary>
+    public async Task<List<CardDetail>> ExtractCardImageAsync(string cardId, string base64Image, string mediaType)
+    {
+        await auth.ApplyTokenAsync(http);
+        using var resp = await http.PostAsJsonAsync(ExtractCardPath, new { cardId, image = base64Image, mediaType });
+        if (resp.StatusCode == HttpStatusCode.Forbidden)
+            throw new AccessPendingException();
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<List<CardDetail>>() ?? new();
     }
 
     /// <summary>変更分のみ（changes）を送信する。etag は保持中の値を付与し、成功時に更新する。</summary>
