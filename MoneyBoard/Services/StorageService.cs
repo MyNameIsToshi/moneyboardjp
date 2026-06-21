@@ -62,8 +62,29 @@ public class StorageService(HttpClient http, AuthService auth)
         using var resp = await http.PostAsJsonAsync(ExtractCardPath, new { cardId, image = base64Image, mediaType });
         if (resp.StatusCode == HttpStatusCode.Forbidden)
             throw new AccessPendingException();
-        resp.EnsureSuccessStatusCode();
+        if (!resp.IsSuccessStatusCode)
+            throw new Exception(await ReadExtractErrorAsync(resp));
         return await resp.Content.ReadFromJsonAsync<List<CardDetail>>() ?? new();
+    }
+
+    /// <summary>extract-card のエラー本文（{error,upstreamStatus,message}）を人が読める文に整形する。
+    /// 本文が無い/JSON でない場合はステータスコードのみ返す。</summary>
+    private static async Task<string> ReadExtractErrorAsync(HttpResponseMessage resp)
+    {
+        try
+        {
+            var err = await resp.Content.ReadFromJsonAsync<ExtractCardError>();
+            if (err is not null && !string.IsNullOrWhiteSpace(err.Message))
+                return err.UpstreamStatus is int s ? $"[{s}] {err.Message}" : err.Message;
+        }
+        catch { /* 本文無し/非JSON はステータスのみにフォールバック */ }
+        return $"サーバーエラー ({(int)resp.StatusCode})";
+    }
+
+    private sealed class ExtractCardError
+    {
+        public int? UpstreamStatus { get; set; }
+        public string? Message { get; set; }
     }
 
     /// <summary>変更分のみ（changes）を送信する。etag は保持中の値を付与し、成功時に更新する。</summary>
