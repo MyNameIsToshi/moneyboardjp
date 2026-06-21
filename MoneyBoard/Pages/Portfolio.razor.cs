@@ -212,16 +212,16 @@ public partial class Portfolio
     // 日本株は証券コードに .T を付与、米国株はティッカーそのまま。計算本体は PortfolioMath（純粋ロジック・テスト対象）。
     private static string YahooSymbol(Holding h) => PortfolioMath.YahooSymbol(h);
 
-    // ── 市場指標バー（固定6本・/portfolio 上部。日報用スクショに総資産と同じ帯で収める。AI不要・既存 /api/quote 再利用）──
+    // ── 市場指標バー（固定5本・/portfolio 上部。日報用スクショに総資産と同じ帯で収める。AI不要・既存 /api/quote 再利用）──
     // 値はポートフォリオ価格取得に相乗りで更新（非永続＝当日の表示専用）。先頭 ^ は API 側で URL エンコードされる。
-    // ⚠️ TOPIX は ^TOPX / 998405.T が Yahoo で取得不可のため ^TPX を使用（issue #26 の要検証を実地確認）。
+    // ⚠️ TOPIX は対象外：Yahoo v8 は TOPIX 指数を配信しておらず（^TOPX/998405.T は空・^TPX は別物=米国OPRA指数/USD）、
+    //    ETF(1306.T 等)は絶対値が指数値と桁違いになるため、誤表示を避けて除外。日本株は日経平均で代表させる（issue #26）。
     private static readonly (string Symbol, string Label, int Decimals)[] MarketIndices =
     {
         ("^DJI", "NYダウ", 0),
         ("^IXIC", "ナスダック", 0),
         ("^GSPC", "S&P500", 2),
         ("^N225", "日経平均", 0),
-        ("^TPX", "TOPIX", 2),
         ("^KS11", "KOSPI", 0),
     };
     private readonly Dictionary<string, decimal> _indexCur = new(StringComparer.OrdinalIgnoreCase);
