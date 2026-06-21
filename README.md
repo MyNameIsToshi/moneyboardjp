@@ -35,6 +35,8 @@
 
 ## 🏗️ アーキテクチャ
 
+> 📐 **基本・概要設計の詳細は [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) を参照。** 機能ごとの作業は [GitHub Issues](https://github.com/MyNameIsToshi/moneyboardjp/issues) / [Milestones](https://github.com/MyNameIsToshi/moneyboardjp/milestones) で管理しています。
+
 ```
 ┌──────────────────────────────┐        ┌───────────────────────────────┐
 │  MoneyBoard (Blazor WASM)    │        │  MoneyBoardApi                │
@@ -42,7 +44,7 @@
 │                              │ ─────▶ │   Isolated Worker)            │
 │  - 画面 (Razor Components)   │  JWT   │  - REST API (CRUD)            │
 │  - ApexCharts でグラフ描画   │        │  - Firebase IDトークン検証    │
-│  - IndexedDB / API 永続化    │        │  - 承認制アクセスゲート       │
+│  - API 経由でデータ永続化     │        │  - 承認制アクセスゲート       │
 └──────────────┬───────────────┘        │  - Claude API（明細読取）     │
                │                        │  - 価格取得（Yahoo / 投信協会）│
                │                        └───────────────┬───────────────┘
@@ -77,7 +79,7 @@
 **フロントエンド**
 - Blazor WebAssembly（.NET 10）
 - Blazor-ApexCharts（グラフ描画）
-- JS Interop（IndexedDB 永続化・Firebase Auth・クリップボード画像取得）
+- JS Interop（Firebase Auth・クリップボード画像取得・Shift-JIS デコード・スクロール制御）
 
 **バックエンド**
 - Azure Functions（.NET 8 / Isolated Worker Model, v4）
@@ -100,7 +102,7 @@
 ## ✅ テストと CI/CD
 
 品質と保守性を重視し、純粋ロジックを `MoneyBoardShared` に切り出して
-**単体テスト計 90 件**でカバーしています。
+**単体テスト計 122 件**（`MoneyBoardShared` 102 件／`MoneyBoardApi` 20 件）でカバーしています。
 
 - **テストフレームワーク**: xUnit + coverlet（カバレッジ計測）
 - **CI**: `dev` への push と `main` への PR で GitHub Actions が自動でテスト実行
@@ -175,3 +177,13 @@ moneyboard/
 
 本リポジトリは個人開発のポートフォリオです。技術的なご質問やお仕事のご相談など、
 お気軽にお問い合わせください。
+
+---
+
+## 📄 ライセンス
+
+**All rights reserved.**（独自・無償公開）
+
+本リポジトリは技術ポートフォリオとしての **閲覧** を目的に公開しています。
+コード・設計・ドキュメントの **複製・改変・再配布・商用利用は許可していません**。
+詳細は [LICENSE](LICENSE) を参照してください。
