@@ -8,7 +8,6 @@
   top: 0;
   z-index: 10;
   background: var(--paper);
-  padding-top: 8px;
   margin-bottom: 6px;
 }
 
@@ -22,6 +21,12 @@
 
 .pf-head .app-title {
   margin-bottom: 0;
+}
+
+/* 戻るボタンの行高をタイトル(21px×1.6)と同じ高さに詰め、
+   align-items:center でもタイトルの縦位置が Home とずれないようにする。 */
+.pf-head .btn {
+  line-height: 1.1;
 }
 
 /* カテゴリ見出し（日本株 / 米国株 / 投資信託）*/

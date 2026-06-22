@@ -1,0 +1,32 @@
+@using System.Reflection
+
+@* ブランドタイトル「MoneyBoard vX.Y.Z」を全画面共通で表示する共有コンポーネント。
+   Subtitle に画面名（例「ポートフォリオ」「統計」）を渡すと右側にサブタイトルとして併記する。 *@
+<div class="app-title">
+    MoneyBoard
+    @if (!string.IsNullOrEmpty(AppVersion))
+    {
+        <span class="app-ver">@AppVersion</span>
+    }
+    @if (!string.IsNullOrEmpty(Subtitle))
+    {
+        <span class="app-subtitle">@Subtitle</span>
+    }
+</div>
+
+@code {
+    /// <summary>画面名（タイトル右に小さく併記。未指定なら表示しない）。</summary>
+    [Parameter] public string? Subtitle { get; set; }
+
+    private string AppVersion = "";
+
+    protected override void OnInitialized()
+    {
+        // InformationalVersion は csproj の <Version>（"1.5.0" / SourceLink 併用時は "1.5.0+<sha>"）。
+        // ビルドメタ('+'以降)は落として "v1.5.0" の形で表示する。
+        var info = typeof(AppTitle).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+        // "v" を値側に含める（マークアップで v@AppVersion と書くと Razor がメール誤認してリテラル化するため）。
+        AppVersion = string.IsNullOrEmpty(info) ? "" : "v" + info.Split('+')[0];
+    }
+}

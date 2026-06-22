@@ -108,6 +108,24 @@ body {
   vertical-align: middle;
 }
 
+/* タイトル右の画面名（ポートフォリオ / 統計 等。AppTitle の Subtitle） */
+.app-subtitle {
+  margin-left: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: .01em;
+  color: var(--ink);
+  vertical-align: middle;
+}
+
+/* バージョンと画面名の間のドット区切り */
+.app-subtitle::before {
+  content: "·";
+  margin-right: 10px;
+  color: var(--sub);
+  font-weight: 400;
+}
+
 .home-head {
   display: flex;
   align-items: center;

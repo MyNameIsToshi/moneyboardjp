@@ -1,18 +1,11 @@
 @page "/"
 @implements IDisposable
-@using System.Reflection
 @inject LedgerService Svc
 @inject NavigationManager Nav
 
 <div class="wrap">
     <div class="home-head">
-        <div class="app-title">
-            MoneyBoard
-            @if (!string.IsNullOrEmpty(AppVersion))
-            {
-                <span class="app-ver">@AppVersion</span>
-            }
-        </div>
+        <AppTitle />
     </div>
 
     @if (Svc.IsPending)
@@ -73,7 +66,6 @@
     private bool Loaded = false;
     private bool LoadFailed = false;
     private bool ShowConflictNotice = false;
-    private string AppVersion = "";
 
     // 読み込み完了までタブ操作を無効化（空状態のタブを触らせない）
     private bool TabDisabled => !Loaded;
@@ -81,12 +73,6 @@
 
     protected override async Task OnInitializedAsync()
     {
-        // InformationalVersion は csproj の <Version>（"0.9.0" / SourceLink 併用時は "0.9.0+<sha>"）。
-        // ビルドメタ('+'以降)は落として "v0.9.0" の形で表示する。
-        var info = typeof(Home).Assembly
-            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
-        // "v" を値側に含める（マークアップで v@AppVersion と書くと Razor がメール誤認してリテラル化するため）。
-        AppVersion = string.IsNullOrEmpty(info) ? "" : "v" + info.Split('+')[0];
         Svc.StateReloadedExternally += OnExternalReload;
         await Load();
     }
