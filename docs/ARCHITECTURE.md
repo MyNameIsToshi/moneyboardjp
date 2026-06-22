@@ -341,7 +341,7 @@ Transfer
 ### 共通ヘッダー（ブランドタイトル）
 - ブランドタイトル「MoneyBoard vX.Y.Z」は共有コンポーネント `MoneyBoard/Components/AppTitle.razor` に集約。版はアセンブリの `InformationalVersion` を読む（全画面で同一供給源）。
 - `Subtitle` パラメータに画面名を渡すと「v1.5.0 · ポートフォリオ」のようにドット区切りで併記（`.app-subtitle`）。Home は Subtitle なし。
-- どの画面でも位置・サイズを Home と揃える方針（#40）。戻るボタンを持つヘッダーは行高差で縦位置がずれるため、ボタン側の `line-height` をタイトルに合わせる（`portfolio.css .pf-head .btn`）。統計画面（GraphPage）への適用は #39。
+- どの画面でも位置・サイズを Home と揃える方針（Portfolio #40 / GraphPage #39）。戻るボタンを持つヘッダーは行高差で縦位置がずれるため、ボタン側の `line-height` をタイトルに合わせる（`.pf-head .btn` / `.graph-header .btn`）。sticky の `padding-top` も外して at-rest 位置を Home と一致させる。
 
 ### 月次管理タブ
 - 各口座カードに **収入セクション**（先頭固定 🏧 ATM入金 → 臨時収入を `＋追加`）と **支出セクション**（カード由来💳 → 🏧 ATM出金 → 手入力を `＋追加`）。
