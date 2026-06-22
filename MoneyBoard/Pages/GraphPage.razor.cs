@@ -14,8 +14,6 @@ using MoneyBoardShared;
 // 統計の集計・期間処理・ドリルダウン状態をこの partial class に集約する。
 public partial class GraphPage
 {
-    [Inject] NavigationManager Nav { get; set; } = default!;
-
     private string SelectedPeriod = "3";
     private Dictionary<string, string> Periods = new()
     {
@@ -189,7 +187,6 @@ public partial class GraphPage
     // 読み込み完了まで操作不可（/graph を直接リロードしたケースに対応）
     private bool Loaded;
     private bool LoadFailed;
-    private bool IsLoading => !Loaded && !LoadFailed;   // 読込中は戻るも無効（失敗時は戻れる）
 
     // 期間指定（月単位）の開始・終了 ym
     private string _customStart = "";
@@ -229,8 +226,6 @@ public partial class GraphPage
     }
 
     private void OnCustomChanged() { _detail = null; _breakdown = null; BuildChartData(); }
-
-    private void GoBack() => Nav.NavigateTo("/");
 
     // 期間選択→対象 ym（昇順）。計算本体は StatsMath（純粋ロジック・テスト対象）へ委譲する。
     private List<string> GetTargetYms() =>

@@ -205,34 +205,104 @@ body {
   margin: 0 0 20px;
 }
 
-.tabs {
+/* =====================================================
+   PC 左サイドナビ (SideNav.razor) ＋ アプリシェル
+   スマホは下部バー（mobile.css）。PC は sidenav＋本文の横並び。
+   ===================================================== */
+.app-shell.has-sidenav {
   display: flex;
-  gap: 2px;
-  margin-bottom: 20px;
-  border-bottom: 2px solid var(--line);
+  flex-direction: row;
+  align-items: flex-start;
+  min-height: 100vh;
 }
 
-.tab {
-  padding: 8px 20px;
+.app-shell.has-sidenav .app-scroll {
+  flex: 1 1 auto;
+  min-width: 0; /* flex 子の縮小を許可（本文の横溢れ防止） */
+}
+
+/* サイドバー分の幅を活かし、本文を広め＋左右に余裕を持たせる（中央寄せは維持）。 */
+.app-shell.has-sidenav .wrap {
+  max-width: 1200px;
+  padding-left: 28px;
+  padding-right: 28px;
+}
+
+.sidenav {
+  flex: 0 0 220px;
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  height: 100vh;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 12px;
+  background: var(--card);
+  border-right: 1px solid var(--line);
+}
+
+.sidenav-brand {
+  padding: 4px 10px 16px;
+}
+
+.sidenav-brand .app-title {
+  font-size: 19px;
+  margin-bottom: 0;
+}
+
+.sidenav-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sidenav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
   border: none;
   background: none;
-  color: var(--sub);
   cursor: pointer;
   font: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -2px;
+  color: var(--sub);
+  padding: 10px 12px;
+  border-radius: 9px;
 }
 
-.tab.active {
+.sidenav-item:hover {
+  background: rgba(0, 0, 0, .04);
+}
+
+.sidenav-item.active {
+  background: var(--okbg);
   color: var(--accent);
-  border-bottom-color: var(--accent);
 }
 
-.tab:disabled {
-  cursor: default;
-  opacity: 0.5;
+.sidenav-item.active .sn-lab {
+  font-weight: 700;
+}
+
+.sn-ico {
+  font-size: 18px;
+  line-height: 1;
+  width: 22px;
+  text-align: center;
+}
+
+.sn-lab {
+  font-size: 14px;
+  letter-spacing: .02em;
+}
+
+/* PC（サイドナビ表示時）はブランド/画面名・戻るを各ページ頭から消す（サイドナビに集約）。
+   スマホは従来どおりページ頭にブランド（AppTitle）を出す。 */
+.app-shell.has-sidenav .home-head,
+.app-shell.has-sidenav .pf-head,
+.app-shell.has-sidenav .graph-header {
+  display: none;
 }
 
 /* =====================================================

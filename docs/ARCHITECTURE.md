@@ -341,7 +341,15 @@ Transfer
 ### 共通ヘッダー（ブランドタイトル）
 - ブランドタイトル「MoneyBoard vX.Y.Z」は共有コンポーネント `MoneyBoard/Components/AppTitle.razor` に集約。版はアセンブリの `InformationalVersion` を読む（全画面で同一供給源）。
 - `Subtitle` パラメータに画面名を渡すと「v1.5.0 · ポートフォリオ」のようにドット区切りで併記（`.app-subtitle`）。Home は Subtitle なし。
-- どの画面でも位置・サイズを Home と揃える方針（Portfolio #40 / GraphPage #39）。戻るボタンを持つヘッダーは行高差で縦位置がずれるため、ボタン側の `line-height` をタイトルに合わせる（`.pf-head .btn` / `.graph-header .btn`）。sticky の `padding-top` も外して at-rest 位置を Home と一致させる。
+- **PC**：ブランドは左サイドナビ最上部（`.sidenav-brand`）に出すため、各ページ頭のヘッダー（`.home-head`/`.pf-head`/`.graph-header`）は CSS で非表示（`.app-shell.has-sidenav` 配下）。
+- **スマホ**：サイドナビが無いため、各ページ頭の AppTitle を従来どおり表示（#39/#40）。
+
+### ナビゲーション（PC=サイドナビ / スマホ=下部バー）
+- **行き先は5系統**：月次管理 / カード / 統計 / 資産 / マイページ。月次・カード・マイページは Home の `/?tab=` 経由、統計=`/graph`・資産=`/portfolio` は専用ルート。
+- **PC**：`MoneyBoard/Components/SideNav.razor`（左固定の縦ナビ）。`MainLayout` が PC 時のみレンダーし、`.app-shell.has-sidenav` で「サイドナビ＋本文」の横並び。本文 `.wrap` は PC で `max-width:1200px`。
+- **スマホ**：`MoneyBoard/Components/BottomNav.razor`（下部バー）。SideNav と**行き先・ハイライト規則は対**（現在地判定 `IsHomeTab`/`IsRoute` を両者で同形に持つ）。
+- 統計への遷移時は保留中のデバウンス保存をフラッシュしてから遷移（`await Svc.SaveAsync()`）。
+- 旧導線（Home 上部タブ・月次タブ内の 📊💹 入口ボタン・統計/資産の「← 戻る」）は撤去（PC=サイドナビ／スマホ=下部バーが代替）。
 
 ### 月次管理タブ
 - 各口座カードに **収入セクション**（先頭固定 🏧 ATM入金 → 臨時収入を `＋追加`）と **支出セクション**（カード由来💳 → 🏧 ATM出金 → 手入力を `＋追加`）。
@@ -385,6 +393,7 @@ Transfer
 > タスクの最新状況は **GitHub Issues** を参照。本表は索引。
 
 ### 設計判断の記録（ADR）
+- **PC ナビは左サイドバーで統一（#41）** … PC は「Home 上部タブ＋月次タブ内の入口ボタン＋各ページの戻る」で遷移方法が混在していた。スマホの下部バー（5系統一貫）に倣い、**PC は左サイドナビ（`SideNav`）に統一**。`MainLayout` が PC=サイドナビ／スマホ=下部バーを出し分け、行き先・ハイライト規則は両者で同形。ブランドはサイドナビ上部に集約し、各ページ頭のヘッダー・「← 戻る」・📊💹 入口ボタンは撤去。代替案（トップバー／各ページにタブ複製）より、本文幅を確保しつつ全画面で一貫した導線になるため採用。**統計/資産の URL 一貫性（`/graph`・`/portfolio` を他と揃える）は別 issue で継続検討**。
 - **日報のアプリ化は見送り（#32・closed）** … 投資SNSの日次日報を MoneyBoard で生成/編集/X投稿/記録簿化する構想は見送り。価値の大半が当日ニュースの web 検索＋分析＝既存 Claude 会話との差分が薄く、X自動投稿も外部・有料・OAuth でリスク過大なため。代替として **市場指標バー（#26）** のみ実装。詳細は issue #32。
 
 > **Claude API 連携（土台）／カード画像（スクショ）読み取り** は **v1.4.0 で本番リリース済み**（下記「実装済み機能」表・「Phase 4」節を参照）。

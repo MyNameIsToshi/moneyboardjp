@@ -5,10 +5,14 @@
 @inject LedgerService Svc
 @implements IDisposable
 
-@* IsMobile を全ページへ配布。スマホ時はアプリシェル（縦flex）で
-   中身(.app-scroll)だけ内部スクロールさせ、下部バーを最下段に常時在席させる。 *@
+@* IsMobile を全ページへ配布。スマホ時はアプリシェル（縦flex）で中身(.app-scroll)だけ
+   内部スクロールさせ下部バーを最下段に常時在席させる。PC は左サイドナビ＋本文の横並び。 *@
 <CascadingValue Value="Viewport.IsMobile" Name="IsMobile">
-    <div class="app-shell @(Viewport.IsMobile ? "is-mobile" : "")">
+    <div class="app-shell @(Viewport.IsMobile ? "is-mobile" : "has-sidenav")">
+        @if (!Viewport.IsMobile)
+        {
+            <SideNav />
+        }
         <div class="app-scroll">
             @Body
         </div>

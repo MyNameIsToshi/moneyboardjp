@@ -26,11 +26,6 @@
             </div>
         }
 
-        <div class="tabs">
-            <button class="tab @(ActiveTab == "monthly" ? "active" : "")" disabled="@TabDisabled" @onclick='() => SetTab("monthly")'>月次管理</button>
-            <button class="tab @(ActiveTab == "card" ? "active" : "")" disabled="@TabDisabled" @onclick='() => SetTab("card")'>カード</button>
-            <button class="tab @(ActiveTab == "mypage" ? "active" : "")" disabled="@TabDisabled" @onclick='() => SetTab("mypage")'>マイページ</button>
-        </div>
 
         @if (LoadFailed)
         {
@@ -66,9 +61,6 @@
     private bool Loaded = false;
     private bool LoadFailed = false;
     private bool ShowConflictNotice = false;
-
-    // 読み込み完了までタブ操作を無効化（空状態のタブを触らせない）
-    private bool TabDisabled => !Loaded;
     private int ReloadKey = 0;
 
     protected override async Task OnInitializedAsync()

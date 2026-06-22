@@ -3,13 +3,11 @@
 @using ApexCharts
 @inject PortfolioStore Store
 @inject QuoteService Quote
-@inject NavigationManager Nav
 
 <div class="wrap">
     <div class="pf-sticky">
         <div class="pf-head">
             <AppTitle Subtitle="ポートフォリオ" />
-            <button class="btn" @onclick='() => Nav.NavigateTo("/")'>← 戻る</button>
         </div>
 
         @if (Loaded && !Store.IsPending && !LoadFailed)

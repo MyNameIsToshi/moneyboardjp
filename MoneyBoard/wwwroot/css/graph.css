@@ -43,15 +43,8 @@
   margin-bottom: 14px;
 }
 
-/* タイトルは左・戻るは右端（ポートフォリオの .pf-head と統一） */
 .graph-header .app-title {
   margin-bottom: 0;
-}
-
-/* 戻るボタンの行高をタイトル(21px×1.6)と同じ高さに詰め、
-   align-items:center でもタイトルの縦位置が Home とずれないようにする。 */
-.graph-header .btn {
-  line-height: 1.1;
 }
 
 .period-custom {
