@@ -1,5 +1,10 @@
 /* =====================================================
-   月次管理タブ (MonthlyTab.razor)
+   月次管理タブ (MonthlyTab.razor) — レイアウト/質感リデザイン（#43）
+   - サマリは月末残高合計をヒーロー化したヘッダー帯（主従を明確化）。
+   - 口座カードは影＋hover、編集可=枠付き薄背景 / 表示専用(自動値・カード由来・固定費)=テキスト。
+   - 固定費は折りたたみの表示専用ブロック。
+   - PC（.app-shell.has-sidenav）は本文幅を base 側で 1500px に広げ 1行3枚。
+     マークアップ共有のためスマホにも同デザインが適用される（崩れ調整は末尾の @media / is-mobile）。
    ===================================================== */
 .top {
   display: flex;
@@ -29,8 +34,14 @@
   width: 34px;
   height: 34px;
   border-radius: 9px;
-  font-size: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
+}
+
+.monthnav button .msym {
+  font-size: 20px;
 }
 
 .monthnav button:disabled {
@@ -85,70 +96,249 @@
   visibility: visible;
 }
 
+/* =====================================================
+   サマリー（ヘッダー帯）：月末残高合計＝ヒーロー、他は従
+   ===================================================== */
 .summary {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   flex-wrap: wrap;
-  margin: 0 0 18px;
+  margin: 0 0 16px;
 }
 
 .stat {
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--r);
-  padding: 10px 14px;
+  padding: 14px 16px;
   min-width: 150px;
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .stat .lab {
   font-size: 11.5px;
   color: var(--sub);
-  letter-spacing: .04em
+  letter-spacing: .04em;
 }
 
 .stat .val {
-  font-size: 20px;
-  font-weight: 600;
-  margin-top: 2px
+  font-size: 22px;
+  font-weight: 700;
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
 }
 
 .stat.warn .val {
-  color: var(--bad)
+  color: var(--bad);
 }
 
+.stat-val-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 不足の警告アイコンチップ */
+.warn-chip {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--badbg);
+  color: var(--bad);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex: 0 0 auto;
+}
+
+/* ヒーロー＝月末残高 合計（ダーク・主役） */
+.stat.hero {
+  flex: 1.7;
+  min-width: 240px;
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+  border-radius: 16px;
+  padding: 16px 20px;
+}
+
+.hero-lab {
+  font-size: 12px;
+  color: #b6b2ab;
+  letter-spacing: .04em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hero-val {
+  font-size: 38px;
+  font-weight: 700;
+  letter-spacing: -.02em;
+  margin: 2px 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.hero-sub {
+  font-size: 11.5px;
+  color: #b6b2ab;
+}
+
+.hero-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 8px;
+  border-radius: 20px;
+  background: rgba(163, 38, 31, .16);
+  color: #ff9b8f;
+}
+
+.hero-pill .msym {
+  font-size: 14px;
+}
+
+/* =====================================================
+   口座カードのグリッド
+   ===================================================== */
 .grid {
   display: grid;
-  /* min(100%, …) で狭い容器でも溢れず1列に落ちる。最小列幅はカードの内容幅に合わせる。 */
+  /* min(100%, …) で狭い容器でも溢れず1列に落ちる。 */
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr));
   gap: 14px;
+  align-items: start;
 }
 
 .acct {
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: var(--r);
-  padding: 14px;
+  border-radius: 14px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 1px 2px rgba(33, 38, 46, .03);
+  transition: box-shadow .15s, border-color .15s;
+}
+
+.acct:hover {
+  box-shadow: 0 6px 20px rgba(33, 38, 46, .07);
+  border-color: #d4cdbd;
+}
+
+.acct.bad {
+  border-color: #e7c4bf;
+}
+
+/* ヘッダー＝カード開閉トグル（ボタン化） */
+.ahead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: none;
+  background: none;
+  padding: 0;
+  margin-bottom: 12px;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.acct.collapsed .ahead {
+  margin-bottom: 0;
+}
+
+.aname {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  font-size: 16px;
+}
+
+/* 畳んだ時にヘッダーへ出す月末残高 */
+.ahead-close {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ok);
+}
+
+.acct.bad .ahead-close {
+  color: var(--bad);
+}
+
+.ahead-chev {
+  font-size: 20px;
+  color: var(--sub);
+  flex: 0 0 auto;
+}
+
+/* 銀行名の左のアイコンチップ（口座ごとに淡色をローテーション。新色は足さず既存トーンを流用） */
+.acct-chip {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex: 0 0 auto;
+}
+
+.acct-chip.c0 { background: rgba(31, 58, 95, .10); color: var(--accent); }
+.acct-chip.c1 { background: #fef3c7; color: #92400e; }
+.acct-chip.c2 { background: var(--badbg); color: var(--bad); }
+.acct-chip.c3 { background: var(--okbg); color: var(--ok); }
+
+/* 月初残高：表示専用（淡色ボックス）。起点月のみ AmountInput を内包。 */
+.opening-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: #f8f6f2;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 4px;
+}
+
+.opening-lab {
   display: flex;
   flex-direction: column;
 }
 
-.acct.bad {
-  border-color: #e7c4bf
+.opening-lab > span:first-child {
+  font-size: 13px;
+  color: var(--ink);
 }
 
-.ahead {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
+.opening-lab .hint {
+  font-size: 11px;
+  color: var(--sub);
 }
 
-.aname {
-  font-weight: 600;
-  font-size: 16px
+.opening-auto {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 
+.opening-auto.neg {
+  color: var(--bad);
+}
+
+/* =====================================================
+   セクション（収入・支出・送金）
+   ===================================================== */
 .field {
   display: flex;
   align-items: center;
@@ -159,9 +349,10 @@
 
 .field label {
   font-size: 13px;
-  color: var(--sub)
+  color: var(--sub);
 }
 
+/* 編集できる入力＝枠＋薄背景で「触れる」質感。focus は navy 枠＋リング。 */
 input.num {
   width: 128px;
   text-align: right;
@@ -170,7 +361,7 @@ input.num {
   padding: 6px 9px;
   font: inherit;
   font-variant-numeric: tabular-nums;
-  background: #fff;
+  background: #fcfbf9;
 }
 
 input.num:focus,
@@ -181,24 +372,17 @@ input.num:focus,
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(31, 58, 95, .08);
-}
-
-/* 月初残高：起点月以外は前月末から自動計算した値を読み取り専用で表示 */
-.opening-auto {
-  min-width: 128px;
-  text-align: right;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
+  background: #fff;
 }
 
 .sec {
-  margin-top: 8px;
-  border-top: 1px dashed var(--line);
-  padding-top: 8px;
+  margin-top: 10px;
+  border-top: 1px solid #f0eee9;
+  padding-top: 10px;
 }
 
 .sec h4 {
-  margin: 0 0 4px;
+  margin: 0 0 6px;
   font-size: 11.5px;
   color: var(--sub);
   font-weight: 600;
@@ -206,6 +390,25 @@ input.num:focus,
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+/* セクション見出しの右端に合計 */
+.sec-total {
+  font-weight: 600;
+  color: var(--sub);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+/* 「その他」「手入力」などの追加サブ見出し */
+.sub-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 5px 0 2px;
+  font-size: 11px;
+  color: var(--sub);
+  letter-spacing: .04em;
 }
 
 .row {
@@ -218,12 +421,12 @@ input.num:focus,
 .row input.name,
 .row select.name {
   flex: 1;
-  min-width: 0; /* 既定の入力最小幅でカードが広がり 2カラムが溢れるのを防ぐ */
+  min-width: 0; /* 既定の入力最小幅でカードが広がり溢れるのを防ぐ */
   border: 1px solid var(--line);
   border-radius: 7px;
   padding: 5px 8px;
   font: inherit;
-  background: #fff;
+  background: #fcfbf9;
 }
 
 .row input.amt {
@@ -234,7 +437,7 @@ input.num:focus,
   padding: 5px 8px;
   font: inherit;
   font-variant-numeric: tabular-nums;
-  background: #fff;
+  background: #fcfbf9;
 }
 
 .row .x,
@@ -256,6 +459,138 @@ input.num:focus,
   color: var(--bad);
 }
 
+/* ATM 行（資産移動・表示は入力欄つき） */
+.atm-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  color: var(--sub);
+}
+
+.atm-label .msym {
+  font-size: 18px;
+}
+
+/* カード由来＝表示専用リンク行（input にしない） */
+.card-row {
+  cursor: pointer;
+  border-radius: 7px;
+}
+
+.card-row:hover {
+  background: #f6f4ef;
+}
+
+.card-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.card-name .msym {
+  font-size: 18px;
+  color: var(--sub);
+}
+
+.card-amt {
+  font-variant-numeric: tabular-nums;
+}
+
+.card-arrow {
+  color: var(--sub);
+  font-size: 18px;
+}
+
+/* 折りたたみブロック（カード由来・固定費で共用）＝表示専用 */
+.fold {
+  margin: 5px 0;
+}
+
+.fold-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: none;
+  background: #f4f1ec;
+  border-radius: 9px;
+  padding: 9px 11px;
+  font: inherit;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.fold-head:hover {
+  background: #efebe4;
+}
+
+.fold-head-lab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.fold-head-lab .msym {
+  font-size: 17px;
+  color: var(--sub);
+}
+
+.fold-head-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fold-total {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.fold-chev {
+  font-size: 18px;
+  color: var(--sub);
+}
+
+.fold-list {
+  padding: 6px 4px 2px;
+}
+
+/* 固定費の明細行（表示専用・展開時） */
+.fixed-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  font-size: 14px;
+}
+
+.fixed-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fixed-lock {
+  font-size: 15px;
+  color: var(--sub);
+  opacity: .6;
+  flex: 0 0 auto;
+}
+
+.fixed-amt {
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
 .xfer-line {
   display: flex;
   justify-content: space-between;
@@ -265,46 +600,48 @@ input.num:focus,
 }
 
 .xfer-line .in {
-  color: var(--ok)
+  color: var(--ok);
 }
 
+/* 月末残高フッタ（底に固定・上に極細線） */
 .close {
   margin-top: auto;
-  padding-top: 12px;
+  padding-top: 14px;
   display: flex;
-  align-items: flex-end;
+  align-items: baseline;
   justify-content: space-between;
+  border-top: 1px solid #f0eee9;
 }
 
 .close .lab {
   font-size: 12px;
-  color: var(--sub)
+  color: var(--sub);
 }
 
 .close .amt {
   font-size: 24px;
   font-weight: 700;
   color: var(--ok);
+  font-variant-numeric: tabular-nums;
 }
 
 .acct.bad .close .amt {
-  color: var(--bad)
+  color: var(--bad);
 }
 
 .badge {
   font-size: 11px;
   font-weight: 700;
-  padding: 2px 9px;
+  padding: 3px 10px;
   border-radius: 20px;
   background: var(--okbg);
   color: var(--ok);
   display: inline-block;
-  margin-bottom: 2px;
 }
 
 .acct.bad .badge {
   background: var(--badbg);
-  color: var(--bad)
+  color: var(--bad);
 }
 
 .bonus-tag {
@@ -318,14 +655,89 @@ input.num:focus,
 
 .lock {
   font-size: 12px;
-  opacity: .4
+  opacity: .4;
+}
+
+/* 追加リンク（＋ アイコン＋テキスト） */
+.add-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.add-line .msym {
+  font-size: 16px;
 }
 
 /* =====================================================
-   レスポンシブ（月次サマリー）
+   PC（サイドナビ表示時）：広い本文幅を活かし口座カードを 1行3枚に
+   （base の min 330px だと広い幅で4列になり詰まるため 380px に上げる）。
    ===================================================== */
+.app-shell.has-sidenav .grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr));
+}
+
+/* =====================================================
+   スマホ：月切り替えを全幅バー（‹ 月 ›）＋ ⓘ を独立した丸ボタンに
+   ===================================================== */
+.app-shell.is-mobile .top > div:first-child {
+  display: none; /* PC用の左スペーサーを隠す */
+}
+
+.app-shell.is-mobile .topright {
+  flex: 1 1 100%;
+  gap: 8px;
+}
+
+.app-shell.is-mobile .monthnav {
+  flex: 1;
+  justify-content: space-between;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 5px;
+  gap: 4px;
+}
+
+.app-shell.is-mobile .monthnav button {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+}
+
+.app-shell.is-mobile .monthnav .m {
+  flex: 1;
+  font-size: 17px;
+}
+
+.app-shell.is-mobile .cycle-info {
+  flex: 0 0 auto;
+  width: 46px;
+  height: 46px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  border-radius: 14px;
+}
+
+/* =====================================================
+   スマホ（狭幅）：ヒーロー数値を抑え、サマリは縦に積む
+   ===================================================== */
+.app-shell.is-mobile .stat.hero {
+  min-width: 100%;
+}
+
+.app-shell.is-mobile .hero-val {
+  font-size: 30px;
+}
+
 @media (max-width: 520px) {
   .summary .stat {
-    min-width: 120px
+    min-width: 120px;
+  }
+  .stat.hero {
+    min-width: 100%;
+  }
+  .hero-val {
+    font-size: 30px;
   }
 }

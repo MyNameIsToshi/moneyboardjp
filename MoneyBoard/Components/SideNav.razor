@@ -11,19 +11,19 @@
     </div>
     <div class="sidenav-items">
         <button class="sidenav-item @(IsHomeTab("monthly") ? "active" : "")" @onclick='() => GoTab("monthly")'>
-            <span class="sn-ico">📅</span><span class="sn-lab">月次管理</span>
+            <span class="sn-ico msym">calendar_month</span><span class="sn-lab">月次管理</span>
         </button>
         <button class="sidenav-item @(IsHomeTab("card") ? "active" : "")" @onclick='() => GoTab("card")'>
-            <span class="sn-ico">💳</span><span class="sn-lab">カード</span>
+            <span class="sn-ico msym">credit_card</span><span class="sn-lab">カード</span>
         </button>
         <button class="sidenav-item @(IsRoute("/graph") ? "active" : "")" @onclick="GoGraph">
-            <span class="sn-ico">📊</span><span class="sn-lab">統計</span>
+            <span class="sn-ico msym">bar_chart</span><span class="sn-lab">統計</span>
         </button>
         <button class="sidenav-item @(IsRoute("/portfolio") ? "active" : "")" @onclick='() => Go("/portfolio")'>
-            <span class="sn-ico">💹</span><span class="sn-lab">資産</span>
+            <span class="sn-ico msym">savings</span><span class="sn-lab">資産</span>
         </button>
         <button class="sidenav-item @(IsHomeTab("mypage") ? "active" : "")" @onclick='() => GoTab("mypage")'>
-            <span class="sn-ico">👤</span><span class="sn-lab">マイページ</span>
+            <span class="sn-ico msym">person</span><span class="sn-lab">マイページ</span>
         </button>
     </div>
 </nav>

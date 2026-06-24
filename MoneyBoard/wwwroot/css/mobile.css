@@ -53,7 +53,7 @@
 /* アクティブタブを明確化：accent色＋太字＋上端インジケータ＋淡い背景 */
 .botnav-item.active {
   color: var(--accent);
-  background: var(--okbg);
+  background: rgba(31, 58, 95, .08); /* navy（--accent）淡。サイドナビと統一 */
 }
 
 .botnav-item.active::before {
