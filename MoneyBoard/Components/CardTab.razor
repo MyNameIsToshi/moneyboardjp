@@ -3,17 +3,26 @@
 @inject IJSRuntime JS
 @implements IDisposable
 
-<div>
+@{
+    var cards = Svc.CardsOrdered;
+    var cardTotal = Mo.CardDetails.Sum(d => d.Amount);
+    var unclassified = Mo.CardDetails.Count(d => string.IsNullOrEmpty(d.CategoryId));
+    var monthLabel = LedgerService.Label(Svc.CardMonth);
+    var prevTotal = CardTotalOf(LedgerService.PrevYm(Svc.CardMonth));
+    var delta = cardTotal - prevTotal;
+    var showDelta = prevTotal != 0 || cardTotal != 0;
+}
+<div class="cardtab">
     <div class="top">
         <div></div>
         <div class="topright">
-            <button class="btn" @onclick="OpenBulk">一括カテゴリ</button>
+            <button class="btn bulk-btn" @onclick="OpenBulk"><span class="msym">sell</span>一括カテゴリ</button>
             <div class="monthnav">
-                <button @onclick="Prev">‹</button>
-                <div class="m">@LedgerService.Label(Svc.CardMonth)</div>
-                <button @onclick="Next">›</button>
-                <CycleInfo Ym="@Svc.CardMonth" />
+                <button @onclick="Prev"><span class="msym">chevron_left</span></button>
+                <div class="m">@monthLabel</div>
+                <button @onclick="Next"><span class="msym">chevron_right</span></button>
             </div>
+            <CycleInfo Ym="@Svc.CardMonth" />
         </div>
     </div>
 
@@ -25,121 +34,200 @@
         </div>
     }
 
-    @if (Svc.CardsOrdered.Count == 0)
+    @* サマリ＝ヘッダー帯。当月のカード請求合計をヒーロー化し主役に、登録カード数・未分類件数を従える。 *@
+    <div class="summary">
+        <div class="stat hero">
+            <div class="hero-lab">
+                当月のカード請求 合計
+                @if (showDelta)
+                {
+                    <span class="hero-pill @(delta > 0 ? "up" : "down")">
+                        <span class="msym">@(delta > 0 ? "trending_up" : "trending_down")</span>先月比 @SignedYen(delta)
+                    </span>
+                }
+            </div>
+            <div class="hero-val">@Yen(cardTotal)</div>
+            <div class="hero-sub">@monthLabel 全カードの利用額合計（口座の支出へ反映）</div>
+        </div>
+        <div class="stat">
+            <div class="lab">登録カード</div>
+            <div class="stat-val-row">
+                <span class="stat-chip navy msym">credit_card</span>
+                <div class="val">@cards.Count</div>
+            </div>
+        </div>
+        <div class="stat">
+            <div class="lab">未分類の明細</div>
+            <div class="stat-val-row">
+                @if (unclassified > 0)
+                {
+                    <span class="stat-chip warn msym">sell</span>
+                    <div class="val uncl">@unclassified 件</div>
+                }
+                else
+                {
+                    <span class="stat-chip ok msym">check</span>
+                    <div class="val">0 件</div>
+                }
+            </div>
+        </div>
+    </div>
+
+    @if (cards.Count == 0)
     {
         <div class="none">カードが登録されていません。マイページのカード設定で追加してください。</div>
     }
     else
     {
-        @foreach (var card in Svc.CardsOrdered)
-        {
-            var details = DetailsFor(card.Id);
-            var collapsed = IsCollapsed(card.Id);
-            <div class="card-panel" id="card-@card.Id">
-                <div class="card-panel-head">
-                    <button class="card-collapse" @onclick="() => ToggleCollapse(card.Id)"
-                            title="@(collapsed ? "開く" : "たたむ")">@(collapsed ? "▶" : "▼")</button>
-                    <span class="card-title" @onclick="() => ToggleCollapse(card.Id)">💳 @card.Name</span>
-                    <span class="card-acct-name">@Svc.AccountName(card.AccountId)</span>
-                    @if (collapsed)
+        <div class="cardlist">
+            @for (int i = 0; i < cards.Count; i++)
+            {
+                var card = cards[i];
+                var details = DetailsFor(card.Id);
+                var collapsed = IsCollapsed(card.Id);
+                var used = details.Sum(d => d.Amount);
+                var chev = collapsed ? "chevron_right" : "expand_more";
+                <div class="ccard @(collapsed ? "collapsed" : "")" id="card-@card.Id">
+
+                    @if (IsMobile)
                     {
-                        <span class="card-collapse-count">@details.Count 件</span>
+                        <div class="cc-head cc-head-m" @onclick="() => ToggleCollapse(card.Id)">
+                            <span class="msym cc-chev">@chev</span>
+                            <span class="cc-avatar cc@(i % 4) msym">credit_card</span>
+                            <span class="cc-id">
+                                <span class="cc-name">@card.Name</span>
+                                <span class="cc-bank">@Svc.AccountName(card.AccountId)</span>
+                            </span>
+                            <span class="cc-total @(used == 0 ? "is-zero" : "")">@Yen(used)</span>
+                        </div>
                     }
-                    <span class="card-total">@Yen(details.Sum(d => d.Amount))</span>
+                    else
+                    {
+                        <div class="cc-head">
+                            <button class="cc-toggle" @onclick="() => ToggleCollapse(card.Id)" title="@(collapsed ? "開く" : "たたむ")">
+                                <span class="msym">@chev</span>
+                            </button>
+                            <span class="cc-avatar cc@(i % 4) msym">credit_card</span>
+                            <span class="cc-name">@card.Name</span>
+                            <span class="cc-bank">@Svc.AccountName(card.AccountId)</span>
+                            @if (collapsed)
+                            {
+                                <span class="cc-count">@details.Count 件</span>
+                            }
+                            <span class="cc-spacer"></span>
+                            <span class="cc-total @(used == 0 ? "is-zero" : "")">@Yen(used)</span>
+                            @if (!collapsed)
+                            {
+                                <div class="cc-actions">
+                                    <button class="cc-act primary" @onclick="() => AddDetail(card.Id)"><span class="msym">add</span>明細を追加</button>
+                                    <button class="cc-act" @onclick="() => OpenImport(card.Id)"><span class="msym">upload_file</span>取込</button>
+                                    <button class="cc-act" @onclick="() => OpenShot(card.Id)"><span class="msym">auto_awesome</span>AIで読取</button>
+                                </div>
+                            }
+                        </div>
+                    }
+
                     @if (!collapsed)
                     {
-                        <button class="add-line" @onclick="() => AddDetail(card.Id)">＋ 明細を追加</button>
-                        <button class="add-line" @onclick="() => OpenImport(card.Id)">📥 取込</button>
-                        <button class="add-line" @onclick="() => OpenShot(card.Id)">🤖 AIで読取</button>
+                        <div class="cc-body">
+                            @if (IsMobile)
+                            {
+                                <div class="cc-chips">
+                                    <button class="cc-chip primary" @onclick="() => AddDetail(card.Id)"><span class="msym">add</span>追加</button>
+                                    <button class="cc-chip" @onclick="() => OpenImport(card.Id)"><span class="msym">upload_file</span>取込</button>
+                                    <button class="cc-chip" @onclick="() => OpenShot(card.Id)"><span class="msym">auto_awesome</span>AI読取</button>
+                                </div>
+                            }
+
+                            @* リボ・分割で請求額が利用額と異なるカードの補正 *@
+                            <div class="cc-ribo">
+                                <label class="cc-ribo-toggle">
+                                    <input type="checkbox" checked="@HasBilled(card.Id)"
+                                           @onchange="e => ToggleBilled(card.Id, (bool)(e.Value ?? false), used)" />
+                                    <span>リボ・分割などで請求額が利用額と異なる</span>
+                                </label>
+                                @if (HasBilled(card.Id))
+                                {
+                                    <div class="cc-billed">
+                                        <span class="cc-billed-lab">
+                                            <span class="cc-billed-title">今月の請求額（口座引落）</span>
+                                            <span class="hint">口座末残高はこの額で計算（明細＝利用額 @Yen(used) は統計にそのまま残ります）</span>
+                                        </span>
+                                        <AmountInput CssClass="cc-billed-input" Value="@(BilledOf(card.Id) ?? 0)"
+                                                     ValueChanged="v => OnBilledChanged(card.Id, v)" />
+                                    </div>
+                                }
+                            </div>
+
+                            @if (details.Count == 0)
+                            {
+                                <div class="cd-empty">
+                                    <span class="msym">receipt_long</span>
+                                    この月の明細はありません。「明細を追加」「取込」「AIで読取」から登録できます。
+                                </div>
+                            }
+                            else if (!IsMobile)
+                            {
+                                <div class="cd-table">
+                                    <div class="cd-head">
+                                        <span class="sortable" @onclick="@(() => SetSort("date"))">@SortHead("date", "利用日")</span>
+                                        <span class="sortable" @onclick="@(() => SetSort("name"))">@SortHead("name", "利用先")</span>
+                                        <span class="sortable" @onclick="@(() => SetSort("category"))">@SortHead("category", "カテゴリ")</span>
+                                        <span class="cd-head-amt sortable" @onclick="@(() => SetSort("amount"))">@SortHead("amount", "金額")</span>
+                                        <span></span>
+                                    </div>
+                                    @foreach (var d in details)
+                                    {
+                                        <div class="cd-row">
+                                            <input class="cd-date" type="date" value="@d.Date" @onchange="e => OnDateChange(d, e.Value)" />
+                                            <input class="cd-name" @bind="d.Name" @bind:after="() => OnNameChanged(d)" placeholder="利用先" />
+                                            <div class="cd-cat-cell">
+                                                <span class="color-dot" style="background:@DotColor(d.CategoryId)"></span>
+                                                <select class="cd-cat" @bind="d.CategoryId" @bind:after="Save">
+                                                    <option value="">未分類</option>
+                                                    @foreach (var c in Svc.CategoriesOrdered)
+                                                    {
+                                                        <option value="@c.Id">@c.Name</option>
+                                                    }
+                                                </select>
+                                                <span class="msym cd-cat-chev">expand_more</span>
+                                            </div>
+                                            <AmountInput CssClass="cd-amt" Value="@d.Amount" ValueChanged="v => { d.Amount = v; OnAmountChanged(); }" />
+                                            <button class="cd-del" @onclick="() => RemoveDetail(d.Id)" title="削除"><span class="msym">close</span></button>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="cd-mlist">
+                                    @foreach (var d in details)
+                                    {
+                                        <button class="list-card" @onclick="() => OpenDetail(d.Id)">
+                                            <div class="list-card-main">
+                                                <span class="list-card-name">@(string.IsNullOrEmpty(d.Name) ? "(利用先なし)" : d.Name)</span>
+                                                <span class="list-card-amount">@Yen(d.Amount)</span>
+                                            </div>
+                                            <div class="list-card-sub">
+                                                <span>@d.Date ・ <span class="color-dot" style="background:@DotColor(d.CategoryId)"></span> @CatName(d.CategoryId)</span>
+                                                <span class="list-card-chev msym">chevron_right</span>
+                                            </div>
+                                        </button>
+                                    }
+                                </div>
+                            }
+                        </div>
                     }
                 </div>
-
-                @if (!collapsed)
-                {
-                    var used = details.Sum(d => d.Amount);
-                    <div class="card-billing">
-                        <label class="cb-toggle">
-                            <input type="checkbox" checked="@HasBilled(card.Id)"
-                                   @onchange="e => ToggleBilled(card.Id, (bool)(e.Value ?? false), used)" />
-                            <span>リボ・分割などで請求額が利用額と異なる</span>
-                        </label>
-                        @if (HasBilled(card.Id))
-                        {
-                            <div class="cb-fields">
-                                <span class="cb-lab">今月の請求額（口座引落）</span>
-                                <AmountInput CssClass="cb-input" Value="@(BilledOf(card.Id) ?? 0)"
-                                             ValueChanged="v => OnBilledChanged(card.Id, v)" />
-                                <span class="cb-carry">利用額（統計）@Yen(used)</span>
-                            </div>
-                        }
-                    </div>
-                }
-
-                @if (collapsed)
-                {
-                    // たたんでいる間は明細を描画しない（件数と合計だけヘッダに表示）
-                }
-                else if (details.Count == 0)
-                {
-                    <div class="none">この月の明細はありません。</div>
-                }
-                else
-                {
-                    @if (!IsMobile)
-                    {
-                        <div class="cd-head">
-                            <span class="sortable" @onclick="@(() => SetSort("date"))">@SortHead("date", "利用日")</span>
-                            <span class="sortable" @onclick="@(() => SetSort("name"))">@SortHead("name", "利用先")</span>
-                            <span class="sortable" @onclick="@(() => SetSort("category"))">@SortHead("category", "カテゴリ")</span>
-                            <span class="sortable" @onclick="@(() => SetSort("amount"))">@SortHead("amount", "金額")</span>
-                            <span></span>
-                        </div>
-                    }
-                    @foreach (var d in details)
-                    {
-                        @if (IsMobile)
-                        {
-                            <button class="list-card" @onclick="() => OpenDetail(d.Id)">
-                                <div class="list-card-main">
-                                    <span class="list-card-name">@(string.IsNullOrEmpty(d.Name) ? "(利用先なし)" : d.Name)</span>
-                                    <span class="list-card-amount">@Yen(d.Amount)</span>
-                                </div>
-                                <div class="list-card-sub">
-                                    <span>@d.Date ・ <span class="color-dot" style="background:@DotColor(d.CategoryId)"></span> @CatName(d.CategoryId)</span>
-                                    <span class="list-card-chev">›</span>
-                                </div>
-                            </button>
-                        }
-                        else
-                        {
-                        <div class="cd-row">
-                            <input class="cd-date" type="date" value="@d.Date" @onchange="e => OnDateChange(d, e.Value)" />
-                            <input class="cd-name" @bind="d.Name" @bind:after="() => OnNameChanged(d)" placeholder="利用先" />
-                            <div class="cd-cat-cell">
-                                <span class="color-dot" style="background:@DotColor(d.CategoryId)"></span>
-                                <select class="cd-cat" @bind="d.CategoryId" @bind:after="Save">
-                                    <option value="">未分類</option>
-                                    @foreach (var c in Svc.CategoriesOrdered)
-                                    {
-                                        <option value="@c.Id">@c.Name</option>
-                                    }
-                                </select>
-                            </div>
-                            <AmountInput CssClass="cd-amt" Value="@d.Amount" ValueChanged="v => { d.Amount = v; OnAmountChanged(); }" />
-                            <button class="x" @onclick="() => RemoveDetail(d.Id)">✕</button>
-                        </div>
-                        }
-                    }
-                }
-            </div>
-        }
+            }
+        </div>
     }
 </div>
 
 <div class="foot">
     明細の合計が、各カードに紐づく口座のその月の支出に反映されます。<br />
     リボ・分割で引き落とし額が異なる場合は「今月の請求額」を設定すると、口座末残高はその額で計算されます（明細＝利用額は統計にそのまま残ります）。<br />
-    明細は表示中の月（@LedgerService.Label(Svc.CardMonth)）に計上されます。
+    明細は表示中の月（@monthLabel）に計上されます。
 </div>
 
 @if (_importCardId != null)
@@ -147,11 +235,13 @@
     <div class="dialog-overlay" @onclick="() => _importCardId = null">
         <div class="dialog-box import-pick" @onclick:stopPropagation="true">
             <h4>CSVの種別を選択</h4>
+            <p class="dialog-lead">@(Svc.CardById(_importCardId)?.Name) に取り込む明細CSVの発行元を選んでください。</p>
             <div class="import-pick-list">
                 @foreach (var fmt in Enum.GetValues<CardCsvFormat>())
                 {
-                    <label class="btn import-pick-item">
-                        @CardCsvParser.Specs[fmt].Label
+                    <label class="import-pick-item">
+                        <span>@CardCsvParser.Specs[fmt].Label</span>
+                        <span class="msym">chevron_right</span>
                         <InputFile OnChange="@(e => OnCsvSelected(e, fmt))" accept=".csv" class="import-input" />
                     </label>
                 }
@@ -167,19 +257,22 @@
 {
     <div class="dialog-overlay" @onclick="CloseShot">
         <div class="dialog-box import-pick shot-box" @onclick:stopPropagation="true">
-            <h4>🤖 AIで読取</h4>
+            <div class="dialog-head-icon">
+                <span class="dialog-icon-chip msym">auto_awesome</span>
+                <h4>AIで読取</h4>
+            </div>
             <p class="shot-intro">
                 クレジットカード明細のスクリーンショットや写真を選択・貼り付けると、AIが内容を読み取って明細に追加します。
             </p>
             <div class="shot-body">
-                <label class="btn import-pick-item @((_shotBusy || _shotStaged.Count >= ShotMaxCount) ? "is-disabled" : "")">
-                    📷 画像を選択（複数可）
+                <label class="shot-pick @((_shotBusy || _shotStaged.Count >= ShotMaxCount) ? "is-disabled" : "")">
+                    <span class="msym">add_photo_alternate</span>画像を選択（複数可）
                     <input type="file" accept="image/*" multiple @ref="_shotInput"
                            @onchange="OnShotFilesSelected" class="import-input" disabled="@(_shotBusy || _shotStaged.Count >= ShotMaxCount)" />
                 </label>
                 @if (!IsMobile)
                 {
-                    <div class="shot-paste">PCはこのまま <b>Ctrl + V</b> で貼り付け（複数回OK・最大 @ShotMaxCount 枚）</div>
+                    <div class="shot-paste"><span class="msym">content_paste</span>PCはこのまま <b>Ctrl + V</b> で貼り付け（複数回OK・最大 @ShotMaxCount 枚）</div>
                 }
                 @if (_shotStaged.Count > 0)
                 {
@@ -207,7 +300,7 @@
                 }
             </div>
             <div class="dialog-message">
-                読み取った明細は当月（@LedgerService.Label(Svc.CardMonth)）の「@(Svc.CardById(_shotCardId)?.Name)」に追加されます。AIの読み取り結果は一覧で必ず確認・修正してください。
+                読み取った明細は当月（@monthLabel）の「@(Svc.CardById(_shotCardId)?.Name)」に追加されます。AIの読み取り結果は一覧で必ず確認・修正してください。
             </div>
             <div class="dialog-btns">
                 <button class="btn" @onclick="CloseShot" disabled="@_shotBusy">閉じる</button>
@@ -223,7 +316,7 @@
 {
     <div class="dialog-overlay" @onclick="RequestCloseBulk">
         <div class="dialog-box bulk-box" @onclick:stopPropagation="true">
-            <h4>一括カテゴリ設定（@LedgerService.Label(Svc.CardMonth)）</h4>
+            <h4>一括カテゴリ設定（@monthLabel）</h4>
             @if (BulkGroups.Count == 0)
             {
                 <div class="none">この月の明細がありません。</div>
@@ -231,7 +324,7 @@
             else
             {
                 <div class="bulk-batch">
-                    <span>選択した利用先に一括設定:</span>
+                    <span>選択した利用先に一括設定</span>
                     <div class="bulk-cat-cell bulk-batch-cat">
                         <span class="color-dot" style="background:@DotColor(_batchCat)"></span>
                         <select @bind="_batchCat">

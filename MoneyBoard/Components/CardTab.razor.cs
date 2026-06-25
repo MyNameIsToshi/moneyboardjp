@@ -59,9 +59,9 @@ public partial class CardTab
         if (target == null) return;
         Svc.ScrollToCardId = null;            // 一度きりで消費
 
-        _collapsed.Clear();
-        foreach (var c in Svc.CardsOrdered)
-            if (c.Id != target) _collapsed.Add(c.Id);   // 対象以外を畳む
+        // 既定は折りたたみ。_toggled は「展開した集合」なので、対象だけ入れれば対象のみ展開になる。
+        _toggled.Clear();
+        _toggled.Add(target);
         StateHasChanged();
 
         await JS.InvokeVoidAsync("scrollToElementId", $"card-{target}");
@@ -75,13 +75,22 @@ public partial class CardTab
 
     private static string Yen(decimal v) => "¥" + v.ToString("#,0");
 
-    // ── カードパネルの折りたたみ（カードIdで保持・既定は展開）──
-    private readonly HashSet<string> _collapsed = new();
-    private bool IsCollapsed(string cardId) => _collapsed.Contains(cardId);
+    // ── カードパネルの折りたたみ ──
+    // 既定は PC・スマホとも折りたたみ。_toggled は「ユーザーが展開した集合」。
+    // 月変更・カード増減でも自然に既定（折りたたみ）へ戻る。
+    private readonly HashSet<string> _toggled = new();
+    private bool IsCollapsed(string cardId) => !_toggled.Contains(cardId);
     private void ToggleCollapse(string cardId)
     {
-        if (!_collapsed.Add(cardId)) _collapsed.Remove(cardId);
+        if (!_toggled.Add(cardId)) _toggled.Remove(cardId);
     }
+
+    // ヒーローの「先月比」用：指定月の全カード利用額合計（未ロードの月は 0。月は新規作成しない）。
+    private decimal CardTotalOf(string ym) =>
+        Svc.State.Months.TryGetValue(ym, out var mo) ? mo.CardDetails.Sum(d => d.Amount) : 0m;
+
+    // 符号つき金額（先月比）。増＝+¥ / 減＝−¥。
+    private static string SignedYen(decimal v) => (v >= 0 ? "+¥" : "−¥") + Math.Abs(v).ToString("#,0");
 
     // ── 明細の並び替え（利用日/利用先/カテゴリ/金額）。全カードパネル共通 ──
     private string _sortKey = "date";
