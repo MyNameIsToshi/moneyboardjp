@@ -2,139 +2,133 @@
 @inject AuthService Auth
 @inject AccessService Access
 
-<div class="mypage-section">
-    <h3>アカウント</h3>
-    <div class="account-note">
-        @if (Auth.IsBypass)
-        {
-            <span>ローカル開発モード（認証バイパス）</span>
-        }
-        else
-        {
-            <span>@Auth.User?.Email でログイン中</span>
-        }
+@{
+    var accountCount = Svc.ActiveAccounts.Count;
+    var cardCount = Svc.State.Cards.Count(c => !c.IsDeleted);
+    var fixedTotal = Svc.State.FixedCosts.Sum(f => f.Amount);
+    var name = Auth.IsBypass ? "ローカル開発" : (string.IsNullOrEmpty(Auth.User?.Name) ? (Auth.User?.Email ?? "ユーザー") : Auth.User!.Name!);
+    var email = Auth.IsBypass ? "認証バイパス（localhost）" : (Auth.User?.Email ?? "");
+    var initial = string.IsNullOrEmpty(name) ? "U" : name.Substring(0, 1).ToUpperInvariant();
+}
+<div class="mypage">
+
+    @* プロフィールヒーロー：アバター＋名前/メール＋モード or ログアウト＋口座/カード/固定費の指標 *@
+    <div class="mph">
+        <div class="mph-avatar">@initial</div>
+        <div class="mph-id">
+            <span class="mph-name">@name</span>
+            <span class="mph-email">@email</span>
+            @if (Auth.IsBypass)
+            {
+                <span class="mph-mode"><span class="msym">developer_mode</span>ローカル開発モード（認証バイパス）</span>
+            }
+            else
+            {
+                <button class="mph-logout" @onclick="() => ShowLogoutConfirm = true"><span class="msym">logout</span>ログアウト</button>
+            }
+        </div>
+        <div class="mph-stats">
+            <div class="mph-stat">
+                <span class="mph-stat-lab">口座</span>
+                <span class="mph-stat-val">@accountCount</span>
+            </div>
+            <span class="mph-div"></span>
+            <div class="mph-stat">
+                <span class="mph-stat-lab">カード</span>
+                <span class="mph-stat-val">@cardCount</span>
+            </div>
+            <span class="mph-div"></span>
+            <div class="mph-stat">
+                <span class="mph-stat-lab">固定費（月）</span>
+                <span class="mph-stat-val">@Yen(fixedTotal)</span>
+            </div>
+        </div>
     </div>
-    @if (!Auth.IsBypass)
+
+    @if (IsMobile)
     {
-        <button class="btn account-logout" @onclick="() => ShowLogoutConfirm = true">ログアウト</button>
-    }
-</div>
-
-@if (Svc.IsOwner)
-{
-    <div class="mypage-section">
-        <button class="mypage-collapse" @onclick='() => ToggleSection("access")'>
-            <span>アクセス管理@(PendingCount > 0 ? $"（承認待ち {PendingCount}）" : "")</span>
-            <span class="mypage-chevron">@(IsOpen("access") ? "▼" : "▶")</span>
-        </button>
-        @if (IsOpen("access"))
+        @* スマホ：従来どおり折りたたみセクションを縦積み（各設定は内部で list-card＋シート編集） *@
+        @if (Svc.IsOwner)
         {
-            <div class="mypage-collapse-body">
-                @if (_access is null)
+            <div class="mypage-section">
+                <button class="mypage-collapse" @onclick='() => ToggleSection("access")'>
+                    <span>アクセス管理@(PendingCount > 0 ? $"（承認待ち {PendingCount}）" : "")</span>
+                    <span class="mypage-chevron msym">@(IsOpen("access") ? "expand_more" : "chevron_right")</span>
+                </button>
+                @if (IsOpen("access"))
                 {
-                    <div class="none">読み込み中…</div>
-                }
-                else
-                {
-                    <h4 class="access-sub">承認待ち</h4>
-                    @if (_access.Pending.Count == 0)
-                    {
-                        <div class="none">承認待ちはありません。</div>
-                    }
-                    @foreach (var p in _access.Pending)
-                    {
-                        <div class="access-row">
-                            <div class="access-id">
-                                <span class="access-name">@(string.IsNullOrEmpty(p.Name) ? "(名前なし)" : p.Name)</span>
-                                <span class="access-email">@p.Email</span>
-                            </div>
-                            <div class="access-actions">
-                                <button class="btn primary" @onclick='() => Act("approve", p.Uid)'>承認</button>
-                                <button class="btn" @onclick='() => Act("reject", p.Uid)'>拒否</button>
-                            </div>
-                        </div>
-                    }
-
-                    <h4 class="access-sub">承認済み</h4>
-                    @if (_access.Approved.Count == 0)
-                    {
-                        <div class="none">承認済みのユーザーはいません。</div>
-                    }
-                    @foreach (var a in _access.Approved)
-                    {
-                        <div class="access-row">
-                            <div class="access-id">
-                                <span class="access-name">@(string.IsNullOrEmpty(a.Name) ? "(名前なし)" : a.Name)</span>
-                                <span class="access-email">@a.Email</span>
-                            </div>
-                            <div class="access-actions">
-                                <label class="access-tsmc" title="ESPP（従業員株式購入制度）の入力を許可">
-                                    <input type="checkbox" checked="@IsTsmc(a.Uid)" @onchange="e => SetTsmc(a.Uid, (bool)(e.Value ?? false))" />
-                                    TSMC社員
-                                </label>
-                                <button class="btn" @onclick='() => Act("revoke", a.Uid)'>解除</button>
-                            </div>
-                        </div>
-                    }
+                    <div class="mypage-collapse-body">@AccessBody</div>
                 }
             </div>
         }
-    </div>
-}
 
-<div class="mypage-section">
-    <button class="mypage-collapse" @onclick='() => ToggleSection("account")'>
-        <span>口座設定</span>
-        <span class="mypage-chevron">@(IsOpen("account") ? "▼" : "▶")</span>
-    </button>
-    @if (IsOpen("account"))
-    {
-        <div class="mypage-collapse-body"><AccountsTab /></div>
+        <div class="mypage-section">
+            <button class="mypage-collapse" @onclick='() => ToggleSection("account")'>
+                <span>口座設定</span>
+                <span class="mypage-chevron msym">@(IsOpen("account") ? "expand_more" : "chevron_right")</span>
+            </button>
+            @if (IsOpen("account")) { <div class="mypage-collapse-body"><AccountsTab /></div> }
+        </div>
+
+        <div class="mypage-section">
+            <button class="mypage-collapse" @onclick='() => ToggleSection("fixed")'>
+                <span>固定費設定</span>
+                <span class="mypage-chevron msym">@(IsOpen("fixed") ? "expand_more" : "chevron_right")</span>
+            </button>
+            @if (IsOpen("fixed")) { <div class="mypage-collapse-body"><FixedCostTab /></div> }
+        </div>
+
+        <div class="mypage-section">
+            <button class="mypage-collapse" @onclick='() => ToggleSection("card")'>
+                <span>カード設定</span>
+                <span class="mypage-chevron msym">@(IsOpen("card") ? "expand_more" : "chevron_right")</span>
+            </button>
+            @if (IsOpen("card")) { <div class="mypage-collapse-body"><CardSettings /></div> }
+        </div>
+
+        <div class="mypage-section">
+            <button class="mypage-collapse" @onclick='() => ToggleSection("category")'>
+                <span>カード明細カテゴリー設定</span>
+                <span class="mypage-chevron msym">@(IsOpen("category") ? "expand_more" : "chevron_right")</span>
+            </button>
+            @if (IsOpen("category")) { <div class="mypage-collapse-body"><CategorySettings /></div> }
+        </div>
     }
-</div>
-
-<div class="mypage-section">
-    <button class="mypage-collapse" @onclick='() => ToggleSection("fixed")'>
-        <span>固定費設定</span>
-        <span class="mypage-chevron">@(IsOpen("fixed") ? "▼" : "▶")</span>
-    </button>
-    @if (IsOpen("fixed"))
+    else
     {
-        <div class="mypage-collapse-body"><FixedCostTab /></div>
+        @* PC：2列グリッド。アクセス管理=最上部で全幅／口座・固定費＝横並び／カード・カテゴリ＝最下段 *@
+        <div class="mypage-grid">
+            @if (Svc.IsOwner)
+            {
+                <section class="set-card mypage-grid-full">
+                    <div class="set-head">
+                        <span class="set-chip c-access msym">group</span>
+                        <span class="set-title">アクセス管理@(PendingCount > 0 ? $"（承認待ち {PendingCount}）" : "")</span>
+                    </div>
+                    @AccessBody
+                </section>
+            }
+            <section class="set-card"><AccountsTab /></section>
+            <section class="set-card mypage-grid-wide"><FixedCostTab /></section>
+            <section class="set-card"><CardSettings /></section>
+            <section class="set-card"><CategorySettings /></section>
+        </div>
     }
-</div>
 
-<div class="mypage-section">
-    <button class="mypage-collapse" @onclick='() => ToggleSection("card")'>
-        <span>カード設定</span>
-        <span class="mypage-chevron">@(IsOpen("card") ? "▼" : "▶")</span>
-    </button>
-    @if (IsOpen("card"))
-    {
-        <div class="mypage-collapse-body"><CardSettings /></div>
-    }
+    <ConfirmDialog IsVisible="ShowLogoutConfirm"
+                   Title="ログアウト"
+                   Message="ログアウトしますか？"
+                   ConfirmText="ログアウト"
+                   OnConfirm="ConfirmLogout"
+                   OnCancel="() => ShowLogoutConfirm = false" />
 </div>
-
-<div class="mypage-section">
-    <button class="mypage-collapse" @onclick='() => ToggleSection("category")'>
-        <span>カード明細カテゴリー設定</span>
-        <span class="mypage-chevron">@(IsOpen("category") ? "▼" : "▶")</span>
-    </button>
-    @if (IsOpen("category"))
-    {
-        <div class="mypage-collapse-body"><CategorySettings /></div>
-    }
-</div>
-
-<ConfirmDialog IsVisible="ShowLogoutConfirm"
-               Title="ログアウト"
-               Message="ログアウトしますか？"
-               ConfirmText="ログアウト"
-               OnConfirm="ConfirmLogout"
-               OnCancel="() => ShowLogoutConfirm = false" />
 
 @code {
-    // 各設定セクションは折りたたみ式（既定は畳んだ状態）
+    [CascadingParameter(Name = "IsMobile")] public bool IsMobile { get; set; }
+
+    private static string Yen(decimal v) => "¥" + v.ToString("#,0");
+
+    // 各設定セクションは折りたたみ式（スマホのみ・既定は畳んだ状態）
     private readonly HashSet<string> _open = new();
     private bool IsOpen(string key) => _open.Contains(key);
 
@@ -151,7 +145,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        if (Svc.IsOwner) await LoadAccess();   // バッジ表示のため先読み
+        if (Svc.IsOwner) await LoadAccess();   // バッジ表示＋PCは常時表示のため先読み
     }
 
     private async Task ToggleSection(string key)
@@ -161,9 +155,20 @@
             await LoadAccess();
     }
 
+    // アクセス管理：承認待ち/承認済みの各グループの開閉（既定は承認待ちが居る時だけ開く）。
+    private readonly HashSet<string> _accessOpen = new();
+    private bool _accessSeeded;
+    private bool AccessOpen(string key) => _accessOpen.Contains(key);
+    private void ToggleAccess(string key) { if (!_accessOpen.Remove(key)) _accessOpen.Add(key); }
+
     private async Task LoadAccess()
     {
         _access = await Access.GetAsync();
+        if (!_accessSeeded)
+        {
+            _accessSeeded = true;
+            if (_access?.Pending.Count > 0) _accessOpen.Add("pending");
+        }
         StateHasChanged();
     }
 
@@ -180,4 +185,78 @@
         var result = await Access.SetTsmcAsync(uid, value);
         if (result is not null) _access = result;
     }
+
+    // アクセス管理の本体（承認待ち/承認済み）。PC=カード内・スマホ=折りたたみ内で共用。
+    private RenderFragment AccessBody => __builder =>
+    {
+        @if (_access is null)
+        {
+            <div class="none">読み込み中…</div>
+        }
+        else
+        {
+            <div class="access-cols">
+            <div class="access-group">
+                <button class="access-collapse pending" @onclick='() => ToggleAccess("pending")'>
+                    <span class="access-sub">承認待ち@(_access.Pending.Count > 0 ? $"（{_access.Pending.Count}）" : "")</span>
+                    <span class="access-chevron msym">@(AccessOpen("pending") ? "expand_more" : "chevron_right")</span>
+                </button>
+                @if (AccessOpen("pending"))
+                {
+                    <div class="access-body">
+                        @if (_access.Pending.Count == 0)
+                        {
+                            <div class="none">承認待ちはありません。</div>
+                        }
+                        @foreach (var p in _access.Pending)
+                        {
+                            <div class="access-row">
+                                <div class="access-id">
+                                    <span class="access-name">@(string.IsNullOrEmpty(p.Name) ? "(名前なし)" : p.Name)</span>
+                                    <span class="access-email">@p.Email</span>
+                                </div>
+                                <div class="access-actions">
+                                    <button class="btn primary" @onclick='() => Act("approve", p.Uid)'>承認</button>
+                                    <button class="btn" @onclick='() => Act("reject", p.Uid)'>拒否</button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+
+            <div class="access-group">
+                <button class="access-collapse approved" @onclick='() => ToggleAccess("approved")'>
+                    <span class="access-sub">承認済み@(_access.Approved.Count > 0 ? $"（{_access.Approved.Count}）" : "")</span>
+                    <span class="access-chevron msym">@(AccessOpen("approved") ? "expand_more" : "chevron_right")</span>
+                </button>
+                @if (AccessOpen("approved"))
+                {
+                    <div class="access-body">
+                        @if (_access.Approved.Count == 0)
+                        {
+                            <div class="none">承認済みのユーザーはいません。</div>
+                        }
+                        @foreach (var a in _access.Approved)
+                        {
+                            <div class="access-row approved">
+                                <div class="access-id">
+                                    <span class="access-name">@(string.IsNullOrEmpty(a.Name) ? "(名前なし)" : a.Name)</span>
+                                    <span class="access-email">@a.Email</span>
+                                </div>
+                                <div class="access-actions">
+                                    <label class="access-tsmc" title="ESPP（従業員株式購入制度）の入力を許可">
+                                        <input type="checkbox" checked="@IsTsmc(a.Uid)" @onchange="e => SetTsmc(a.Uid, (bool)(e.Value ?? false))" />
+                                        TSMC社員
+                                    </label>
+                                    <button class="btn" @onclick='() => Act("revoke", a.Uid)'>解除</button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+            </div>
+        }
+    };
 }
