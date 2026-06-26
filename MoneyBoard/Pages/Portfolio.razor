@@ -3,58 +3,88 @@
 @using ApexCharts
 @inject PortfolioStore Store
 @inject QuoteService Quote
-@inject NavigationManager Nav
+@inject IJSRuntime JS
 
 <div class="wrap">
+    @* 総資産ヒーロー＋指数までをスクロール追従で固定（タイトルだけでなく要約帯ごと貼り付ける）。 *@
     <div class="pf-sticky">
         <div class="pf-head">
-            <div class="app-title">ポートフォリオ</div>
-            <button class="btn" @onclick='() => Nav.NavigateTo("/")'>← 戻る</button>
+            <AppTitle Subtitle="ポートフォリオ" />
         </div>
 
         @if (Loaded && !Store.IsPending && !LoadFailed)
         {
-            <div class="pf-summary-bar">
-                <div class="pf-sum-main">
-                    <span class="pf-sum-label">総資産（円）</span>
-                    <span class="pf-sum-total">@TotalJpyDisplay</span>
-                    <div class="pf-sum-sub">
-                        <span>元本 ¥@TotalCostJpy.ToString("#,0")</span>
-                        <span>評価損益 <b class="@PnlClass(TotalPnlJpy)">@SignedYen(TotalPnlJpy)@PnlPct(TotalPnlJpy, TotalCostJpy)</b></span>
-                    </div>
-                </div>
-                <div class="pf-sum-meta">
+            var dayTotal = TotalDayPnlJpy();
+            @* ── 共通ページヘッダー（PCのみ・savings＋資産＋ポートフォリオ ｜ 右に価格更新メタ＋ボタン）。スマホはヒーロー内にメタを出す ── *@
+            <PageHeader Icon="savings" Title="資産" Subtitle="ポートフォリオ">
+                <Right>
                     @if (!string.IsNullOrEmpty(Store.Data.PricedAt))
                     {
-                        <span>価格更新 @Store.Data.PricedAt</span>
+                        <span class="pf-topbar-metatext">価格更新 @Store.Data.PricedAt</span>
                         @if (Store.Data.UsdJpyRate > 0)
                         {
-                            <span>・USD/JPY @Store.Data.UsdJpyRate.ToString("#,0.##")</span>
+                            <span class="pf-meta-dot"></span>
+                            <span class="pf-topbar-metatext">USD/JPY @Store.Data.UsdJpyRate.ToString("#,0.##")</span>
                         }
                     }
-                    <button class="btn-sm" disabled="@_updating" @onclick="() => UpdatePrices()">@(_updating ? "更新中…" : "価格更新")</button>
-                </div>
-            </div>
-            @* ── 市場指標バー（固定6本・総資産と同じ帯。日報用スクショに収める）── *@
-            <div class="pf-index-bar">
-                @foreach (var ix in MarketIndices)
-                {
-                    var pct = IndexPct(ix.Symbol);
-                    <div class="pf-index-chip">
-                        <span class="pf-ix-name">@ix.Label</span>
-                        <span class="pf-ix-val">@IndexValueDisp(ix.Symbol, ix.Decimals)</span>
-                        @if (pct.HasValue)
+                    <button class="pf-refresh" disabled="@_updating" @onclick="() => UpdatePrices()">
+                        <span class="msym">refresh</span>@(_updating ? "更新中…" : "価格更新")
+                    </button>
+                </Right>
+            </PageHeader>
+
+            @* ── 要約バンド：総資産ヒーロー（評価損益/当日損益を集約）＋指数（PC＝1枚カードに5本／スマホ＝下に横スクロール）── *@
+            <div class="pf-summary">
+                <div class="stat hero pf-hero">
+                    <div class="hero-lab">
+                        総資産（評価額）
+                        @if (!string.IsNullOrEmpty(HeroGainPct))
                         {
-                            <span class="pf-ix-pct @PnlClass(pct.Value)">@DayPct(pct.Value)</span>
+                            <span class="hero-pill @(HeroIsGain ? "surplus" : "deficit")"><span class="msym">@(HeroIsGain ? "trending_up" : "trending_down")</span>@(HeroIsGain ? "含み益" : "含み損") @HeroGainPct</span>
                         }
-                        else
+                        @if (IsMobile)
                         {
-                            <span class="pf-ix-pct">—</span>
+                            <button class="pf-refresh-m pf-hero-update" disabled="@_updating" @onclick="() => UpdatePrices()"><span class="msym">refresh</span>@(_updating ? "更新中…" : "更新")</button>
                         }
                     </div>
-                }
+                    <div class="hero-val">@TotalJpyDisplay</div>
+                    <div class="pf-hero-foot">
+                        @if (!IsMobile)
+                        {
+                            <span class="pf-hero-cell"><span class="pf-hero-k">元本</span><span class="pf-hero-v">¥@TotalCostJpy.ToString("#,0")</span></span>
+                        }
+                        <span class="pf-hero-cell"><span class="pf-hero-k">評価損益</span><span class="pf-hero-v @HeroVClass(TotalPnlJpy)">@SignedYen(TotalPnlJpy)@(string.IsNullOrEmpty(HeroGainPct) ? "" : $" ({HeroGainPct})")</span></span>
+                        <span class="pf-hero-cell"><span class="pf-hero-k">当日損益</span><span class="pf-hero-v @HeroVClass(dayTotal ?? 0)">@(dayTotal.HasValue ? SignedYen(dayTotal.Value) + TotalDayPct(dayTotal.Value) : "—")</span></span>
+                    </div>
+                </div>
+                <div class="pf-ticker">
+                    @if (IsMobile && Store.Data.UsdJpyRate > 0)
+                    {
+                        <div class="pf-tick pf-tick-fx">
+                            <span class="pf-tick-name">USD/JPY</span>
+                            <span class="pf-tick-val">@Store.Data.UsdJpyRate.ToString("#,0.##")</span>
+                        </div>
+                    }
+                    @foreach (var ix in MarketIndices)
+                    {
+                        var pct = IndexPct(ix.Symbol);
+                        <div class="pf-tick">
+                            <span class="pf-tick-name">@ix.Label</span>
+                            <span class="pf-tick-val">@IndexValueDisp(ix.Symbol, ix.Decimals)</span>
+                            @if (pct.HasValue)
+                            {
+                                <span class="pf-tick-pct @PnlClass(pct.Value)">@DayPct(pct.Value)</span>
+                            }
+                            else
+                            {
+                                <span class="pf-tick-pct">—</span>
+                            }
+                        </div>
+                    }
+                </div>
             </div>
-            @if (_updateMsg != null)
+
+            if (_updateMsg != null)
             {
                 <div class="pf-hint pf-neg">@_updateMsg</div>
             }
@@ -79,22 +109,15 @@
     }
     else
     {
-        @* ── 資産構成（クラス別／銘柄別の構成比ドーナツ）── *@
-        @if (CompositionData.Count > 0)
+        @* ── 資産構成（ドーナツ＋一覧。中央に総資産 total）。PC＝クラス別・銘柄別を横並び／スマホ＝トグルで1つ ── *@
+        @if (CompClassData.Count > 0)
         {
-            <div class="cat-head" style="margin-top:6px">
-                <span>資産構成</span>
-                <div class="pf-comp-toggle">
-                    <button class="period-btn @(_compMode == "class" ? "active" : "")" @onclick='() => SetCompMode("class")'>クラス別</button>
-                    <button class="period-btn @(_compMode == "holding" ? "active" : "")" @onclick='() => SetCompMode("holding")'>銘柄別</button>
-                </div>
-            </div>
-            <div class="graph-card graph-card-full pf-comp-card">
-                <div class="spend">
+            RenderFragment compBlock(List<SpendSlice> data, ApexChartOptions<SpendSlice> opt, string colLabel, string keySuffix) =>
+                @<div class="spend">
                     <div class="spend-chart">
-                        <ApexChart TItem="SpendSlice" Options="CompDonutOptions" @key="@($"comp-{_compMode}-{_compRev}")">
+                        <ApexChart TItem="SpendSlice" Options="opt" @key="@($"comp-{keySuffix}-{_compRev}")">
                             <ApexPointSeries TItem="SpendSlice"
-                                             Items="CompositionData"
+                                             Items="data"
                                              SeriesType="SeriesType.Donut"
                                              Name="資産構成"
                                              XValue="@(e => e.Label)"
@@ -103,32 +126,61 @@
                     </div>
                     <div class="spend-list">
                         <div class="spend-row spend-head">
-                            <span></span><span>@(_compMode == "class" ? "資産クラス" : "銘柄")</span><span>評価額</span><span>割合</span>
+                            <span></span><span>@colLabel</span><span>評価額</span><span>割合</span>
                         </div>
-                        @foreach (var s in CompositionData)
+                        @foreach (var s in data)
                         {
                             <div class="spend-row">
                                 <span class="color-dot" style="background:@s.Color"></span>
                                 <span class="spend-name">@s.Label</span>
                                 <span class="spend-amt">¥@s.Value.ToString("#,0")</span>
-                                <span class="spend-pct">@CompPct(s.Value)</span>
+                                <span class="spend-pct">@CompPct(s.Value, SlicesTotal(data))</span>
                             </div>
                         }
                         <div class="spend-row spend-total">
                             <span></span><span>合計</span>
-                            <span class="spend-amt">¥@CompTotal.ToString("#,0")</span>
+                            <span class="spend-amt">¥@SlicesTotal(data).ToString("#,0")</span>
                             <span></span>
                         </div>
                     </div>
+                </div>;
+
+            <div class="graph-card pf-comp-card">
+                <div class="pf-card-head">
+                    <h4>資産構成</h4>
+                    @if (IsMobile)
+                    {
+                        <div class="pf-comp-toggle">
+                            <button class="period-btn @(_compMode == "class" ? "active" : "")" @onclick='() => SetCompMode("class")'>クラス別</button>
+                            <button class="period-btn @(_compMode == "holding" ? "active" : "")" @onclick='() => SetCompMode("holding")'>銘柄別</button>
+                        </div>
+                    }
                 </div>
+                @if (IsMobile)
+                {
+                    @compBlock(CompMobileData, CompMobileOpt, _compMode == "class" ? "資産クラス" : "銘柄", $"mobile-{_compMode}")
+                }
+                else
+                {
+                    <div class="pf-comp-two">
+                        <div class="pf-comp-col">
+                            <div class="pf-comp-subhead">クラス別</div>
+                            @compBlock(CompClassData, CompDonutClassOpt, "資産クラス", "class")
+                        </div>
+                        <div class="pf-comp-col">
+                            <div class="pf-comp-subhead">銘柄別</div>
+                            @compBlock(CompHoldingData, CompDonutHoldingOpt, "銘柄", "holding")
+                        </div>
+                    </div>
+                }
             </div>
         }
 
-        @* ── 推移（総資産・元本・評価損益）。元本は取引履歴から全期間、総資産/評価損益は価格更新で記録した日以降 ── *@
+        @* ── 推移（1本の期間トグルが「総資産・元本」「評価損益」2チャートを同時に再描画）── *@
         @if (CostSeries.Count > 0 || AssetSeries.Count > 0)
         {
-            <div class="cat-head" style="margin-top:18px">
-                <span>推移</span>
+            <div class="pf-section-head">
+                <h2 class="pf-section-title">推移</h2>
                 <div class="pf-trend-period">
                     @foreach (var p in TrendPeriods)
                     {
@@ -163,9 +215,10 @@
             }
         }
 
-        <div class="cat-head">
-            <span>保有銘柄</span>
-            <button class="btn" @onclick="OpenAdd">＋ 追加</button>
+        @* ── 保有銘柄（資産クラスごとにグループ化＋小計。PC＝表形式・スマホ＝タップ式カード）── *@
+        <div class="pf-section-head">
+            <h2 class="pf-section-title">保有銘柄</h2>
+            <button class="pf-add-btn" @onclick="OpenAdd"><span class="msym">add</span>追加</button>
         </div>
 
         @if (!Ordered.Any())
@@ -178,84 +231,102 @@
             {
                 var items = Ordered.Where(h => h.Class == grp.Class).ToList();
                 if (items.Count == 0) continue;
-                <div class="pf-group-head">
-                    <span>@grp.Label</span>
-                    <span class="pf-group-meta">
-                        @if (grp.Class == AssetClass.UsStock)
-                        {
-                            <span class="pf-ccy-toggle" title="評価額・評価損益の表示通貨（元本は買った通貨のまま）">
-                                <button class="@(_usCcy == Currency.Jpy ? "on" : "")" @onclick="() => SetUsCcy(Currency.Jpy)">円</button>
-                                <button class="@(_usCcy == Currency.Usd ? "on" : "")" @onclick="() => SetUsCcy(Currency.Usd)">ドル</button>
-                            </span>
-                        }
-                        <span class="pf-group-note">@ClassDelayNote(grp.Class)</span>
-                    </span>
-                </div>
-                @if (IsMobile)
-                {
-                    @foreach (var h in items)
-                    {
-                        var s = Summary(h);
-                        var upnl = UnrealizedPnl(h, s);
-                        <div class="list-card-wrap">
-                            <button class="list-card" @onclick="() => OpenTx(h.Id)">
-                                <div class="list-card-main">
-                                    <span class="list-card-name">@DisplayName(h)</span>
-                                    <span class="list-card-amount">@MoneyDispOpt(h, ValDisp(h, s.Quantity))</span>
-                                </div>
-                                <div class="list-card-sub">
-                                    <span class="pf-badge">@AccountLabel(h.Account)</span>
-                                    <span class="@PnlClass(upnl ?? 0)">@MoneyDispSignedOpt(h, UpnlDisp(h, s))@PnlPct(upnl, s.CostBasis)@if (DayChangePct(h) is decimal dp) {<span class="pf-day @PnlClass(dp)">前日 @MoneyDispSignedOpt(h, DayChangeAmount(h, s.Quantity)) (@DayPct(dp))</span>}</span>
-                                </div>
-                                <div class="list-card-detail">
-                                    <span>現在価格 @CurPriceDisp(h)</span>
-                                </div>
-                            </button>
-                            <div class="list-card-move">
-                                <button @onclick="() => MoveHolding(h, -1)" disabled="@(h == items.First())" aria-label="上へ">▲</button>
-                                <button @onclick="() => MoveHolding(h, 1)" disabled="@(h == items.Last())" aria-label="下へ">▼</button>
-                            </div>
+                <div class="pf-hgroup">
+                    <div class="pf-ghead">
+                        <div class="pf-ghead-l">
+                            <span class="pf-gtitle">@grp.Label</span>
+                            @if (grp.Class == AssetClass.UsStock)
+                            {
+                                <span class="pf-ccy-toggle" title="評価額・評価損益の表示通貨（元本は買った通貨のまま）">
+                                    <button class="@(_usCcy == Currency.Jpy ? "on" : "")" @onclick="() => SetUsCcy(Currency.Jpy)">円</button>
+                                    <button class="@(_usCcy == Currency.Usd ? "on" : "")" @onclick="() => SetUsCcy(Currency.Usd)">ドル</button>
+                                </span>
+                            }
+                            <span class="pf-gsource">@ClassDelayNote(grp.Class)</span>
                         </div>
-                    }
-                }
-                else
-                {
-                <div class="pf-grid pf-grid-head">
-                    <span>銘柄名</span>
-                    <span class="pf-num">元本</span><span class="pf-num">平均取得単価</span><span class="pf-num">数量</span><span class="pf-num">現在価格</span>
-                    <span class="pf-num">評価額／損益</span><span class="pf-num">前日比</span>
-                    <span></span><span></span>
-                </div>
-                @foreach (var h in items)
-                {
-                    var s = Summary(h);
-                    var upnl = UnrealizedPnl(h, s);
-                    var day = DayChangePct(h);
-                    <div class="pf-grid pf-row @(_dragOverId == h.Id ? "pf-drag-over" : "")"
-                         draggable="true" @key="h.Id"
-                         @ondragstart="() => _dragId = h.Id"
-                         @ondragenter="() => _dragOverId = h.Id"
-                         @ondragover:preventDefault="true"
-                         @ondragleave="() => OnDragLeave(h.Id)"
-                         @ondrop="() => OnDrop(h)"
-                         @ondrop:preventDefault="true"
-                         @ondragend="OnDragEnd">
-                        <span class="pf-hname" title="@DisplayName(h)"><span class="pf-drag-handle" title="ドラッグで並べ替え">⠿</span><span class="pf-hname-body"><span class="pf-hname-name">@DisplayName(h)</span><span class="pf-badge pf-badge-sub">@AccountLabel(h.Account)</span></span></span>
-                        <span class="pf-num">@Money(h, s.CostBasis)</span>
-                        <span class="pf-num">@Price(h, s.AvgUnitPrice)</span>
-                        <span class="pf-num">@Qty(s.Quantity)</span>
-                        <span class="pf-num">@CurPriceDisp(h)</span>
-                        <span class="pf-num">@MoneyDispOpt(h, ValDisp(h, s.Quantity))<span class="pf-sub-pnl @PnlClass(upnl ?? 0)">@MoneyDispSignedOpt(h, UpnlDisp(h, s))<span class="pf-pnl-pct">@PnlPct(upnl, s.CostBasis)</span></span></span>
-                        <span class="pf-num @(day is decimal dc ? PnlClass(dc) : "")">@if (day is decimal dv){@MoneyDispSignedOpt(h, DayChangeAmount(h, s.Quantity))<span class="pf-day">@DayPct(dv)</span>}else{<text>—</text>}</span>
-                        <button class="btn-sm" @onclick="() => OpenTx(h.Id)">取引</button>
-                        <button class="x" @onclick="() => AskDelete(h)">✕</button>
+                        <div class="pf-ghead-r">
+                            <span class="pf-gval">@GroupValueDisp(grp.Class)</span>
+                            <span class="pf-gpl @PnlClass(GroupPnlSign(grp.Class))">@GroupPnlDisp(grp.Class)</span>
+                        </div>
                     </div>
-                }
-                }
+
+                    @if (IsMobile)
+                    {
+                        @foreach (var h in items)
+                        {
+                            var s = Summary(h);
+                            var upnl = UnrealizedPnl(h, s);
+                            var day = DayChangePct(h);
+                            <div class="list-card-wrap">
+                                <button class="list-card pf-mcard" @onclick="() => OpenTx(h.Id)">
+                                    <div class="pf-mc-r1">
+                                        <span class="pf-mc-name">@DisplayName(h)</span>
+                                        <span class="pf-mc-val">@MoneyDispOpt(h, ValDisp(h, s.Quantity))</span>
+                                    </div>
+                                    <div class="pf-mc-r2">
+                                        <span class="pf-hbadge">@AccountLabel(h.Account)</span>
+                                        <span class="pf-mc-pl @PnlClass(upnl ?? 0)">@MoneyDispSignedOpt(h, UpnlDisp(h, s))@PnlPct(upnl, s.CostBasis)</span>
+                                    </div>
+                                    <div class="pf-mc-r3">
+                                        <span class="pf-mc-metrics">@MetricsLineMobile(h, s)</span>
+                                        @if (day is decimal dv)
+                                        {
+                                            <span class="pf-mc-day @PnlClass(dv)">前日 @MoneyDispSignedOpt(h, DayChangeAmount(h, s.Quantity)) (@DayPct(dv))</span>
+                                        }
+                                    </div>
+                                </button>
+                                <div class="list-card-move">
+                                    <button @onclick="() => MoveHolding(h, -1)" disabled="@(h == items.First())" aria-label="上へ"><span class="msym">keyboard_arrow_up</span></button>
+                                    <button @onclick="() => MoveHolding(h, 1)" disabled="@(h == items.Last())" aria-label="下へ"><span class="msym">keyboard_arrow_down</span></button>
+                                </div>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="pf-grid pf-grid-head">
+                            <span>銘柄名</span>
+                            <span class="pf-num">元本</span><span class="pf-num">平均取得単価</span><span class="pf-num">数量</span><span class="pf-num">現在価格</span>
+                            <span class="pf-num">評価額／損益</span><span class="pf-num">前日比</span>
+                            <span></span><span></span>
+                        </div>
+                        @foreach (var h in items)
+                        {
+                            var s = Summary(h);
+                            var upnl = UnrealizedPnl(h, s);
+                            var day = DayChangePct(h);
+                            <div class="pf-grid pf-row @(_dragOverId == h.Id ? "pf-drag-over" : "")"
+                                 draggable="true" @key="h.Id"
+                                 @ondragstart="() => _dragId = h.Id"
+                                 @ondragenter="() => _dragOverId = h.Id"
+                                 @ondragover:preventDefault="true"
+                                 @ondragleave="() => OnDragLeave(h.Id)"
+                                 @ondrop="() => OnDrop(h)"
+                                 @ondrop:preventDefault="true"
+                                 @ondragend="OnDragEnd">
+                                <span class="pf-hname-cell">
+                                    <span class="msym pf-hdrag" title="ドラッグで並べ替え">drag_indicator</span>
+                                    <span class="pf-hname-body">
+                                        <span class="pf-hname-name" title="@DisplayName(h)">@DisplayName(h)</span>
+                                        <span class="pf-hbadge">@AccountLabel(h.Account)</span>
+                                    </span>
+                                </span>
+                                <span class="pf-num">@Money(h, s.CostBasis)</span>
+                                <span class="pf-num">@Price(h, s.AvgUnitPrice)</span>
+                                <span class="pf-num">@Qty(s.Quantity)</span>
+                                <span class="pf-num">@CurPriceDisp(h)</span>
+                                <span class="pf-num">@MoneyDispOpt(h, ValDisp(h, s.Quantity))<span class="pf-sub-pnl @PnlClass(upnl ?? 0)">@MoneyDispSignedOpt(h, UpnlDisp(h, s))<span class="pf-pnl-pct">@PnlPct(upnl, s.CostBasis)</span></span></span>
+                                <span class="pf-num @(day is decimal dc ? PnlClass(dc) : "")">@if (day is decimal dv){@MoneyDispSignedOpt(h, DayChangeAmount(h, s.Quantity))<span class="pf-day">@DayPct(dv)</span>}else{<text>—</text>}</span>
+                                <button class="pf-tx-btn" @onclick="() => OpenTx(h.Id)"><span class="msym">tune</span>取引</button>
+                                <button class="pf-del-btn" @onclick="() => AskDelete(h)" aria-label="削除"><span class="msym">close</span></button>
+                            </div>
+                        }
+                    }
+                </div>
             }
         }
 
-        <div class="foot" style="text-align:left;margin-top:10px">
+        <div class="foot pf-foot">
             「＋ 追加」で新規銘柄を登録すると保有銘柄として表示されます。同じ銘柄は合算されます。<br />
             各銘柄の「取引」で買付・売却・配当の追加/編集と銘柄設定ができます。投資信託は基準価額＝1万口あたりとして計算します。<br />
             「価格更新」で現在価格と USD/JPY を取得します（日本株＝証券コード4桁／米国株＝ティッカー／投資信託＝協会コード）。コード未設定の投資信託は「取引」で現在基準価額を手入力できます。

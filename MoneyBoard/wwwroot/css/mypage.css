@@ -1,5 +1,454 @@
 /* =====================================================
-   マイページタブ (MyPageTab.razor)
+   マイページタブ (MyPageTab.razor) — リデザイン（#50）
+   プロフィールヒーロー＋設定カードのグリッド（口座/カード/カテゴリ/アクセス管理）＋固定費は全幅。
+   月次/カードと同じデザイン言語（ヒーロー・set-card・線アイコン・編集可の質感）。
+   スマホは従来の折りたたみセクション＋list-card＋シート編集を共有マークアップで維持。
+   ===================================================== */
+
+/* ── プロフィールヒーロー ── */
+.mph {
+  background: var(--ink);
+  color: #fff;
+  border-radius: 18px;
+  padding: 22px 26px;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.mph-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #2f3a47;
+  border: 1px solid #3c4855;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: #c6d2e2;
+  font-size: 23px;
+  font-weight: 700;
+}
+
+.mph-id {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 200px;
+}
+
+.mph-name {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+}
+
+.mph-email {
+  font-size: 13px;
+  color: #9a968f;
+  font-variant-numeric: tabular-nums;
+}
+
+.mph-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  margin-top: 3px;
+  background: rgba(255, 255, 255, .08);
+  color: #cdc8bf;
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 4px 11px;
+  border-radius: 20px;
+}
+
+.mph-mode .msym {
+  font-size: 14px;
+  color: #9a968f;
+}
+
+.mph-logout {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  margin-top: 3px;
+  background: rgba(255, 255, 255, .08);
+  border: 1px solid rgba(255, 255, 255, .14);
+  color: #e7e3da;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 13px;
+  border-radius: 20px;
+  cursor: pointer;
+}
+
+.mph-logout:hover {
+  background: rgba(255, 255, 255, .14);
+}
+
+.mph-logout .msym {
+  font-size: 16px;
+}
+
+.mph-stats {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+}
+
+.mph-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.mph-stat-lab {
+  font-size: 11px;
+  color: #8c887f;
+  letter-spacing: .03em;
+}
+
+.mph-stat-val {
+  font-size: 19px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.01em;
+}
+
+.mph-div {
+  width: 1px;
+  height: 36px;
+  background: rgba(255, 255, 255, .13);
+}
+
+/* ── PC：設定カードのグリッド（3列） ──
+   1行目=アクセス管理（全幅）／2行目=口座（1列）・固定費（2列）／3行目=カード・カテゴリ（各1列）。 */
+.mypage-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  align-items: start;
+  margin-bottom: 18px;
+}
+
+/* アクセス管理は最上部で全幅に渡す */
+.mypage-grid-full {
+  grid-column: 1 / -1;
+}
+
+/* 固定費は横2列ぶんを占める */
+.mypage-grid-wide {
+  grid-column: span 2;
+}
+
+/* 中幅：3列は窮屈なので2列に。固定費も通常幅へ戻す（口座｜固定費／カード｜カテゴリ）。 */
+@media (max-width: 1400px) {
+  .app-shell.has-sidenav .mypage-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .mypage-grid-wide {
+    grid-column: auto;
+  }
+}
+
+/* 狭幅：1列に畳む */
+@media (max-width: 1100px) {
+  .app-shell.has-sidenav .mypage-grid {
+    grid-template-columns: 1fr;
+  }
+  .mypage-grid-full {
+    grid-column: auto;
+  }
+}
+
+.set-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 22px;
+  box-shadow: 0 1px 2px rgba(40, 35, 28, .03);
+  display: block;
+}
+
+/* ── 設定カードのヘッダー（チップ＋タイトル＋追加） ── */
+.set-head {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 14px;
+}
+
+.set-chip {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 19px;
+  flex-shrink: 0;
+}
+
+.set-chip.c-account  { background: #e7ecfb; color: #3a52c0; }
+.set-chip.c-card     { background: #e6f2ea; color: #2c7a52; }
+.set-chip.c-category { background: #fbeede; color: #b86a18; }
+.set-chip.c-fixed    { background: #f3ece1; color: #9a6b2e; }
+.set-chip.c-access   { background: #eef1f7; color: var(--accent); }
+
+.set-title {
+  font-size: 15.5px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+}
+
+.set-count {
+  font-size: 12px;
+  color: #a8a49d;
+}
+
+.set-spacer {
+  flex: 1;
+}
+
+.set-total {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  margin-right: 4px;
+}
+
+.set-total-lab {
+  font-size: 10.5px;
+  color: #a8a49d;
+  letter-spacing: .03em;
+}
+
+.set-total-val {
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.01em;
+}
+
+/* set-head の右端「追加」ボタン（線アイコン＋テキスト）
+   margin-left:auto でタイトルと左右に振り分ける。固定費は set-spacer で空きを使い切るため無効化され影響なし。 */
+.set-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  background: #fff;
+  border: 1px solid #dcd8d0;
+  border-radius: 9px;
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--accent);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.set-add:hover {
+  background: #f4f1ec;
+  border-color: #cdc8bf;
+}
+
+.set-add .msym {
+  font-size: 17px;
+}
+
+/* 固定費のフィルタ（口座で絞り込み） */
+.set-add + .set-head, .set-filter-wrap {
+  position: relative;
+}
+
+.set-filter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  background: #fff;
+  border: 1px solid #dcd8d0;
+  border-radius: 9px;
+  color: var(--sub);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.set-filter:hover {
+  background: #f4f1ec;
+}
+
+.set-filter.active {
+  color: var(--accent);
+  background: var(--okbg);
+  border-color: #b7dccd;
+}
+
+.set-filter .msym {
+  font-size: 19px;
+}
+
+/* 列見出し（口座名/ボーナス受取・カード名/引き落とし口座）は各行の列構造に合わせて
+   settings.css の .acct-colhead / .card-colhead で整列する。 */
+
+/* ── 設定行の共通スタイル ── */
+.set-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.set-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.set-row.drag-over {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 8px;
+  opacity: .9;
+}
+
+/* 編集できる入力＝枠＋薄背景。focus は navy 枠＋リング。 */
+.set-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  padding: 8px 12px;
+  border: 1px solid #ddd9d2;
+  border-radius: 9px;
+  background: #fcfbf9;
+  color: var(--ink);
+}
+
+.set-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(31, 58, 95, .12);
+}
+
+.set-input.ra {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* select：appearance なし＋自前の expand_more */
+.set-select-wrap {
+  position: relative;
+  width: 148px;
+  flex-shrink: 0;
+}
+
+.set-select {
+  width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+  font-size: 13.5px;
+  padding: 8px 30px 8px 12px;
+  border: 1px solid #ddd9d2;
+  border-radius: 9px;
+  background: #fcfbf9;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.set-select:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(31, 58, 95, .12);
+}
+
+.set-select-chev {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 18px;
+  color: #a8a49d;
+  pointer-events: none;
+}
+
+/* 削除ボタン（hover で赤系） */
+.set-del {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  border-radius: 8px;
+  color: #c3bfb6;
+  cursor: pointer;
+}
+
+.set-del .msym {
+  font-size: 18px;
+}
+
+.set-del:hover {
+  background: var(--badbg);
+  color: var(--bad);
+}
+
+/* 注記 */
+.set-note {
+  margin-top: 12px;
+  font-size: 11.5px;
+  color: #a8a49d;
+  line-height: 1.6;
+}
+
+.set-note-center {
+  text-align: center;
+}
+
+/* ── 口座行：アイコンチップ＋入力＋ボーナス受取ラジオ＋削除 ── */
+.acct-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.acct-row-chip {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #e7ecfb;
+  color: #3a52c0;
+  font-size: 17px;
+  flex-shrink: 0;
+}
+
+.acct-bonus {
+  /* 「ボーナス受取」見出しがラジオ列の上にちょうど収まる幅（ラベル≒66px） */
+  width: 72px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+/* =====================================================
+   旧アコーディオン（スマホのみ使用）
    ===================================================== */
 .mypage-section {
   background: var(--card);
@@ -7,17 +456,6 @@
   border-radius: var(--r);
   padding: 16px;
   margin-bottom: 12px;
-}
-
-.mypage-section h3 {
-  margin: 0 0 12px;
-  font-size: 15px;
-  font-weight: 600;
-}
-
-/* アカウント欄のログアウトボタン（メール表示の下） */
-.account-logout {
-  margin-top: 12px;
 }
 
 .mypage-collapse {
@@ -37,53 +475,128 @@
 
 .mypage-chevron {
   color: var(--sub);
-  font-size: 12px;
+  font-size: 20px;
 }
 
 .mypage-collapse-body {
   margin-top: 14px;
 }
 
-/* アクセス管理（オーナー向け） */
-.access-sub {
-  margin: 14px 0 6px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--sub);
-  letter-spacing: .04em;
+/* =====================================================
+   アクセス管理（オーナー向け・PCカード/スマホ折りたたみ共用）
+   ===================================================== */
+/* 承認待ち（左）/ 承認済み（右）の2列。狭幅・スマホでは縦積み。 */
+.access-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
 }
 
-.access-sub:first-child {
-  margin-top: 0;
+@media (max-width: 1100px) {
+  .access-cols {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+
+.app-shell.is-mobile .access-cols {
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+/* グループ見出し＝折りたたみトグル（承認待ち / 承認済み を個別に開閉） */
+.access-collapse {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid transparent;
+  background: #f8f6f2;
+  border-radius: 11px;
+  padding: 10px 13px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.access-collapse:hover {
+  filter: brightness(.97);
+}
+
+/* 承認待ち＝オレンジ系 / 承認済み＝グリーン系で色分け */
+.access-collapse.pending {
+  background: #fbeede;
+  border-color: #f0dcc0;
+}
+
+.access-collapse.pending .access-sub {
+  color: #b86a18;
+}
+
+.access-collapse.pending .access-chevron {
+  color: #c98a3c;
+}
+
+.access-collapse.approved {
+  background: #e6f2ea;
+  border-color: #cfe4d6;
+}
+
+.access-collapse.approved .access-sub {
+  color: #2c7a52;
+}
+
+.access-collapse.approved .access-chevron {
+  color: #4f9a72;
+}
+
+.access-chevron {
+  font-size: 20px;
+  color: var(--sub);
+  flex-shrink: 0;
+}
+
+.access-body {
+  margin-top: 8px;
+}
+
+.access-sub {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #6b6760;
+  letter-spacing: .02em;
 }
 
 .access-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 8px 0;
-  border-bottom: 1px dashed var(--line);
+  gap: 12px;
+  padding: 12px 14px;
+  background: #f8f6f2;
+  border-radius: 11px;
 }
 
-.access-row:last-child {
-  border-bottom: none;
+.access-row + .access-row {
+  margin-top: 8px;
 }
 
 .access-id {
   display: flex;
   flex-direction: column;
+  gap: 1px;
   min-width: 0;
 }
 
 .access-name {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .access-email {
   font-size: 12px;
-  color: var(--sub);
+  color: #8f8b84;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -95,14 +608,17 @@
   gap: 10px;
   flex-shrink: 0;
 }
+
 /* TSMC社員チェック（解除ボタンと縦位置を揃える）*/
 .access-tsmc {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 13px;
+  font-size: 12.5px;
   white-space: nowrap;
 }
+
 .access-tsmc input {
   margin: 0;
+  accent-color: var(--accent);
 }

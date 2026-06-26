@@ -78,13 +78,10 @@ public partial class DataApi
     {
         try
         {
-            if (req.ContentLength > MaxBodyBytes)
-                return new StatusCodeResult(StatusCodes.Status413RequestEntityTooLarge);
-            var body = await ReadBodyCappedAsync(req.Body);
-            if (body == null)
-                return new StatusCodeResult(StatusCodes.Status413RequestEntityTooLarge);
+            var (body, bodyError) = await ReadCappedBodyAsync(req);
+            if (bodyError is not null) return bodyError;
 
-            var env = JsonSerializer.Deserialize<PortfolioEnvelope>(body, JsonOptions);
+            var env = JsonSerializer.Deserialize<PortfolioEnvelope>(body!, JsonOptions);
             if (env == null) return new BadRequestResult();
             var d = env.Data;
             if (d.Holdings.Count > MaxHoldings

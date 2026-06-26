@@ -1,8 +1,9 @@
 @inject LedgerService Svc
 
-<div class="cat-head">
-    <span>口座</span>
-    <button class="btn" @onclick="AddClicked">＋ 追加</button>
+<div class="set-head">
+    <span class="set-chip c-account msym">account_balance</span>
+    <span class="set-title">口座</span>
+    <button class="set-add" @onclick="AddClicked"><span class="msym">add</span>追加</button>
 </div>
 
 @if (Svc.ActiveAccounts.Count == 0)
@@ -14,9 +15,10 @@ else if (IsMobile)
     @foreach (var a in Svc.ActiveAccounts)
     {
         <button class="list-card" @onclick="() => OpenEdit(a.Id)">
-            <div class="list-card-main">
+            <div class="cat-card-row">
+                <span class="acct-row-chip msym">account_balance</span>
                 <span class="list-card-name">@(string.IsNullOrEmpty(a.Name) ? "(名称未設定)" : a.Name)</span>
-                <span class="list-card-chev">›</span>
+                <span class="list-card-chev msym">chevron_right</span>
             </div>
             @if (a.IsBonusAccount)
             {
@@ -27,32 +29,28 @@ else if (IsMobile)
 }
 else
 {
-    <table class="acct-table">
-        <thead>
-            <tr>
-                <th>口座名</th>
-                <th style="text-align:center">ボーナス受取</th>
-                <th></th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var a in Svc.ActiveAccounts)
-            {
-                <tr>
-                    <td><input class="tinput" @bind="a.Name" @bind:after="Save" placeholder="口座名" /></td>
-                    <td style="text-align:center">
-                        <input type="radio" name="bonusAcct" class="radio-bonus"
-                               checked="@a.IsBonusAccount"
-                               @onchange="() => SetBonusAccount(a.Id)" />
-                    </td>
-                    <td><button class="x" @onclick="() => RequestDelete(a.Id)">✕</button></td>
-                </tr>
-            }
-        </tbody>
-    </table>
+    <div class="acct-colhead">
+        <span class="ch-name">口座名</span>
+        <span class="ch-bonus">ボーナス受取</span>
+    </div>
+    <div class="set-list">
+        @foreach (var a in Svc.ActiveAccounts)
+        {
+            <div class="acct-row">
+                <span class="acct-row-chip msym">account_balance</span>
+                <input class="set-input" @bind="a.Name" @bind:after="Save" placeholder="口座名" />
+                <span class="acct-bonus">
+                    <input type="radio" name="bonusAcct" class="radio-bonus"
+                           checked="@a.IsBonusAccount"
+                           @onchange="() => SetBonusAccount(a.Id)" />
+                </span>
+                <button class="set-del" @onclick="() => RequestDelete(a.Id)" title="削除"><span class="msym">close</span></button>
+            </div>
+        }
+    </div>
 }
 
-<div class="foot" style="text-align:left;margin-top:10px">
+<div class="set-note">
     ボーナス受取口座は1つだけ選択できます。<br />
     固定費で使用中、または現在月以降の月次データがある口座は削除できません。
 </div>

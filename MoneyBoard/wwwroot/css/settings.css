@@ -1,37 +1,10 @@
 /* =====================================================
-   口座設定タブ (AccountsTab.razor / MyPage内)
+   設定タブ（口座 / カード / カテゴリ）の固有スタイル
+   レイアウトの主役は mypage.css（set-card / set-head / set-row / set-input 等）。
+   ここはそれらに乗らない固有要素（ボーナス受取ラジオ・カテゴリの色見本）だけ。
    ===================================================== */
-.acct-table {
-  width: 100%;
-  border-collapse: collapse;
-}
 
-.acct-table th {
-  font-size: 11.5px;
-  color: var(--sub);
-  font-weight: 600;
-  padding: 6px 10px;
-  border-bottom: 2px solid var(--line);
-  text-align: left;
-  white-space: nowrap;
-}
-
-.acct-table td {
-  padding: 8px 10px;
-  border-bottom: 1px dashed var(--line);
-  font-size: 14px;
-  vertical-align: middle;
-}
-
-.acct-table input.tinput {
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  padding: 5px 8px;
-  font: inherit;
-  background: #fff;
-  width: 100%;
-}
-
+/* 口座：ボーナス受取ラジオ（acct-row の .acct-bonus 内） */
 .radio-bonus {
   accent-color: var(--accent);
   width: 16px;
@@ -40,61 +13,92 @@
 }
 
 /* =====================================================
-   カテゴリ設定 (CategorySettings / MyPage内)
+   列見出し（各行の列の上に重ねて整列）
+   ラベルは入力欄の上で中央、右ラベルは対応する列（ボーナス/口座）の上に置く。
    ===================================================== */
-.cat-head {
+
+/* 口座：chip(30) + name(flex) + bonus(36) + del(30)、gap 11 */
+.acct-colhead {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
+  gap: 11px;
+  padding: 0 2px 4px;
 }
 
-.cat-head span {
-  font-weight: 600;
-  font-size: 15px;
+.acct-colhead::before {
+  /* 行頭アイコンチップ（30px）ぶんのスペーサ */
+  content: "";
+  flex: 0 0 30px;
 }
 
-.cat-row {
+.acct-colhead .ch-bonus {
+  /* ラジオ列（72px）の上にだけ中央寄せ（×には掛けない） */
+  flex: 0 0 72px;
+  text-align: center;
+}
+
+.acct-colhead::after {
+  /* 削除ボタン（30px）ぶんのスペーサ */
+  content: "";
+  flex: 0 0 30px;
+}
+
+/* カード：drag(20) + name(flex) + select(148) + del(30)、gap 9 */
+.card-colhead {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 7px 0;
-  border-bottom: 1px dashed var(--line);
-  flex-wrap: wrap;
+  gap: 9px;
+  padding: 0 2px 4px;
 }
 
-.cat-row:last-child {
-  border-bottom: none;
+.card-colhead::before {
+  /* ドラッグハンドル（20px）ぶんのスペーサ */
+  content: "";
+  flex: 0 0 20px;
 }
 
+.card-colhead .ch-acct {
+  /* 引き落とし口座 select（148px）の上に中央寄せ */
+  flex: 0 0 148px;
+  text-align: center;
+}
+
+.card-colhead::after {
+  /* 削除ボタン（30px）ぶんのスペーサ */
+  content: "";
+  flex: 0 0 30px;
+}
+
+/* 共通：入力欄の上に来る名前ラベルは中央寄せ、見出しの字色・サイズ */
+.acct-colhead .ch-name,
+.card-colhead .ch-name {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+}
+
+.acct-colhead span,
+.card-colhead span {
+  font-size: 11px;
+  color: #a8a49d;
+  letter-spacing: .03em;
+}
+
+/* カテゴリ：行頭の色見本 */
 .cat-swatch {
-  width: 18px;
-  height: 18px;
-  border-radius: 5px;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
   flex-shrink: 0;
   border: 1px solid rgba(0, 0, 0, .12);
 }
 
-.cat-name {
-  flex: 1;
-  min-width: 120px;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  padding: 5px 8px;
-  font: inherit;
-  background: #fff;
-}
-
-.cat-name:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(31, 58, 95, .08);
-}
-
+/* カテゴリ：12色パレット（行内で必要に応じて折り返す） */
 .cat-palette {
   display: flex;
   gap: 4px;
   flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 .cat-color {
@@ -108,19 +112,4 @@
 
 .cat-color.sel {
   border-color: var(--ink);
-}
-
-.card-acct {
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  padding: 5px 8px;
-  font: inherit;
-  background: #fff;
-  min-width: 160px;
-}
-
-.card-acct:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(31, 58, 95, .08);
 }

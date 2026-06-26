@@ -100,13 +100,10 @@ public partial class DataApi(ILogger<DataApi> logger, CosmosClient cosmos, Fireb
     {
         try
         {
-            if (req.ContentLength > MaxBodyBytes)
-                return new StatusCodeResult(StatusCodes.Status413RequestEntityTooLarge);
-            var body = await ReadBodyCappedAsync(req.Body);
-            if (body == null)
-                return new StatusCodeResult(StatusCodes.Status413RequestEntityTooLarge);
+            var (body, bodyError) = await ReadCappedBodyAsync(req);
+            if (bodyError is not null) return bodyError;
 
-            var env = JsonSerializer.Deserialize<DataEnvelope>(body, JsonOptions);
+            var env = JsonSerializer.Deserialize<DataEnvelope>(body!, JsonOptions);
             if (env == null) return new BadRequestResult();
             if (!IsStructurallyValid(env, out var reason))
             {
@@ -183,6 +180,18 @@ public partial class DataApi(ILogger<DataApi> logger, CosmosClient cosmos, Fireb
         var opt = new TransactionalBatchItemRequestOptions { EnableContentResponseOnWrite = false };
         if (!string.IsNullOrEmpty(etag)) opt.IfMatchEtag = etag;
         return opt;
+    }
+
+    // Content-Length 事前チェック＋本文の上限読み取りをまとめて行う（書き込み系エンドポイント共通）。
+    // 超過時は 413 を error に入れて返す（body は null）。正常時は (body, null)。
+    private async Task<(string? body, IActionResult? error)> ReadCappedBodyAsync(HttpRequest req)
+    {
+        if (req.ContentLength > MaxBodyBytes)
+            return (null, new StatusCodeResult(StatusCodes.Status413RequestEntityTooLarge));
+        var body = await ReadBodyCappedAsync(req.Body);
+        if (body == null)
+            return (null, new StatusCodeResult(StatusCodes.Status413RequestEntityTooLarge));
+        return (body, null);
     }
 
     // 上限までを読み、超過したら null を返す（Content-Length が無い/偽装の場合の保険）。

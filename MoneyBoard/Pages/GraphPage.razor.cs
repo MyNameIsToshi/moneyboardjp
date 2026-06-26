@@ -9,13 +9,12 @@ using Microsoft.AspNetCore.Components;
 using MoneyBoard.Components;
 using MoneyBoard.Services;
 using MoneyBoardShared;
+using static MoneyBoard.MoneyFormat;
 
 // GraphPage.razor の code-behind。markup・ディレクティブ(@page/@inject/@using)は .razor 側に残し、
 // 統計の集計・期間処理・ドリルダウン状態をこの partial class に集約する。
 public partial class GraphPage
 {
-    [Inject] NavigationManager Nav { get; set; } = default!;
-
     private string SelectedPeriod = "3";
     private Dictionary<string, string> Periods = new()
     {
@@ -28,31 +27,67 @@ public partial class GraphPage
     private List<ChartPoint> BonusData = new();
     private List<ChartPoint> IncomeData = new();
     private List<ChartPoint> FixedCostData = new();
+    // メイン・コンボの収支折れ線（月別 収入−支出。支出は MonthlyDebitData と同義で、棒2本と整合）
+    private List<ChartPoint> NetData = new();
+
+    // ── 要約バンド（ヒーロー＋指標4枚）。既存の月別系列を期間合算した派生値（新ロジックなし）──
+    // 収入合計＝給料+ボーナス+臨時。支出合計＝変動(Debits)＋固定費（spec §2 で固定費込みと定義）。
+    private decimal IncomeTotal => IncomeData.Sum(p => p.Value);
+    private decimal VariableExpenseTotal => MonthlyDebitData.Sum(p => p.Value);
+    private decimal FixedTotal => FixedCostData.Sum(p => p.Value);
+    private decimal ExpenseTotal => VariableExpenseTotal + FixedTotal;
+    private decimal NetTotal => IncomeTotal - ExpenseTotal;
+    private bool IsSurplus => NetTotal >= 0;
+    // 貯蓄率＝期間収支 / 収入合計（収入0なら null＝「—」表示）
+    private double? SavingsRate => IncomeTotal == 0 ? null : (double)(NetTotal / IncomeTotal);
+    // 固定費が支出に占めるおおよその割合（補助行）
+    private int FixedPctOfExpense => ExpenseTotal == 0 ? 0 : (int)Math.Round((double)(FixedTotal / ExpenseTotal) * 100);
 
     // ③ 収入の内訳系列（給料・ボーナス・各臨時収入名）。積み上げ棒で表示。
     private List<IncomeSeries> IncomeBreakdown = new();
     private record IncomeSeries(string Name, List<ChartPoint> Data);
 
+    // Y軸は万単位の概略表示、tooltip はフル円表示（spec §3）。グリッド線・軸ラベルも淡色で統一。
+    private const string YMan = MoneyFormat.ChartYenMan;
+    private const string YFull = MoneyFormat.ChartYenFull;
+
+    private static YAxis ManAxis() => new() { Labels = new YAxisLabels { Formatter = YMan } };
+    private static Grid SoftGrid() => new() { BorderColor = "#f0eee9" };
+    private static Tooltip FullYenTip() => new() { Y = new TooltipY { Formatter = YFull } };
+
     // ApexChartOptions はチャート固有の状態を書き込むため、1インスタンスを複数の
     // <ApexChart> で共有すると最初の1つしか描画されない。チャートごとに専用インスタンスを持つ。
     private static ApexChartOptions<ChartPoint> NewLineOptions() => new()
     {
-        Chart = new Chart { Height = 200, Toolbar = new Toolbar { Show = false } },
+        Chart = new Chart { Height = 240, Toolbar = new Toolbar { Show = false } },
         Stroke = new Stroke { Curve = Curve.Smooth },
-        Yaxis = new List<YAxis> { new YAxis { Labels = new YAxisLabels { Formatter = "function(v){return '¥'+v.toLocaleString()}" } } }
+        Grid = SoftGrid(),
+        Tooltip = FullYenTip(),
+        Yaxis = new List<YAxis> { ManAxis() }
     };
 
     private static ApexChartOptions<ChartPoint> NewBarOptions(bool stacked = false) => new()
     {
-        Chart = new Chart { Height = 200, Stacked = stacked, Toolbar = new Toolbar { Show = false } },
-        Yaxis = new List<YAxis> { new YAxis { Labels = new YAxisLabels { Formatter = "function(v){return '¥'+v.toLocaleString()}" } } }
+        Chart = new Chart { Height = 240, Stacked = stacked, Toolbar = new Toolbar { Show = false } },
+        Grid = SoftGrid(),
+        Tooltip = FullYenTip(),
+        Yaxis = new List<YAxis> { ManAxis() }
     };
 
-    private readonly ApexChartOptions<ChartPoint> DebitLineOptions = NewLineOptions();
+    // メイン：収入(棒)・支出(棒)＋収支(折れ線)のコンボ。色は既存トークン（収入=緑/支出=赤/収支線=navy）。
+    private static ApexChartOptions<ChartPoint> NewComboOptions() => new()
+    {
+        Chart = new Chart { Height = 340, Toolbar = new Toolbar { Show = false } },
+        Colors = new List<string> { "#0f6e56", "#a3261f", "#1f3a5f" },
+        Stroke = new Stroke { Width = new List<int> { 0, 0, 3 }, Curve = Curve.Smooth },
+        Grid = SoftGrid(),
+        Tooltip = FullYenTip(),
+        Yaxis = new List<YAxis> { ManAxis() }
+    };
+
+    private readonly ApexChartOptions<ChartPoint> ComboOptions = NewComboOptions();
     private readonly ApexChartOptions<ChartPoint> BalanceLineOptions = NewLineOptions();
     private readonly ApexChartOptions<ChartPoint> IncomeBreakdownOptions = NewBarOptions(stacked: true);
-    private readonly ApexChartOptions<ChartPoint> IncomeBarOptions = NewBarOptions();
-    private readonly ApexChartOptions<ChartPoint> FixedBarOptions = NewBarOptions();
 
     private List<SpendSlice> CategorySpendData = new();
     private decimal CategoryTotal => CategorySpendData.Sum(s => s.Value);
@@ -65,14 +100,19 @@ public partial class GraphPage
     private void OpenCatDetail(string key)
     {
         var s = CategorySpendData.FirstOrDefault(x => x.Key == key);
-        if (s != null) _detail = new(s.Label, s.Color, s.Count, s.Value, CategoryDetails.GetValueOrDefault(key) ?? new());
+        // 未分類（CategoryId 空）のドリルダウンのみ「カテゴリ設定」操作を出す
+        if (s != null) _detail = new(s.Label, s.Color, s.Count, s.Value, CategoryDetails.GetValueOrDefault(key) ?? new(), string.IsNullOrEmpty(key));
     }
     private void OpenCardDetail(string key)
     {
         var s = CardSpendData.FirstOrDefault(x => x.Key == key);
-        if (s != null) _detail = new(s.Label, s.Color, s.Count, s.Value, CardDetails.GetValueOrDefault(key) ?? new());
+        if (s != null) _detail = new(s.Label, s.Color, s.Count, s.Value, CardDetails.GetValueOrDefault(key) ?? new(), false);
     }
     private void CloseDetail() => _detail = null;
+
+    // 未分類明細の「カテゴリ設定」操作。複数選択→一括更新の実処理は別 issue（dialog-spec §8 スコープ外）。
+    // 本リデザインでは UI の枠（ボタン表示）までとし、ここはプレースホルダにとどめる。
+    private void OnCategorize() { }
 
     // ドーナツのスライス選択でも同じモーダルを開く（スライス順=各 SpendData 順）
     private void OnSliceSelected(SelectedData<SpendSlice> sel)
@@ -86,21 +126,19 @@ public partial class GraphPage
             OpenCardDetail(CardSpendData[sel.DataPointIndex].Key);
     }
 
-    private record DetailModal(string Title, string Color, int Count, decimal Total, List<DetailDialog.DetailRow> Rows);
+    private record DetailModal(string Title, string Color, int Count, decimal Total, List<DetailDialog.DetailRow> Rows, bool ShowCategorize);
 
     // ── 収入/支出の項目別内訳モーダル（④・⑤から起動。期間合計で集計）──
     private record BreakdownModal(string Title, decimal Total, List<BreakdownDialog.BreakdownItem> Items);
     private BreakdownModal? _breakdown;
     private void CloseBreakdown() => _breakdown = null;
 
-    // ④の収入棒→収入内訳、支出棒→支出内訳（系列0=収入, 1=支出）
+    // メインコンボの収入棒→収入内訳、支出棒→支出内訳（系列0=収入, 1=支出, 2=収支線=ドリルダウンなし）
     private void OnIncomeVsExpenseSelected(SelectedData<ChartPoint> sel)
     {
         if (sel.SeriesIndex == 0) OpenIncomeBreakdown();
-        else OpenExpenseBreakdown();
+        else if (sel.SeriesIndex == 1) OpenExpenseBreakdown();
     }
-    // ⑤固定費年間合計→固定費の項目別内訳
-    private void OnFixedSelected(SelectedData<ChartPoint> sel) => OpenFixedBreakdown();
 
     // 対象期間の収入を項目（給料/ボーナス/各臨時収入名）で合算
     private void OpenIncomeBreakdown()
@@ -168,6 +206,11 @@ public partial class GraphPage
         "#4db3d6", "#e879b9", "#7ac74f", "#f08a4b", "#6c7a89"
     };
 
+    // ② 口座別月末残高推移の線色（spec §5：青/橙/赤/緑をローテ）。
+    private static readonly string[] BalancePalette = { "#3a52c0", "#b86a18", "#a3261f", "#2c7a52" };
+    // ③ 収入内訳：給料=navy／ボーナス=緑／臨時収入=ゴールド（spec §5）。
+    private const string IncomeGold = "#c9a23a";
+
     // ドーナツ共通設定（カテゴリ/カードで別インスタンスにする。1インスタンスを
     // 複数の <ApexChart> で共有すると最初の1つしか描画されないため）。
     private static ApexChartOptions<T> NewDonutOptions<T>() where T : class => new()
@@ -189,7 +232,6 @@ public partial class GraphPage
     // 読み込み完了まで操作不可（/graph を直接リロードしたケースに対応）
     private bool Loaded;
     private bool LoadFailed;
-    private bool IsLoading => !Loaded && !LoadFailed;   // 読込中は戻るも無効（失敗時は戻れる）
 
     // 期間指定（月単位）の開始・終了 ym
     private string _customStart = "";
@@ -230,8 +272,6 @@ public partial class GraphPage
 
     private void OnCustomChanged() { _detail = null; _breakdown = null; BuildChartData(); }
 
-    private void GoBack() => Nav.NavigateTo("/");
-
     // 期間選択→対象 ym（昇順）。計算本体は StatsMath（純粋ロジック・テスト対象）へ委譲する。
     private List<string> GetTargetYms() =>
         StatsMath.SelectPeriodYms(AllYmsAsc, SelectedPeriod, _customStart, _customEnd);
@@ -257,13 +297,16 @@ public partial class GraphPage
         MonthlyDebitData = BuildSeries(yms, ym => MonthSum(ym, l => l.Debits.Sum(d => d.Amount)));
         SalaryData       = BuildSeries(yms, ym => MonthSum(ym, l => l.Salary));
         BonusData        = BuildSeries(yms, ym => MonthSum(ym, l => l.Bonus));
-        // ④ 収入総額は給料＋ボーナス＋臨時収入（ATM入金は資産移動のため含めない）
+        // 収入総額は給料＋ボーナス＋臨時収入（ATM入金は資産移動のため含めない）
         IncomeData       = BuildSeries(yms, ym => MonthSum(ym, l => l.Salary + l.Bonus + l.Incomes.Sum(i => i.Amount)));
         BuildIncomeBreakdown(yms);
 
         BalanceSeriesData = Svc.ActiveAccounts.ToDictionary(
             a => a.Name,
             a => BuildSeries(yms, ym => Svc.CloseOf(ym, a.Id)));
+        // ② 口座線色を規定パレットでローテ（spec §5。系列順＝口座順）
+        BalanceLineOptions.Colors = Svc.ActiveAccounts
+            .Select((_, i) => BalancePalette[i % BalancePalette.Length]).ToList();
 
         FixedCostData = BuildSeries(yms, ym =>
         {
@@ -273,9 +316,20 @@ public partial class GraphPage
                 .Sum(fc => LedgerService.GetFixedCostAmount(fc, month));
         });
 
-        BuildCategorySpend(yms);
+        // メイン・コンボの収支線（収入−支出。支出は MonthlyDebitData と同義で棒2本に整合）
+        NetData = yms.Select((ym, i) => new ChartPoint
+        {
+            Label = LedgerService.Label(ym),
+            Value = IncomeData[i].Value - MonthlyDebitData[i].Value
+        }).ToList();
+
+        // カード色（CardPalette 割当）を先に確定し、カテゴリ明細のカードバッジ色に流用する
         BuildCardSpend(yms);
+        BuildCategorySpend(yms);
     }
+
+    // cardId → ドーナツ/バッジで使う色（BuildCardSpend で確定）
+    private Dictionary<string, string> _cardColors = new();
 
     // 期間中の全カード明細を CategoryId で集計（未分類はまとめて末尾の色なし扱い）
     private void BuildCategorySpend(List<string> yms)
@@ -303,11 +357,13 @@ public partial class GraphPage
             .OrderByDescending(s => s.Value)
             .ToList();
 
-        // ドリルダウン用：カテゴリごとの明細（日付降順）
+        // ドリルダウン用：カテゴリごとの明細（日付降順）。補足列＝カード名・色はカードドーナツと共有
         CategoryDetails = groups.ToDictionary(
             g => g.Key,
             g => g.OrderByDescending(d => d.Date)
-                  .Select(d => new DetailDialog.DetailRow(d.Date, d.Name, Svc.CardById(d.CardId)?.Name ?? "", d.Amount))
+                  .Select(d => new DetailDialog.DetailRow(
+                      d.Date, d.Name, Svc.CardById(d.CardId)?.Name ?? "", d.Amount,
+                      _cardColors.GetValueOrDefault(d.CardId ?? "", "#bdbdbd")))
                   .ToList());
 
         // スライス色をカテゴリ設定色に合わせる（データ並びと同順）
@@ -335,17 +391,21 @@ public partial class GraphPage
             .OrderByDescending(s => s.Value)
             .ToList();
 
-        // ドリルダウン用：カードごとの明細（日付降順・3列目はカテゴリ名）
+        // ドリルダウン用：カードごとの明細（日付降順・補足列＝カテゴリ名・色はカテゴリ設定色）
         CardDetails = groups.ToDictionary(
             g => g.Key,
             g => g.OrderByDescending(d => d.Date)
-                  .Select(d => new DetailDialog.DetailRow(d.Date, d.Name, Svc.CategoryById(d.CategoryId)?.Name ?? "未分類", d.Amount))
+                  .Select(d => new DetailDialog.DetailRow(
+                      d.Date, d.Name, Svc.CategoryById(d.CategoryId)?.Name ?? "未分類", d.Amount,
+                      Svc.CategoryById(d.CategoryId)?.Color ?? "#bdbdbd"))
                   .ToList());
 
         // 表示順にパレット色を割り当て、スライス色と一覧ドットを揃える。
         for (int i = 0; i < CardSpendData.Count; i++)
             CardSpendData[i].Color = CardPalette[i % CardPalette.Length];
         CardDonutOptions.Colors = CardSpendData.Select(s => s.Color).ToList();
+        // カテゴリ明細のカードバッジ色に使う cardId→色 を確定
+        _cardColors = CardSpendData.ToDictionary(s => s.Key, s => s.Color);
     }
 
     // ③ 給料・ボーナスに加え、期間中に登場する臨時収入を入力名ごとの系列にする。
@@ -373,6 +433,10 @@ public partial class GraphPage
 
         // すべて 0 の系列しかない（=収入が一切ない）場合は空にしてプレースホルダ表示
         IncomeBreakdown = series.Any(s => s.Data.Any(p => p.Value != 0)) ? series : new();
+
+        // 色：給料=navy／ボーナス=緑／以降の臨時収入=ゴールド（spec §5）
+        IncomeBreakdownOptions.Colors = IncomeBreakdown
+            .Select((_, i) => i == 0 ? "#1f3a5f" : i == 1 ? "#0f6e56" : IncomeGold).ToList();
     }
 
     private static string IncomeName(IncomeItem i) => string.IsNullOrWhiteSpace(i.Name) ? "その他収入" : i.Name;

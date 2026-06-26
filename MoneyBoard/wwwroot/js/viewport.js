@@ -21,6 +21,13 @@ window.moneyboardViewport = (function () {
         scrollAppTop: function () {
             var el = document.querySelector('.app-scroll');
             if (el) el.scrollTop = 0;
+        },
+        // ダイアログ表示中は背面（PC=ウィンドウ／スマホ=.app-scroll）のスクロールを止める。
+        // CSS だけだとダイアログが画面に収まる時にホイールが背面へ抜けるため、ここでロックする。
+        setBodyScrollLock: function (locked) {
+            document.documentElement.classList.toggle('dialog-lock', locked);
+            var el = document.querySelector('.app-scroll');
+            if (el) el.classList.toggle('dialog-lock', locked);
         }
     };
 })();

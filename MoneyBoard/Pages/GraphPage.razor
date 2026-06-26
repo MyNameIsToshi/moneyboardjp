@@ -5,9 +5,10 @@
 <div class="wrap">
     <div class="graph-sticky">
         <div class="graph-header">
-            <div class="app-title">統計</div>
-            <button class="btn" disabled="@IsLoading" @onclick="GoBack">← 戻る</button>
+            <AppTitle Subtitle="統計" />
         </div>
+        @* PC用の共通ページヘッダー（スマホは非表示。サイドナビと同じ字形・画面名） *@
+        <PageHeader Icon="bar_chart" Title="統計" Subtitle="収支・カテゴリ" />
 
         @if (Loaded)
         {
@@ -61,69 +62,50 @@
     {
     <div class="graph-grid">
 
-        <!-- ① 月別支出合計推移 -->
-        <div class="graph-card">
-            <h4>月別 支出合計推移</h4>
-            @if (MonthlyDebitData.Any())
-            {
-                <ApexChart TItem="ChartPoint" Options="DebitLineOptions">
-                    <ApexPointSeries TItem="ChartPoint"
-                                     Items="MonthlyDebitData"
-                                     SeriesType="SeriesType.Line"
-                                     Name="支出合計"
-                                     XValue="@(e => e.Label)"
-                                     YValue="@(e => e.Value)" />
-                </ApexChart>
-            }
-            else { <div class="graph-placeholder">データなし</div> }
+        <!-- 要約バンド：期間収支ヒーロー＋指標4枚（収入/支出/固定費/貯蓄率） -->
+        <div class="stat-band">
+            <div class="stat hero">
+                <div class="hero-lab">
+                    期間収支（収入 − 支出）
+                    <span class="hero-pill @(IsSurplus ? "surplus" : "deficit")">
+                        <span class="msym">@(IsSurplus ? "trending_up" : "trending_down")</span>@(IsSurplus ? "黒字" : "赤字")
+                    </span>
+                </div>
+                <div class="hero-val">@SignedYen(NetTotal)</div>
+                <div class="hero-sub">@RangeLabel 累計　収入 @Yen(IncomeTotal) − 支出 @Yen(ExpenseTotal)</div>
+            </div>
+
+            <div class="stat-metrics">
+                <button type="button" class="stat stat-click" @onclick="OpenIncomeBreakdown">
+                    <div class="lab">収入 合計</div>
+                    <div class="val ok">@Yen(IncomeTotal)</div>
+                </button>
+                <button type="button" class="stat stat-click" @onclick="OpenExpenseBreakdown">
+                    <div class="lab">支出 合計</div>
+                    <div class="val">@Yen(ExpenseTotal)</div>
+                </button>
+                <button type="button" class="stat stat-click" @onclick="OpenFixedBreakdown">
+                    <div class="lab">固定費 合計</div>
+                    <div class="val">@Yen(FixedTotal)</div>
+                    <div class="stat-note">支出の約@(FixedPctOfExpense)%</div>
+                </button>
+                <div class="stat">
+                    <div class="lab">貯蓄率</div>
+                    <div class="val accent">@(SavingsRate is { } r ? (r * 100).ToString("0.0") + "%" : "—")</div>
+                    <div class="stat-note">収入に対する収支</div>
+                </div>
+            </div>
         </div>
 
-        <!-- ② 口座別月末残高推移 -->
-        <div class="graph-card">
-            <h4>口座別 月末残高推移</h4>
-            @if (BalanceSeriesData.Any())
-            {
-                <ApexChart TItem="ChartPoint" Options="BalanceLineOptions">
-                    @foreach (var series in BalanceSeriesData)
-                    {
-                        <ApexPointSeries TItem="ChartPoint"
-                                         Items="series.Value"
-                                         SeriesType="SeriesType.Line"
-                                         Name="@series.Key"
-                                         XValue="@(e => e.Label)"
-                                         YValue="@(e => e.Value)" />
-                    }
-                </ApexChart>
-            }
-            else { <div class="graph-placeholder">データなし</div> }
-        </div>
-
-        <!-- ③ 収入の内訳推移（給料・ボーナス・臨時収入を入力名ごとに積み上げ） -->
-        <div class="graph-card">
-            <h4>収入の内訳推移</h4>
-            @if (IncomeBreakdown.Any())
-            {
-                <ApexChart TItem="ChartPoint" Options="IncomeBreakdownOptions" @key="@($"inc-{SelectedPeriod}")">
-                    @foreach (var s in IncomeBreakdown)
-                    {
-                        <ApexPointSeries TItem="ChartPoint"
-                                         Items="s.Data"
-                                         SeriesType="SeriesType.Bar"
-                                         Name="@s.Name"
-                                         XValue="@(e => e.Label)"
-                                         YValue="@(e => e.Value)" />
-                    }
-                </ApexChart>
-            }
-            else { <div class="graph-placeholder">データなし</div> }
-        </div>
-
-        <!-- ④ 収入 vs 支出 -->
-        <div class="graph-card">
-            <h4>収入 vs 支出比較</h4>
+        <!-- メイン：収入 vs 支出 推移（収入・支出=棒／収支=折れ線） -->
+        <div class="graph-card graph-card-full">
+            <div class="graph-card-head">
+                <h4>収入 vs 支出 推移</h4>
+                <span class="graph-card-hint">棒＝収入・支出　/　線＝収支　・　棒タップで内訳</span>
+            </div>
             @if (IncomeData.Any())
             {
-                <ApexChart TItem="ChartPoint" Options="IncomeBarOptions"
+                <ApexChart TItem="ChartPoint" Options="ComboOptions" @key="@($"combo-{SelectedPeriod}")"
                            OnDataPointSelection="OnIncomeVsExpenseSelected">
                     <ApexPointSeries TItem="ChartPoint"
                                      Items="IncomeData"
@@ -137,22 +119,10 @@
                                      Name="支出"
                                      XValue="@(e => e.Label)"
                                      YValue="@(e => e.Value)" />
-                </ApexChart>
-            }
-            else { <div class="graph-placeholder">データなし</div> }
-        </div>
-
-        <!-- ⑤ 月別 固定費合計推移 -->
-        <div class="graph-card">
-            <h4>月別 固定費合計推移</h4>
-            @if (FixedCostData.Any())
-            {
-                <ApexChart TItem="ChartPoint" Options="FixedBarOptions"
-                           OnDataPointSelection="OnFixedSelected">
                     <ApexPointSeries TItem="ChartPoint"
-                                     Items="FixedCostData"
-                                     SeriesType="SeriesType.Bar"
-                                     Name="固定費合計"
+                                     Items="NetData"
+                                     SeriesType="SeriesType.Line"
+                                     Name="収支"
                                      XValue="@(e => e.Label)"
                                      YValue="@(e => e.Value)" />
                 </ApexChart>
@@ -160,27 +130,73 @@
             else { <div class="graph-placeholder">データなし</div> }
         </div>
 
-        <!-- ⑥ カテゴリ別支出（カード明細） -->
-        <SpendBreakdownCard Title="カテゴリ別 支出（カード明細）"
-                            ItemColumnLabel="カテゴリ"
-                            Items="CategorySpendData"
-                            Total="CategoryTotal"
-                            Options="DonutOptions"
-                            RenderKey="@($"cat-{SelectedPeriod}")"
-                            EmptyMessage="カード明細がありません"
-                            OnRowClick="OpenCatDetail"
-                            OnSliceSelected="OnSliceSelected" />
+        <!-- 〔収入内訳｜口座残高〕の2列ブロック -->
+        <div class="graph-row2">
+            <!-- 収入の内訳推移（給料・ボーナス・臨時収入を入力名ごとに積み上げ） -->
+            <div class="graph-card">
+                <h4>収入の内訳推移</h4>
+                @if (IncomeBreakdown.Any())
+                {
+                    <ApexChart TItem="ChartPoint" Options="IncomeBreakdownOptions" @key="@($"inc-{SelectedPeriod}")">
+                        @foreach (var s in IncomeBreakdown)
+                        {
+                            <ApexPointSeries TItem="ChartPoint"
+                                             Items="s.Data"
+                                             SeriesType="SeriesType.Bar"
+                                             Name="@s.Name"
+                                             XValue="@(e => e.Label)"
+                                             YValue="@(e => e.Value)" />
+                        }
+                    </ApexChart>
+                }
+                else { <div class="graph-placeholder">データなし</div> }
+            </div>
 
-        <!-- ⑦ カード別利用額（カード明細） -->
-        <SpendBreakdownCard Title="カード別 利用額"
-                            ItemColumnLabel="カード"
-                            Items="CardSpendData"
-                            Total="CardTotal"
-                            Options="CardDonutOptions"
-                            RenderKey="@($"card-{SelectedPeriod}")"
-                            EmptyMessage="カード明細がありません"
-                            OnRowClick="OpenCardDetail"
-                            OnSliceSelected="OnCardSliceSelected" />
+            <!-- 口座別月末残高推移 -->
+            <div class="graph-card">
+                <h4>口座別 月末残高推移</h4>
+                @if (BalanceSeriesData.Any())
+                {
+                    <ApexChart TItem="ChartPoint" Options="BalanceLineOptions">
+                        @foreach (var series in BalanceSeriesData)
+                        {
+                            <ApexPointSeries TItem="ChartPoint"
+                                             Items="series.Value"
+                                             SeriesType="SeriesType.Line"
+                                             Name="@series.Key"
+                                             XValue="@(e => e.Label)"
+                                             YValue="@(e => e.Value)" />
+                        }
+                    </ApexChart>
+                }
+                else { <div class="graph-placeholder">データなし</div> }
+            </div>
+        </div>
+
+        <!-- 〔カテゴリ｜カード〕の2列ブロック（ドーナツ＋一覧） -->
+        <div class="graph-row2">
+            <SpendBreakdownCard Title="カテゴリ別 支出（カード明細）"
+                                FullWidth="false"
+                                ItemColumnLabel="カテゴリ"
+                                Items="CategorySpendData"
+                                Total="CategoryTotal"
+                                Options="DonutOptions"
+                                RenderKey="@($"cat-{SelectedPeriod}")"
+                                EmptyMessage="カード明細がありません"
+                                OnRowClick="OpenCatDetail"
+                                OnSliceSelected="OnSliceSelected" />
+
+            <SpendBreakdownCard Title="カード別 利用額"
+                                FullWidth="false"
+                                ItemColumnLabel="カード"
+                                Items="CardSpendData"
+                                Total="CardTotal"
+                                Options="CardDonutOptions"
+                                RenderKey="@($"card-{SelectedPeriod}")"
+                                EmptyMessage="カード明細がありません"
+                                OnRowClick="OpenCardDetail"
+                                OnSliceSelected="OnCardSliceSelected" />
+        </div>
 
     </div>
     }
@@ -189,6 +205,7 @@
     {
         <DetailDialog Title="@_detail.Title" Color="@_detail.Color" Count="_detail.Count"
                       Total="_detail.Total" SubLabel="@RangeLabel" Rows="_detail.Rows"
+                      ShowCategorize="_detail.ShowCategorize" OnCategorize="OnCategorize"
                       OnClose="CloseDetail" />
     }
 

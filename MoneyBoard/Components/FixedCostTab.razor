@@ -1,32 +1,27 @@
 @inject LedgerService Svc
 
-<div class="panel">
-    <div class="panel-head">
-        <h3>固定費設定</h3>
-        <button class="btn" @onclick="AddClicked">＋ 追加</button>
-    </div>
-
-    @if (Svc.State.FixedCosts.Count == 0)
-    {
-        <div class="none">固定費が登録されていません。</div>
-    }
-    else
-    {
-        @if (IsFilterActive)
+@{ var fcCount = Svc.State.FixedCosts.Count; var fcTotal = Svc.State.FixedCosts.Sum(f => f.Amount); }
+<div class="fc-wrap">
+    <div class="set-head">
+        <span class="set-chip c-fixed msym">receipt_long</span>
+        <span class="set-title">固定費</span>
+        @if (fcCount > 0)
         {
-            <div class="fc-filter-note">口座でフィルター中（ドラッグ並べ替えは無効）</div>
+            <span class="set-count">@fcCount 件</span>
         }
-
-        <div class="fc-head">
-            <span></span>
-            <span>項目名</span>
-            <span class="fc-th-filter">
-                口座
-                <button class="fc-filter-btn @(IsFilterActive ? "active" : "")"
-                        @onclick="ToggleFilterMenu" title="口座でフィルター">
-                    <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true">
-                        <path d="M2.5 3.5 H13.5 L9 8.5 V11.5 L7 12.5 V8.5 Z" />
-                    </svg>
+        <span class="set-spacer"></span>
+        @if (fcCount > 0)
+        {
+            <span class="set-total">
+                <span class="set-total-lab">月合計</span>
+                <span class="set-total-val">¥@fcTotal.ToString("#,0")</span>
+            </span>
+        }
+        @if (!IsMobile && fcCount > 0)
+        {
+            <span class="set-filter-wrap">
+                <button class="set-filter @(IsFilterActive ? "active" : "")" @onclick="ToggleFilterMenu" title="口座でフィルター">
+                    <span class="msym">filter_alt</span>
                 </button>
                 @if (_filterOpen)
                 {
@@ -34,8 +29,7 @@
                         @foreach (var a in Svc.ActiveAccounts)
                         {
                             <label class="fc-filter-item">
-                                <input type="checkbox" checked="@IsChecked(a.Id)"
-                                       @onchange="() => ToggleAccount(a.Id)" />
+                                <input type="checkbox" checked="@IsChecked(a.Id)" @onchange="() => ToggleAccount(a.Id)" />
                                 <span>@a.Name</span>
                             </label>
                         }
@@ -45,164 +39,172 @@
                     </div>
                 }
             </span>
-            <span>通常月金額</span>
-            <span></span>
-        </div>
+        }
+        <button class="set-add" @onclick="AddClicked"><span class="msym">add</span>追加</button>
+    </div>
 
+    @if (fcCount == 0)
+    {
+        <div class="none">固定費が登録されていません。</div>
+    }
+    else
+    {
+        @if (IsFilterActive)
+        {
+            <div class="fc-filter-note">口座でフィルター中（ドラッグ並べ替えは無効）</div>
+        }
         @if (_filterOpen)
         {
             <div class="fc-filter-backdrop" @onclick="() => _filterOpen = false"></div>
         }
-
         @if (!DisplayedFixedCosts.Any())
         {
             <div class="none">該当する固定費がありません。</div>
         }
 
-        @foreach (var fc in DisplayedFixedCosts)
-        {
-            @if (IsMobile)
+        <div class="fc-list">
+            @foreach (var fc in DisplayedFixedCosts)
             {
-                <div class="list-card-wrap">
-                    <button class="list-card" @onclick="() => OpenEdit(fc.Id)">
-                        <div class="list-card-main">
-                            <span class="list-card-name">@fc.Name</span>
-                            <span class="list-card-amount">¥@fc.Amount.ToString("#,0")</span>
-                        </div>
-                        <div class="list-card-sub">
-                            <span>@AccountName(fc.AccountId)</span>
-                            <span class="list-card-chev">›</span>
-                        </div>
-                    </button>
-                    @if (IsManualOrder)
-                    {
-                        <div class="list-card-move">
-                            <button @onclick="() => Move(fc, -1)" disabled="@(fc == DisplayedFixedCosts.First())" aria-label="上へ">▲</button>
-                            <button @onclick="() => Move(fc, 1)" disabled="@(fc == DisplayedFixedCosts.Last())" aria-label="下へ">▼</button>
-                        </div>
-                    }
-                </div>
-            }
-            else
-            {
-            var expanded = ExpandedIds.Contains(fc.Id);
-            <div class="fc-item @(DragOverId == fc.Id ? "drag-over" : "")"
-                 draggable="@(IsManualOrder ? "true" : "false")"
-                 @ondragstart="() => OnDragStart(fc.Id)"
-                 @ondragover:preventDefault="true"
-                 @ondragover="() => OnDragOver(fc.Id)"
-                 @ondrop="() => OnDrop(fc.Id)"
-                 @ondragend="OnDragEnd">
-                <div class="fc-row">
-                    @if (IsManualOrder)
-                    {
-                        <span class="drag-handle">⠿</span>
-                    }
-                    else
-                    {
-                        <span></span>
-                    }
-                    <input @bind="fc.Name" @bind:after="SaveWithReload" placeholder="項目名" />
-                    <select @bind="fc.AccountId" @bind:after="SaveWithReload">
-                        <option value="">口座を選択</option>
-                        @foreach (var a in Svc.ActiveAccounts)
-                        {
-                            <option value="@a.Id">@a.Name</option>
-                        }
-                    </select>
-                    <AmountInput CssClass="ra" Value="@fc.Amount" ValueChanged="v => { fc.Amount = v; RequestSaveWithReload(); }" />
-                    <button class="x" @onclick="() => RemoveFixedCost(fc.Id)">✕</button>
-                </div>
-
-                <button class="fc-expand" @onclick="() => ToggleExpand(fc.Id)">
-                    @(expanded ? "▼" : "▶") 期間・ボーナス設定（@SummaryText(fc)）
-                </button>
-
-                @if (expanded)
+                @if (IsMobile)
                 {
-                    <div class="fc-detail">
-                        <div class="detail-row">
-                            <span class="detail-lab">開始年月</span>
-                            <select value="@StartYear(fc)"
-                                    @onchange="e => SetStartYear(fc, e.Value?.ToString())">
-                                <option value="">未設定</option>
-                                @foreach (var y in YearRange())
-                                {
-                                    <option value="@y">@y 年</option>
-                                }
-                            </select>
-                            <select value="@StartMonth(fc)"
-                                    @onchange="e => SetStartMonth(fc, e.Value?.ToString())">
-                                <option value="">—</option>
-                                @for (int mi = 1; mi <= 12; mi++)
-                                {
-                                    var label = mi + " 月";
-                                    var val = mi.ToString();
-                                    <option value="@val">@label</option>
-                                }
-                            </select>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-lab">終了年月</span>
-                            <select value="@EndYear(fc)"
-                                    @onchange="e => SetEndYear(fc, e.Value?.ToString())">
-                                <option value="">未設定</option>
-                                @foreach (var y in YearRange())
-                                {
-                                    <option value="@y">@y 年</option>
-                                }
-                            </select>
-                            <select value="@EndMonth(fc)"
-                                    @onchange="e => SetEndMonth(fc, e.Value?.ToString())">
-                                <option value="">—</option>
-                                @for (int mi = 1; mi <= 12; mi++)
-                                {
-                                    var label = mi + " 月";
-                                    var val = mi.ToString();
-                                    <option value="@val">@label</option>
-                                }
-                            </select>
-                        </div>
-                        <div class="detail-row" style="flex-direction:column;align-items:flex-start;gap:6px">
-                            <span class="detail-lab">ボーナス払い</span>
-                            @if (fc.BonusSettings.Count > 0)
-                            {
-                                <div class="bonus-list">
-                                    <div class="bonus-row-head">
-                                        <span>対象月</span><span>種別</span><span>金額</span><span></span>
-                                    </div>
-                                    @foreach (var b in fc.BonusSettings)
-                                    {
-                                        <div class="bonus-row">
-                                            <select @bind="b.Month" @bind:after="SaveWithReload">
-                                                @for (int mi = 1; mi <= 12; mi++)
-                                                {
-                                                    <option value="@mi">@mi 月</option>
-                                                }
-                                            </select>
-                                            <select @bind="b.Type" @bind:after="SaveWithReload">
-                                                <option value="@BonusType.Add">上乗せ</option>
-                                                <option value="@BonusType.Separate">別額</option>
-                                            </select>
-                                            <AmountInput CssClass="ra" Value="@b.Amount" ValueChanged="v => { b.Amount = v; RequestSaveWithReload(); }" />
-                                            <button class="x" @onclick="() => RemoveBonus(fc, b.Id)">✕</button>
-                                        </div>
-                                    }
-                                </div>
-                            }
-                            <button class="add-line" @onclick="() => AddBonus(fc)">＋ ボーナス月を追加</button>
-                        </div>
+                    <div class="list-card-wrap">
+                        <button class="list-card" @onclick="() => OpenEdit(fc.Id)">
+                            <div class="list-card-main">
+                                <span class="list-card-name">@fc.Name</span>
+                                <span class="list-card-amount">¥@fc.Amount.ToString("#,0")</span>
+                            </div>
+                            <div class="list-card-sub">
+                                <span>@AccountName(fc.AccountId)</span>
+                                <span class="list-card-chev msym">chevron_right</span>
+                            </div>
+                        </button>
+                        @if (IsManualOrder)
+                        {
+                            <div class="list-card-move">
+                                <button @onclick="() => Move(fc, -1)" disabled="@(fc == DisplayedFixedCosts.First())" aria-label="上へ">▲</button>
+                                <button @onclick="() => Move(fc, 1)" disabled="@(fc == DisplayedFixedCosts.Last())" aria-label="下へ">▼</button>
+                            </div>
+                        }
                     </div>
                 }
-            </div>
-            }
-        }
-    }
-</div>
+                else
+                {
+                    var expanded = ExpandedIds.Contains(fc.Id);
+                    <div class="fc-item @(DragOverId == fc.Id ? "drag-over" : "")"
+                         draggable="@(IsManualOrder ? "true" : "false")"
+                         @ondragstart="() => OnDragStart(fc.Id)"
+                         @ondragover:preventDefault="true"
+                         @ondragover="() => OnDragOver(fc.Id)"
+                         @ondrop="() => OnDrop(fc.Id)"
+                         @ondragend="OnDragEnd">
+                        <div class="fc-row">
+                            @if (IsManualOrder)
+                            {
+                                <span class="drag-handle msym">drag_indicator</span>
+                            }
+                            else
+                            {
+                                <span></span>
+                            }
+                            <input class="set-input" @bind="fc.Name" @bind:after="SaveWithReload" placeholder="項目名" />
+                            <div class="set-select-wrap">
+                                <select class="set-select" @bind="fc.AccountId" @bind:after="SaveWithReload">
+                                    <option value="">口座を選択</option>
+                                    @foreach (var a in Svc.ActiveAccounts)
+                                    {
+                                        <option value="@a.Id">@a.Name</option>
+                                    }
+                                </select>
+                                <span class="msym set-select-chev">expand_more</span>
+                            </div>
+                            <AmountInput CssClass="set-input ra" Value="@fc.Amount" ValueChanged="v => { fc.Amount = v; RequestSaveWithReload(); }" />
+                            <button class="set-del" @onclick="() => RemoveFixedCost(fc.Id)" title="削除"><span class="msym">close</span></button>
+                        </div>
 
-<div class="foot">
-    開始・終了年月は任意です（未設定 = 開始なし / 無期限）。終了月はその月を含みます。<br />
-    マスタの変更は未作成の月を開いたときから反映されます。作成済みの月は月次管理の「↺ 再読み込み」で手動反映できます。
+                        <button class="fc-expand" @onclick="() => ToggleExpand(fc.Id)">
+                            <span class="msym">@(expanded ? "expand_more" : "chevron_right")</span>期間・ボーナス設定（@SummaryText(fc)）
+                        </button>
+
+                        @if (expanded)
+                        {
+                            <div class="fc-detail">
+                                <div class="detail-row">
+                                    <span class="detail-lab">開始年月</span>
+                                    <select value="@StartYear(fc)" @onchange="e => SetStartYear(fc, e.Value?.ToString())">
+                                        <option value="">未設定</option>
+                                        @foreach (var y in YearRange())
+                                        {
+                                            <option value="@y">@y 年</option>
+                                        }
+                                    </select>
+                                    <select value="@StartMonth(fc)" @onchange="e => SetStartMonth(fc, e.Value?.ToString())">
+                                        <option value="">—</option>
+                                        @for (int mi = 1; mi <= 12; mi++)
+                                        {
+                                            var val = mi.ToString();
+                                            <option value="@val">@mi 月</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="detail-row">
+                                    <span class="detail-lab">終了年月</span>
+                                    <select value="@EndYear(fc)" @onchange="e => SetEndYear(fc, e.Value?.ToString())">
+                                        <option value="">未設定</option>
+                                        @foreach (var y in YearRange())
+                                        {
+                                            <option value="@y">@y 年</option>
+                                        }
+                                    </select>
+                                    <select value="@EndMonth(fc)" @onchange="e => SetEndMonth(fc, e.Value?.ToString())">
+                                        <option value="">—</option>
+                                        @for (int mi = 1; mi <= 12; mi++)
+                                        {
+                                            var val = mi.ToString();
+                                            <option value="@val">@mi 月</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="detail-row" style="flex-direction:column;align-items:flex-start;gap:6px">
+                                    <span class="detail-lab">ボーナス払い</span>
+                                    @if (fc.BonusSettings.Count > 0)
+                                    {
+                                        <div class="bonus-list">
+                                            <div class="bonus-row-head">
+                                                <span>対象月</span><span>種別</span><span>金額</span><span></span>
+                                            </div>
+                                            @foreach (var b in fc.BonusSettings)
+                                            {
+                                                <div class="bonus-row">
+                                                    <select @bind="b.Month" @bind:after="SaveWithReload">
+                                                        @for (int mi = 1; mi <= 12; mi++)
+                                                        {
+                                                            <option value="@mi">@mi 月</option>
+                                                        }
+                                                    </select>
+                                                    <select @bind="b.Type" @bind:after="SaveWithReload">
+                                                        <option value="@BonusType.Add">上乗せ</option>
+                                                        <option value="@BonusType.Separate">別額</option>
+                                                    </select>
+                                                    <AmountInput CssClass="ra" Value="@b.Amount" ValueChanged="v => { b.Amount = v; RequestSaveWithReload(); }" />
+                                                    <button class="x" @onclick="() => RemoveBonus(fc, b.Id)">✕</button>
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                    <button class="add-line" @onclick="() => AddBonus(fc)"><span class="msym">add</span>ボーナス月を追加</button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            }
+        </div>
+    }
+
+    <div class="set-note set-note-center">
+        開始・終了年月は任意です（未設定 = 開始なし / 無期限）。終了月はその月を含みます。<br />
+        マスタの変更は未作成の月を開いたときから反映されます。作成済みの月は月次管理の「再読み込み」で手動反映できます。
+    </div>
 </div>
 
 <!-- 口座未登録警告 -->
@@ -341,7 +343,7 @@
                         }
                     </div>
                 }
-                <button class="add-line" @onclick="() => AddBonus(Editing)">＋ ボーナス月を追加</button>
+                <button class="add-line" @onclick="() => AddBonus(Editing)"><span class="msym">add</span>ボーナス月を追加</button>
             </div>
         }
     </ChildContent>

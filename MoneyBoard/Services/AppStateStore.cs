@@ -74,6 +74,10 @@ public class AppStateStore(StorageService storage)
     /// <summary>即時保存。変更されたドキュメント（設定/各月）だけを送信する。</summary>
     public async Task SaveAsync()
     {
+        // データ未読込のうちは保存しない。空の初期 State（accounts 等が空）で
+        // サーバーの実データを上書きしてしまう事故を防ぐ（例: 家計簿未読込のページから
+        // 保存フラッシュが呼ばれるケース）。読込成功で IsLoaded=true になって初めて保存する。
+        if (!IsLoaded) return;
         _debounceCts?.Cancel();
         await _saveLock.WaitAsync();
         try

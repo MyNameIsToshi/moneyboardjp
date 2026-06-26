@@ -1,8 +1,9 @@
 @inject LedgerService Svc
 
-<div class="cat-head">
-    <span>カテゴリ</span>
-    <button class="btn" @onclick="Add">＋ 追加</button>
+<div class="set-head">
+    <span class="set-chip c-category msym">sell</span>
+    <span class="set-title">カード明細カテゴリ</span>
+    <button class="set-add" @onclick="Add"><span class="msym">add</span>追加</button>
 </div>
 
 @if (Svc.State.Categories.Count == 0)
@@ -11,51 +12,53 @@
 }
 else
 {
-    @foreach (var c in Ordered)
-    {
-        @if (IsMobile)
+    <div class="set-list">
+        @foreach (var c in Ordered)
         {
-            <div class="list-card-wrap">
-                <button class="list-card" @onclick="() => OpenEdit(c.Id)">
-                    <div class="cat-card-row">
-                        <span class="cat-swatch" style="background:@c.Color"></span>
-                        <span class="list-card-name">@(string.IsNullOrEmpty(c.Name) ? "(名称未設定)" : c.Name)</span>
-                        <span class="list-card-chev">›</span>
+            @if (IsMobile)
+            {
+                <div class="list-card-wrap">
+                    <button class="list-card" @onclick="() => OpenEdit(c.Id)">
+                        <div class="cat-card-row">
+                            <span class="cat-swatch" style="background:@c.Color"></span>
+                            <span class="list-card-name">@(string.IsNullOrEmpty(c.Name) ? "(名称未設定)" : c.Name)</span>
+                            <span class="list-card-chev msym">chevron_right</span>
+                        </div>
+                    </button>
+                    <div class="list-card-move">
+                        <button @onclick="() => Move(c, -1)" disabled="@(c == Ordered.First())" aria-label="上へ">▲</button>
+                        <button @onclick="() => Move(c, 1)" disabled="@(c == Ordered.Last())" aria-label="下へ">▼</button>
                     </div>
-                </button>
-                <div class="list-card-move">
-                    <button @onclick="() => Move(c, -1)" disabled="@(c == Ordered.First())" aria-label="上へ">▲</button>
-                    <button @onclick="() => Move(c, 1)" disabled="@(c == Ordered.Last())" aria-label="下へ">▼</button>
                 </div>
-            </div>
+            }
+            else
+            {
+                <div class="set-row cat-row @(DragOverId == c.Id ? "drag-over" : "")"
+                     draggable="true"
+                     @ondragstart="() => OnDragStart(c.Id)"
+                     @ondragover:preventDefault="true"
+                     @ondragover="() => OnDragOver(c.Id)"
+                     @ondrop="() => OnDrop(c.Id)"
+                     @ondragend="OnDragEnd">
+                    <span class="drag-handle msym">drag_indicator</span>
+                    <span class="cat-swatch" style="background:@c.Color"></span>
+                    <input class="set-input cat-name" @bind="c.Name" @bind:after="Save" placeholder="カテゴリ名" />
+                    <div class="cat-palette">
+                        @foreach (var color in Palette)
+                        {
+                            <button class="cat-color @(c.Color == color ? "sel" : "")"
+                                    style="background:@color"
+                                    @onclick="() => SetColor(c, color)" title="@color"></button>
+                        }
+                    </div>
+                    <button class="set-del" @onclick="() => Remove(c.Id)" title="削除"><span class="msym">close</span></button>
+                </div>
+            }
         }
-        else
-        {
-        <div class="cat-row @(DragOverId == c.Id ? "drag-over" : "")"
-             draggable="true"
-             @ondragstart="() => OnDragStart(c.Id)"
-             @ondragover:preventDefault="true"
-             @ondragover="() => OnDragOver(c.Id)"
-             @ondrop="() => OnDrop(c.Id)"
-             @ondragend="OnDragEnd">
-            <span class="drag-handle">⠿</span>
-            <span class="cat-swatch" style="background:@c.Color"></span>
-            <input class="cat-name" @bind="c.Name" @bind:after="Save" placeholder="カテゴリ名" />
-            <div class="cat-palette">
-                @foreach (var color in Palette)
-                {
-                    <button class="cat-color @(c.Color == color ? "sel" : "")"
-                            style="background:@color"
-                            @onclick="() => SetColor(c, color)" title="@color"></button>
-                }
-            </div>
-            <button class="x" @onclick="() => Remove(c.Id)">✕</button>
-        </div>
-        }
-    }
+    </div>
 }
 
-<div class="foot" style="text-align:left;margin-top:10px">
+<div class="set-note">
     カテゴリ未設定の明細は「未分類（灰色）」として扱われます。
 </div>
 

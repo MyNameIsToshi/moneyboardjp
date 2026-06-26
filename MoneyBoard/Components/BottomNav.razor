@@ -5,19 +5,19 @@
    月次/カード/マイページは Home の "/?tab=" 経由、統計/資産は専用ルート。 *@
 <nav class="botnav">
     <button class="botnav-item @(IsHomeTab("monthly") ? "active" : "")" @onclick='() => GoTab("monthly")'>
-        <span class="bn-ico">📅</span><span class="bn-lab">月次</span>
+        <span class="bn-ico msym">calendar_month</span><span class="bn-lab">月次</span>
     </button>
     <button class="botnav-item @(IsHomeTab("card") ? "active" : "")" @onclick='() => GoTab("card")'>
-        <span class="bn-ico">💳</span><span class="bn-lab">カード</span>
+        <span class="bn-ico msym">credit_card</span><span class="bn-lab">カード</span>
     </button>
     <button class="botnav-item @(IsRoute("/graph") ? "active" : "")" @onclick='() => Go("/graph")'>
-        <span class="bn-ico">📊</span><span class="bn-lab">統計</span>
+        <span class="bn-ico msym">bar_chart</span><span class="bn-lab">統計</span>
     </button>
     <button class="botnav-item @(IsRoute("/portfolio") ? "active" : "")" @onclick='() => Go("/portfolio")'>
-        <span class="bn-ico">💹</span><span class="bn-lab">資産</span>
+        <span class="bn-ico msym">savings</span><span class="bn-lab">資産</span>
     </button>
     <button class="botnav-item @(IsHomeTab("mypage") ? "active" : "")" @onclick='() => GoTab("mypage")'>
-        <span class="bn-ico">👤</span><span class="bn-lab">マイページ</span>
+        <span class="bn-ico msym">person</span><span class="bn-lab">マイページ</span>
     </button>
 </nav>
 

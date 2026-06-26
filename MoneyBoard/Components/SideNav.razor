@@ -1,0 +1,70 @@
+@inject NavigationManager Nav
+@inject LedgerService Svc
+@implements IDisposable
+
+@* PC用の左サイドナビ。表示可否は MainLayout が PC 時のみレンダーする。
+   月次/カード/マイページは Home の "/?tab=" 経由、統計/資産は専用ルート。
+   行き先とハイライト規則はスマホ下部バー（BottomNav）と対で揃える。 *@
+<nav class="sidenav">
+    <div class="sidenav-brand">
+        <AppTitle />
+    </div>
+    <div class="sidenav-items">
+        <button class="sidenav-item @(IsHomeTab("monthly") ? "active" : "")" @onclick='() => GoTab("monthly")'>
+            <span class="sn-ico msym">calendar_month</span><span class="sn-lab">月次管理</span>
+        </button>
+        <button class="sidenav-item @(IsHomeTab("card") ? "active" : "")" @onclick='() => GoTab("card")'>
+            <span class="sn-ico msym">credit_card</span><span class="sn-lab">カード</span>
+        </button>
+        <button class="sidenav-item @(IsRoute("/graph") ? "active" : "")" @onclick="GoGraph">
+            <span class="sn-ico msym">bar_chart</span><span class="sn-lab">統計</span>
+        </button>
+        <button class="sidenav-item @(IsRoute("/portfolio") ? "active" : "")" @onclick='() => Go("/portfolio")'>
+            <span class="sn-ico msym">savings</span><span class="sn-lab">資産</span>
+        </button>
+        <button class="sidenav-item @(IsHomeTab("mypage") ? "active" : "")" @onclick='() => GoTab("mypage")'>
+            <span class="sn-ico msym">person</span><span class="sn-lab">マイページ</span>
+        </button>
+    </div>
+</nav>
+
+@code {
+    protected override void OnInitialized() => Nav.LocationChanged += OnLocationChanged;
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+        => InvokeAsync(StateHasChanged);
+
+    // 現在 "/" に居て、?tab= が指定タブ（未指定なら monthly 既定）と一致するか。
+    private bool IsHomeTab(string tab)
+    {
+        var uri = Nav.ToAbsoluteUri(Nav.Uri);
+        if (uri.AbsolutePath.TrimEnd('/') is not "") return false;
+        var current = ParseTab(uri.Query);
+        if (string.IsNullOrEmpty(current)) current = "monthly";
+        return current == tab;
+    }
+
+    // "?tab=card&x=1" → "card"（依存を増やさないための簡易パース）
+    private static string? ParseTab(string query)
+    {
+        query = query.TrimStart('?');
+        foreach (var pair in query.Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var eq = pair.IndexOf('=');
+            if (eq > 0 && pair[..eq] == "tab")
+                return Uri.UnescapeDataString(pair[(eq + 1)..]);
+        }
+        return null;
+    }
+
+    private bool IsRoute(string path)
+        => Nav.ToAbsoluteUri(Nav.Uri).AbsolutePath.TrimEnd('/').Equals(path, StringComparison.OrdinalIgnoreCase);
+
+    private void GoTab(string tab) => Nav.NavigateTo($"/?tab={tab}");
+    private void Go(string path) => Nav.NavigateTo(path);
+
+    // 保留中のデバウンス保存をフラッシュしてから遷移（グラフ側の再読込が最新を取得できるように）。
+    private async Task GoGraph() { await Svc.SaveAsync(); Nav.NavigateTo("/graph"); }
+
+    public void Dispose() => Nav.LocationChanged -= OnLocationChanged;
+}

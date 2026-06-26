@@ -31,7 +31,6 @@
   top: 0;
   z-index: 10;
   background: var(--paper);
-  padding-top: 8px;
   margin-bottom: 14px;
   border-bottom: 1px solid var(--line);
 }
@@ -39,11 +38,11 @@
 .graph-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 14px;
   margin-bottom: 14px;
 }
 
-/* 統計タイトルは MoneyBoard と同じ左位置、戻るはその右 */
 .graph-header .app-title {
   margin-bottom: 0;
 }
@@ -71,36 +70,131 @@
   margin-bottom: 16px;
 }
 
+/* 単カラム流し（要約バンド → メイン → 2列ブロック → 2列ブロック） */
 .graph-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* 〔A｜B〕の2列ブロック。狭幅・スマホは1列に縮退。 */
+.graph-row2 {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 14px;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 900px) {
+  .graph-row2 {
+    grid-template-columns: 1fr;
+  }
 }
 
 .graph-card-full {
-  grid-column: 1 / -1;
+  width: 100%;
 }
 
 .graph-card {
-  background: var(--card);
+  background: #fff;
   border: 1px solid var(--line);
-  border-radius: var(--r);
-  padding: 14px;
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(33, 38, 46, .03);
+  padding: 18px 20px;
 }
 
 .graph-card h4 {
   margin: 0 0 10px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--sub);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+/* 見出し＋右肩の補助テキスト */
+.graph-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.graph-card-head h4 {
+  margin: 0;
+}
+
+.graph-card-hint {
+  font-size: 11.5px;
+  color: #a8a49d;
+}
+
+/* =====================================================
+   要約バンド（ヒーロー＋指標4枚）。.stat/.hero は monthly.css を流用
+   ===================================================== */
+.stat-band {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.stat-band .stat.hero {
+  flex: 1.5 1 300px;
+}
+
+.stat-metrics {
+  flex: 2 1 460px;
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.stat-metrics .stat {
+  flex: 1 1 140px;
+}
+
+/* 指標カードの数値色（収入=緑／貯蓄率=navy。他は既定 --ink） */
+.stat .val.ok {
+  color: var(--ok);
+}
+
+.stat .val.accent {
+  color: var(--accent);
+}
+
+.stat-note {
+  font-size: 11px;
+  color: #a8a49d;
+  margin-top: 2px;
+}
+
+/* クリックで内訳ダイアログを開く指標カード（ボタン化しても見た目は据え置き） */
+.stat-click {
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.stat-click:hover {
+  border-color: #d4cdbd;
+}
+
+/* ヒーローピル：黒字=緑／赤字=赤（収支の符号で出し分け。monthly の既定赤を上書き） */
+.stat-band .hero-pill.surplus {
+  background: rgba(15, 110, 86, .24);
+  color: #5fd1aa;
+}
+
+.stat-band .hero-pill.deficit {
+  background: rgba(163, 38, 31, .16);
+  color: #ff9b8f;
 }
 
 /* カテゴリ別支出：ドーナツ＋一覧 */
 .spend {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) 1fr;
+  grid-template-columns: 190px 1fr;
   gap: 20px;
-  align-items: start;
+  align-items: center;
 }
 
 @media (max-width: 760px) {
@@ -115,7 +209,7 @@
   gap: 8px;
   align-items: center;
   padding: 5px 0;
-  border-bottom: 1px dashed var(--line);
+  border-bottom: 1px solid #f0eee9;
   font-size: 13px;
 }
 
@@ -158,82 +252,336 @@
   margin-left: 2px;
 }
 
-/* カテゴリ別支出ドリルダウン（モーダル） */
-.cat-detail-box {
-  max-width: 520px;
-  width: 92vw;
+/* =====================================================
+   明細ドリルダウン（DetailDialog／案A モーダル・案C ボトムシート）
+   ===================================================== */
+.dd-overlay {
+  background: rgba(33, 38, 46, .32);
 }
 
-.cat-detail-head {
+.dd-box {
+  max-width: 520px;
+  padding: 0;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 18px 50px rgba(33, 38, 46, .22);
+}
+
+/* グラバーはスマホのボトムシートのみ表示 */
+.dd-grabber {
+  display: none;
+}
+
+.dd-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 18px 20px 0;
+}
+
+.dd-title {
   display: flex;
   align-items: center;
   gap: 8px;
+  font-size: 15px;
+  min-width: 0;
 }
 
-.cat-detail-head h4 {
-  margin: 0;
-  flex: 1;
+.dd-title-main {
+  font-weight: 700;
 }
 
-.cat-detail-sub {
+.dd-title-sub {
   color: var(--sub);
-  font-size: 12px;
-  margin: 4px 0 10px;
+  font-weight: 500;
 }
 
-.cat-detail-list {
-  max-height: 60vh;
-  overflow-y: auto;
+.dd-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 4px;
+  flex: 0 0 auto;
+  display: inline-block;
 }
 
-.spend-detail-row {
-  display: grid;
-  grid-template-columns: 40px 1fr auto 90px;
-  gap: 10px;
+.dd-dot.sm {
+  width: 8px;
+  height: 8px;
+  border-radius: 3px;
+}
+
+.dd-x {
+  border: none;
+  background: #f4f1ea;
+  color: var(--sub);
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  font-size: 18px;
+  cursor: pointer;
+  display: inline-flex;
   align-items: center;
-  padding: 6px 0;
-  font-size: 13px;
-  color: var(--sub);
-  border-bottom: 1px dashed var(--line);
+  justify-content: center;
+  flex: 0 0 auto;
 }
 
-.sd-name {
+.dd-total-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 6px 20px 0;
+}
+
+.dd-total {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.dd-meta {
+  font-size: 12.5px;
+  color: var(--sub);
+}
+
+.dd-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 20px 0;
+}
+
+.dd-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #faf8f3;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 3px 10px;
+  font-size: 11.5px;
+  color: var(--sub);
+}
+
+.dd-chip b {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.dd-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 20px;
+}
+
+.dd-seg {
+  display: inline-flex;
+  background: #f4f1ea;
+  border-radius: 9px;
+  padding: 3px;
+}
+
+.dd-seg button {
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--sub);
+  padding: 4px 12px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.dd-seg button.on {
+  background: #fff;
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .08);
+}
+
+.dd-categorize {
+  border: none;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dd-categorize .msym {
+  font-size: 16px;
+}
+
+.dd-list {
+  max-height: 336px;
+  overflow-y: auto;
+  /* リスト末尾まで送った時にスクロールが背後（スマホは .app-scroll）へ連鎖しないようにする */
+  overscroll-behavior: contain;
+  padding: 0 20px;
+  scrollbar-width: thin;
+  scrollbar-color: #d8d3c8 transparent;
+}
+
+.dd-row {
+  display: grid;
+  grid-template-columns: 46px 1fr auto;
+  column-gap: 10px;
+  row-gap: 6px;
+  align-items: center;
+  padding: 9px 0;
+  border-bottom: 1px solid #f4f1ea;
+}
+
+.dd-row.out {
+  background: #fcf6f4;
+}
+
+.dd-row.out .dd-amt {
+  color: var(--bad);
+}
+
+.dd-date {
+  font-size: 11.5px;
+  color: var(--sub);
+  font-variant-numeric: tabular-nums;
+}
+
+.dd-name {
+  font-size: 13.5px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.sd-card {
-  font-size: 11px;
-  color: var(--accent);
-  white-space: nowrap;
-}
-
-.sd-amt {
+.dd-amt {
   text-align: right;
+  font-size: 14px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: var(--ink);
 }
 
-/* 収入/支出の項目別内訳（モーダル） */
-.breakdown-row {
+.dd-row2 {
+  grid-column: 2 / 4;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dd-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #faf8f3;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 11px;
+  color: var(--sub);
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.dd-bar {
+  flex: 1;
+  height: 4px;
+  background: #f0eee9;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.dd-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+}
+
+.dd-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--badbg);
+  color: var(--bad);
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 20px;
+  flex: 0 0 auto;
+}
+
+.dd-flag .msym {
+  font-size: 13px;
+}
+
+.dd-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: #fbfaf7;
+  border-top: 1px solid #f0eee9;
+  font-size: 12px;
+  color: var(--sub);
+}
+
+.dd-foot b {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 下部固定アクションバー（スマホのボトムシートのみ表示。PCは非表示） */
+.dd-action-bar {
+  display: none;
+}
+
+.dd-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  font-size: 14px;
+  padding: 12px;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+/* 収入/支出/固定費の項目別内訳（BreakdownDialog・DetailDialog と同トーン） */
+.bd-list {
+  padding-top: 4px;
+}
+
+.bd-row {
   display: grid;
   grid-template-columns: 1fr auto 56px;
-  gap: 12px;
+  column-gap: 12px;
+  row-gap: 6px;
   align-items: center;
-  padding: 7px 0;
-  font-size: 14px;
-  border-bottom: 1px dashed var(--line);
+  padding: 9px 0;
+  border-bottom: 1px solid #f4f1ea;
 }
 
 .bd-name {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-size: 13.5px;
 }
 
 .bd-amt {
   text-align: right;
+  font-size: 14px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
@@ -243,8 +591,10 @@
   color: var(--sub);
 }
 
-.breakdown-total {
-  font-weight: 700;
-  border-bottom: none;
-  border-top: 2px solid var(--line);
+.bd-bar {
+  grid-column: 1 / 4;
+}
+
+.bd-bar i {
+  background: var(--accent);
 }

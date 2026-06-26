@@ -1,54 +1,27 @@
 /* =====================================================
    固定費設定タブ (FixedCostTab.razor)
+   ヘッダー/入力の主役は mypage.css（set-head / set-row / set-input / set-select-wrap）。
+   ここは固定費固有：口座フィルター・カードのグリッド・期間/ボーナスの詳細パネル。
    ===================================================== */
+
+/* ── 口座フィルター（PC：ヘッダーの filter ボタン内ポップオーバー） ── */
 .fc-filter-note {
   color: var(--accent);
   font-size: 12px;
   margin-bottom: 8px;
 }
 
-/* .fc-head span の overflow:hidden を打ち消し、フィルターメニューを表示できるようにする */
-.fc-head .fc-th-filter {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  overflow: visible;
-}
-
-.fc-filter-btn {
-  display: inline-flex;
-  align-items: center;
-  border: none;
-  background: none;
-  color: var(--sub);
-  cursor: pointer;
-  padding: 2px 3px;
-  line-height: 1;
-  border-radius: 4px;
-}
-
-/* inline 既定のベースライン揃えを避け、じょうごを「口座」と上下中央に揃える */
-.fc-filter-btn svg {
-  display: block;
-}
-
-.fc-filter-btn.active {
-  color: var(--accent);
-  background: var(--okbg);
-}
-
 .fc-filter-menu {
   position: absolute;
   top: 100%;
-  left: 0;
+  right: 0;
   z-index: 30;
-  margin-top: 4px;
-  min-width: 160px;
+  margin-top: 6px;
+  min-width: 170px;
   background: #fff;
   border: 1px solid var(--line);
-  border-radius: 8px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, .12);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .12);
   padding: 8px;
 }
 
@@ -57,11 +30,11 @@
   align-items: center;
   gap: 8px;
   padding: 6px 8px;
-  font-size: 14.5px;
+  font-size: 14px;
   color: var(--ink);
   font-weight: 400;
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: 7px;
 }
 
 .fc-filter-item:hover {
@@ -81,97 +54,106 @@
   z-index: 20;
 }
 
-.fc-head {
-  display: grid;
-  grid-template-columns: 24px 1fr 140px 100px 32px;
-  gap: 8px;
-  padding: 4px 0 8px;
-  border-bottom: 1px solid var(--line);
-  margin-bottom: 4px;
+/* ── 固定費カードのリスト ── */
+.fc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
 }
 
-.fc-head span {
-  font-size: 11px;
-  color: var(--sub);
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* PC：カード内を 2 列に（幅が狭い時だけ 1 列へ） */
+.app-shell.has-sidenav .fc-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .app-shell.has-sidenav .fc-list {
+    grid-template-columns: 1fr;
+  }
 }
 
 .fc-item {
-  border-bottom: 1px dashed var(--line);
-  padding: 6px 0;
-  transition: opacity 0.15s;
-}
-
-.fc-item:last-child {
-  border-bottom: none
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 11px 13px;
+  background: #fff;
+  transition: opacity .15s;
 }
 
 .fc-item.drag-over {
   outline: 2px solid var(--accent);
-  border-radius: 6px;
-  opacity: 0.85;
+  outline-offset: 2px;
+  opacity: .85;
 }
 
 .fc-row {
-  display: grid;
-  grid-template-columns: 24px 1fr 140px 100px 32px;
-  gap: 8px;
+  display: flex;
   align-items: center;
+  gap: 9px;
 }
 
-.fc-row input,
-.fc-row select {
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  padding: 5px 8px;
-  font: inherit;
-  background: #fff;
-  width: 100%;
-}
-
-.fc-row input.ra {
-  text-align: right
+/* 行頭：ドラッグハンドル or 空プレースホルダ（並べ替え無効時）を同じ幅で確保 */
+.fc-row > :first-child {
+  flex: 0 0 18px;
 }
 
 .drag-handle {
-  cursor: grab;
-  color: var(--sub);
-  font-size: 1.1rem;
-  padding: 0 4px;
-  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
   flex-shrink: 0;
-  text-align: center;
+  font-size: 19px;
+  color: #cbc6bd;
+  cursor: grab;
+  user-select: none;
 }
 
 .drag-handle:active {
-  cursor: grabbing
+  cursor: grabbing;
 }
 
+/* 半幅カードの 2 列に収めるため、口座 select と金額は固定幅を詰める（名前は残りを伸縮） */
+.fc-row .set-select-wrap {
+  width: 124px;
+}
+
+.fc-row .set-input.ra {
+  flex: 0 0 96px;
+}
+
+/* ── 期間・ボーナス設定の開閉トグル ── */
 .fc-expand {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   background: none;
   border: none;
   cursor: pointer;
   color: var(--accent);
+  font: inherit;
   font-size: 12px;
   font-weight: 600;
-  padding: 2px 0;
-  text-align: left;
-  display: block;
-  margin-top: 3px;
+  padding: 7px 2px 1px 22px;
 }
 
+.fc-expand .msym {
+  font-size: 17px;
+}
+
+/* ── 詳細パネル（開始/終了年月・ボーナス払い） ── */
 .fc-detail {
-  background: #fafaf8;
+  background: #faf9f6;
   border: 1px dashed var(--line);
-  border-radius: 8px;
-  padding: 10px 12px;
-  margin: 6px 0 4px;
+  border-radius: 10px;
+  padding: 11px 13px;
+  margin: 8px 0 2px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 9px;
 }
 
 .detail-row {
@@ -189,9 +171,9 @@
 }
 
 .detail-row select {
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  padding: 5px 8px;
+  border: 1px solid #ddd9d2;
+  border-radius: 8px;
+  padding: 6px 9px;
   font: inherit;
   font-size: 14px;
   background: #fff;
@@ -226,9 +208,9 @@
 
 .bonus-row input,
 .bonus-row select {
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  padding: 5px 8px;
+  border: 1px solid #ddd9d2;
+  border-radius: 8px;
+  padding: 6px 9px;
   font: inherit;
   font-size: 14px;
   background: #fff;
@@ -236,5 +218,5 @@
 }
 
 .bonus-row input.ra {
-  text-align: right
+  text-align: right;
 }

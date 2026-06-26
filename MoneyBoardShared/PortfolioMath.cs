@@ -19,6 +19,11 @@ public static class PortfolioMath
     /// <summary>買付ロットの実取得単価係数（ESPP は割引後＝実際に払った価格）。</summary>
     public static decimal CostFactor(BuyLot b) => b.IsEspp ? 1m - EsppDiscount : 1m;
 
+    /// <summary>1買付ロットの実取得原価（建て通貨）。Amount(受渡金額)があればそのまま（口数丸め・割引等は実額に内包済み）、
+    /// 無ければ数量×単価÷Divisor×ESPP係数。Summarize と CostBasisJpy 系で式を共有しドリフトを防ぐ。</summary>
+    private static decimal LotNativeCost(BuyLot b, int divisor)
+        => b.Amount > 0 ? b.Amount : b.Quantity * b.UnitPrice * CostFactor(b) / divisor;
+
     public static HoldingSummary Summarize(
         Holding h,
         IEnumerable<BuyLot> buys,
@@ -36,10 +41,8 @@ public static class PortfolioMath
         decimal soldQty = hs.Sum(s => s.Quantity);
         decimal qty = boughtQty - soldQty;
 
-        // 1ロットの実取得原価（建て通貨）。Amount(受渡金額)があればそのまま（口数丸め対策・割引等は実額に内包済み）、無ければ数量×単価÷Divisor×ESPP係数。
-        decimal LotCost(BuyLot b) => b.Amount > 0 ? b.Amount : b.Quantity * b.UnitPrice * CostFactor(b) / div;
         // 取得総額（建て通貨）＝買付ロットの実取得原価の合計。
-        decimal totalCost = hb.Sum(LotCost);
+        decimal totalCost = hb.Sum(b => LotNativeCost(b, div));
         // 平均取得単価（基準価額/単価・表示用）＝単価の数量加重平均。米国株は単価＝ドルなのでドルの加重平均、
         // 日本株は円/株、投信は基準価額。ESPP は割引後の実価格・再投資株は$0で薄まる。
         // （元本＝取得金額を入れた円拠出でも、単価・平均取得単価はドル建て＝価格通貨で表示する）
@@ -54,30 +57,28 @@ public static class PortfolioMath
         return new HoldingSummary(qty, avg, costBasis, realized, divSum);
     }
 
+    /// <summary>評価額の共通計算。数量0は0、価格未取得(&lt;=0)は null。convertToJpy なら USD/JPY で円換算
+    /// （為替不足は null）、それ以外は raw（建て通貨）をそのまま返す。Valuation/ValuationJpy の差は円換算条件のみ。</summary>
+    private static decimal? RawValuation(Holding h, decimal qty, decimal nativePrice, decimal usdJpyRate, bool convertToJpy)
+    {
+        if (qty == 0) return 0m;
+        if (nativePrice <= 0) return null;
+        decimal raw = qty * nativePrice / Divisor(h.Class);
+        if (convertToJpy)
+            return usdJpyRate > 0 ? raw * usdJpyRate : (decimal?)null;
+        return raw;
+    }
+
     /// <summary>
     /// 現在評価額（建て通貨ベース）。数量0は0、価格未取得(&lt;=0)や為替不足は null。
     /// 米国株の現在価格はドル建て前提（Yahoo Finance）。円建て米国株は USD/JPY で円換算して返す。
     /// </summary>
     public static decimal? Valuation(Holding h, decimal qty, decimal nativePrice, decimal usdJpyRate)
-    {
-        if (qty == 0) return 0m;
-        if (nativePrice <= 0) return null;
-        decimal raw = qty * nativePrice / Divisor(h.Class);
-        if (h.Class == AssetClass.UsStock && h.CostCurrency == Currency.Jpy)
-            return usdJpyRate > 0 ? raw * usdJpyRate : (decimal?)null;
-        return raw;
-    }
+        => RawValuation(h, qty, nativePrice, usdJpyRate, h.Class == AssetClass.UsStock && h.CostCurrency == Currency.Jpy);
 
     /// <summary>現在評価額（円換算・総資産集計用）。数量0は0、価格未取得や為替不足は null。</summary>
     public static decimal? ValuationJpy(Holding h, decimal qty, decimal nativePrice, decimal usdJpyRate)
-    {
-        if (qty == 0) return 0m;
-        if (nativePrice <= 0) return null;
-        decimal raw = qty * nativePrice / Divisor(h.Class);
-        if (h.Class == AssetClass.UsStock)
-            return usdJpyRate > 0 ? raw * usdJpyRate : (decimal?)null;
-        return raw;
-    }
+        => RawValuation(h, qty, nativePrice, usdJpyRate, h.Class == AssetClass.UsStock);
 
     /// <summary>
     /// 指定日（"yyyy-MM-dd"）時点の取得原価合計（円換算）。買付/売却を日付で絞り平均取得単価法で算出。
@@ -87,29 +88,34 @@ public static class PortfolioMath
     public static decimal CostBasisJpyAsOf(PortfolioData data, string date, decimal snapRate)
     {
         decimal total = 0m;
-        decimal fallback = snapRate > 0 ? snapRate : data.UsdJpyRate;   // 約定レート未設定ロットの代用
         foreach (var h in data.Holdings.Where(h => !h.IsDeleted))
-        {
-            int divsor = Divisor(h.Class);
-            var buys = data.Buys.Where(b => b.HoldingId == h.Id && string.CompareOrdinal(b.Date, date) <= 0).ToList();
-            // 配当再投資株（取得コスト$0）も as-of で取得数量に含める（Summarize と整合）
-            decimal reinvest = data.Dividends.Where(d => d.HoldingId == h.Id && string.CompareOrdinal(d.Date, date) <= 0).Sum(d => d.Quantity);
-            if (buys.Count == 0 && reinvest == 0) continue;
-            decimal bq = buys.Sum(b => b.Quantity) + reinvest;
-            decimal sq = data.Sells.Where(s => s.HoldingId == h.Id && string.CompareOrdinal(s.Date, date) <= 0).Sum(s => s.Quantity);
-            decimal qty = bq - sq;
-            if (qty <= 0 || bq <= 0) continue;
-
-            // 1ロットの実取得原価（建て通貨）。Amount(受渡金額)があればそのまま、無ければ数量×単価÷Divisor×ESPP係数。
-            decimal LotNative(BuyLot b) => b.Amount > 0 ? b.Amount : b.Quantity * b.UnitPrice * CostFactor(b) / divsor;
-            // 取得総額（円）。ドル建ては各ロットを約定レート(無ければ fallback)で円換算。
-            decimal boughtJpy = h.CostCurrency == Currency.Usd
-                ? buys.Sum(b => LotNative(b) * (b.FxRate > 0 ? b.FxRate : fallback))
-                : buys.Sum(LotNative);
-            // 現在保有分の元本＝取得総額 ×(現在数量 / 取得数量)。再投資株は$0で取得総額に寄与しないので平均が薄まる。
-            total += boughtJpy * (qty / bq);
-        }
+            total += HoldingCostBasisJpyAsOf(data, h, date, snapRate);
         return total;
+    }
+
+    /// <summary>
+    /// 単一銘柄の指定日時点の取得原価（円換算）。<see cref="CostBasisJpyAsOf"/> の銘柄単位版で、
+    /// 資産クラスごとのグループ小計（評価損益）に使う。アルゴリズムは全体版と同一（全体版＝本メソッドの総和）。
+    /// </summary>
+    public static decimal HoldingCostBasisJpyAsOf(PortfolioData data, Holding h, string date, decimal snapRate)
+    {
+        decimal fallback = snapRate > 0 ? snapRate : data.UsdJpyRate;   // 約定レート未設定ロットの代用
+        int divsor = Divisor(h.Class);
+        var buys = data.Buys.Where(b => b.HoldingId == h.Id && string.CompareOrdinal(b.Date, date) <= 0).ToList();
+        // 配当再投資株（取得コスト$0）も as-of で取得数量に含める（Summarize と整合）
+        decimal reinvest = data.Dividends.Where(d => d.HoldingId == h.Id && string.CompareOrdinal(d.Date, date) <= 0).Sum(d => d.Quantity);
+        if (buys.Count == 0 && reinvest == 0) return 0m;
+        decimal bq = buys.Sum(b => b.Quantity) + reinvest;
+        decimal sq = data.Sells.Where(s => s.HoldingId == h.Id && string.CompareOrdinal(s.Date, date) <= 0).Sum(s => s.Quantity);
+        decimal qty = bq - sq;
+        if (qty <= 0 || bq <= 0) return 0m;
+
+        // 取得総額（円）。ドル建ては各ロットを約定レート(無ければ fallback)で円換算。
+        decimal boughtJpy = h.CostCurrency == Currency.Usd
+            ? buys.Sum(b => LotNativeCost(b, divsor) * (b.FxRate > 0 ? b.FxRate : fallback))
+            : buys.Sum(b => LotNativeCost(b, divsor));
+        // 現在保有分の元本＝取得総額 ×(現在数量 / 取得数量)。再投資株は$0で取得総額に寄与しないので平均が薄まる。
+        return boughtJpy * (qty / bq);
     }
 
     /// <summary>Yahoo Finance 用シンボル。日本株は証券コードに .T を付与（既に "." 付きはそのまま）、米国株はティッカーそのまま。</summary>

@@ -27,6 +27,23 @@ button {
   font-family: inherit;
 }
 
+/* 線アイコン（Material Symbols Outlined）。絵文字の置き換えに使う共通ユーティリティ。
+   サイズは font-size、塗りは color で制御。字形名はテキストで書く（例: account_balance）。 */
+.msym {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  user-select: none;
+}
+
 html,
 body {
   margin: 0
@@ -108,6 +125,65 @@ body {
   vertical-align: middle;
 }
 
+/* タイトル右の画面名（ポートフォリオ / 統計 等。AppTitle の Subtitle） */
+.app-subtitle {
+  margin-left: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: .01em;
+  color: var(--ink);
+  vertical-align: middle;
+}
+
+/* バージョンと画面名の間のドット区切り */
+.app-subtitle::before {
+  content: "·";
+  margin-right: 10px;
+  color: var(--sub);
+  font-weight: 400;
+}
+
+/* =====================================================
+   共通ページヘッダー（PCのみ・線アイコン＋画面名＋サブ＋右スロット）。PageHeader.razor
+   ===================================================== */
+.page-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  /* 上マージンは置かない：各ページの包み（.pf-sticky / .graph-sticky / .wrap 直下）で
+     マージン相殺の挙動が変わり数pxズレるため、常に .wrap の上余白(20px)に揃える。 */
+  margin: 0 0 18px;
+  min-height: 32px;
+}
+.page-topbar-title {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+.page-topbar-ico {
+  font-size: 24px;
+  color: var(--accent);
+}
+.page-topbar-h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+}
+.page-topbar-sub {
+  font-size: 13px;
+  color: #a8a49d;
+  font-weight: 500;
+}
+.page-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .home-head {
   display: flex;
   align-items: center;
@@ -187,34 +263,115 @@ body {
   margin: 0 0 20px;
 }
 
-.tabs {
+/* =====================================================
+   PC 左サイドナビ (SideNav.razor) ＋ アプリシェル
+   スマホは下部バー（mobile.css）。PC は sidenav＋本文の横並び。
+   ===================================================== */
+.app-shell.has-sidenav {
   display: flex;
-  gap: 2px;
-  margin-bottom: 20px;
-  border-bottom: 2px solid var(--line);
+  flex-direction: row;
+  align-items: flex-start;
+  min-height: 100vh;
 }
 
-.tab {
-  padding: 8px 20px;
+.app-shell.has-sidenav .app-scroll {
+  flex: 1 1 auto;
+  min-width: 0; /* flex 子の縮小を許可（本文の横溢れ防止） */
+}
+
+/* サイドバー分の幅を活かし、本文をほぼ全幅に（中央寄せは維持・超ワイドのみ上限が効く）。 */
+.app-shell.has-sidenav .wrap {
+  max-width: 1880px;
+  padding-left: 28px;
+  padding-right: 28px;
+}
+
+.sidenav {
+  flex: 0 0 220px;
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  height: 100vh;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 12px;
+  background: var(--card);
+  border-right: 1px solid var(--line);
+}
+
+.sidenav-brand {
+  padding: 4px 10px 16px;
+}
+
+.sidenav-brand .app-title {
+  font-size: 19px;
+  margin-bottom: 0;
+}
+
+.sidenav-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sidenav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
   border: none;
   background: none;
-  color: var(--sub);
   cursor: pointer;
   font: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -2px;
+  color: var(--sub);
+  padding: 10px 12px;
+  border-radius: 9px;
 }
 
-.tab.active {
+.sidenav-item:hover {
+  background: rgba(0, 0, 0, .04);
+}
+
+.sidenav-item.active {
+  background: rgba(31, 58, 95, .08); /* navy（--accent）淡。新色は足さない */
   color: var(--accent);
-  border-bottom-color: var(--accent);
 }
 
-.tab:disabled {
-  cursor: default;
-  opacity: 0.5;
+.sidenav-item.active .sn-lab {
+  font-weight: 700;
+}
+
+.sn-ico {
+  font-size: 18px;
+  line-height: 1;
+  width: 22px;
+  text-align: center;
+}
+
+.sn-lab {
+  font-size: 14px;
+  letter-spacing: .02em;
+}
+
+/* PC（サイドナビ表示時）はブランド/画面名・戻るを各ページ頭から消す（サイドナビに集約）。
+   スマホは従来どおりページ頭にブランド（AppTitle）を出す。 */
+.app-shell.has-sidenav .home-head,
+.app-shell.has-sidenav .pf-head,
+.app-shell.has-sidenav .graph-header {
+  display: none;
+}
+
+/* PC は本文に余裕がある分、パネルの内側余白とセクション見出しを少し大きく（#42）。
+   本文の基準は 16px / line-height 1.6（body）を維持し、最小の密集テキストだけ底上げ。
+   スマホは .panel を上書きしないため従来どおり（影響なし）。 */
+.app-shell.has-sidenav .panel {
+  padding: 20px;
+}
+
+.app-shell.has-sidenav .panel-head h3 {
+  font-size: 16px;
 }
 
 /* =====================================================

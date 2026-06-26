@@ -1,5 +1,9 @@
 /* =====================================================
    カードタブ (CardTab) ＋ 月次のカード行 (MonthlyTab)
+   カードタブは月次（#43）と同じデザイン言語にリデザイン（#49）。
+   - サマリは「当月のカード請求 合計」をヒーロー化（.summary/.stat/.hero は monthly.css を流用）。
+   - カードは全幅の縦スタック（.ccard）。編集可=枠付き薄背景 / サマリーは表示専用。
+   - 絵文字は廃止し Material Symbols（.msym）へ。スマホは末尾の is-mobile で出し分け。
    ===================================================== */
 /* 月次管理のカード由来 Debit 行（読み取り専用・クリックで遷移） */
 .atm-label {
@@ -34,135 +38,393 @@
   color: var(--sub);
 }
 
-/* カードタブの明細パネル */
-.card-panel {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--r);
-  padding: 14px;
-  margin-bottom: 12px;
-}
-
-.card-panel-head {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 8px;
-  flex-wrap: wrap;
-}
-
-.card-collapse {
-  border: none;
-  background: none;
-  color: var(--sub);
-  cursor: pointer;
-  font-size: 11px;
-  padding: 2px 4px;
-  line-height: 1;
-}
-
-.card-title {
-  font-weight: 600;
-  font-size: 15px;
-  cursor: pointer;
-}
-
-.card-collapse-count {
-  font-size: 12px;
-  color: var(--sub);
-}
-
-.card-acct-name {
-  font-size: 12px;
-  color: var(--sub);
-}
-
-.card-total {
-  margin-left: auto;
-  font-weight: 700;
-  font-size: 16px;
-  font-variant-numeric: tabular-nums;
-}
-
-/* 今月の請求額（リボ・分割の補正） */
-.card-billing {
-  margin: 2px 0 8px;
-  font-size: 13px;
-  color: var(--sub);
-}
-
-.cb-toggle {
+/* =====================================================
+   トップバーの「一括カテゴリ」ボタン（線アイコン付き）
+   ===================================================== */
+/* 月送り（34px）と高さを揃え、月次タブとヘッダー行の高さ・位置を統一する。 */
+.bulk-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  cursor: pointer;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  white-space: nowrap;
 }
 
-.cb-toggle input {
-  width: 15px;
-  height: 15px;
-  cursor: pointer;
+.bulk-btn .msym {
+  font-size: 18px;
+  color: var(--sub);
 }
 
-.cb-fields {
+/* =====================================================
+   サマリーのアイコンチップ（登録カード=navy / 未分類=橙 or 緑）
+   ===================================================== */
+.stat-chip {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  flex: 0 0 auto;
+}
+
+/* ヒーローの先月比ピル（増＝赤系で支出増を示唆 / 減＝緑系）。ダーク地に映える淡色文字。 */
+.hero-pill.up { background: rgba(163, 38, 31, .22); color: #ff9b8f; }
+.hero-pill.down { background: rgba(15, 110, 86, .24); color: #7fd8b9; }
+
+.stat-chip.navy { background: #eef1f7; color: var(--accent); }
+.stat-chip.warn { background: #fbeede; color: #b86a18; }     /* 要対応の弱い注意（既存ローテ橙） */
+.stat-chip.ok   { background: var(--okbg); color: var(--ok); }
+
+/* 未分類が残る時の数値（橙系の弱い注意。--bad は使わない） */
+.stat .val.uncl {
+  color: #9a5b2e;
+}
+
+/* =====================================================
+   カードカード（全幅の縦スタック）
+   ===================================================== */
+.cardlist {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* PC：本文幅は月次タブと同じ全幅（base の .wrap 1880px）を使い切る。
+   カード一覧は月次の口座カードと同じ auto-fill グリッド。既定は折りたたみなので
+   畳んだカードが均一に並んで全幅を埋め、開いたカードだけ明細テーブル分広がる。
+   明細テーブル（約592px）が収まるよう最小 640px（全幅時は2列、狭まれば1列へ）。 */
+.app-shell.has-sidenav .cardlist {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 640px), 1fr));
+  align-items: start;
+}
+
+.ccard {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 18px 20px;
+  box-shadow: 0 1px 2px rgba(33, 38, 46, .03);
+  transition: box-shadow .15s, border-color .15s;
+}
+
+.ccard:hover {
+  border-color: #d4cdbd;
+}
+
+/* ── ヘッダー ── */
+.cc-head {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin: 7px 0 0 21px;
-  flex-wrap: wrap;
+  gap: 11px;
 }
 
-.cb-lab {
+.cc-toggle {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  border-radius: 7px;
+  cursor: pointer;
+  color: var(--sub);
+  flex: 0 0 auto;
+}
+
+.cc-toggle:hover {
+  background: #f2f0eb;
+  color: var(--ink);
+}
+
+.cc-toggle .msym {
+  font-size: 21px;
+}
+
+/* カードごとのアイコンチップ（淡色をローテ。新色は足さず DESIGN-SYSTEM のローテ色） */
+.cc-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 19px;
+  flex: 0 0 auto;
+}
+
+.cc-avatar.cc0 { background: #e7ecfb; color: #3a52c0; }
+.cc-avatar.cc1 { background: #fbeede; color: #b86a18; }
+.cc-avatar.cc2 { background: #fbe9e7; color: #a3261f; }
+.cc-avatar.cc3 { background: #e6f2ea; color: #2c7a52; }
+
+.cc-name {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+}
+
+.cc-bank {
+  font-size: 12px;
+  color: #9a968f;
+}
+
+/* スマホ：カード名＋銀行名は縦積み。長い名前は省略（…）して桁上がりでの中途半端な改行を防ぐ。 */
+.cc-id {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+
+.cc-head-m .cc-name {
+  font-size: 15.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cc-head-m .cc-bank {
+  font-size: 11px;
+}
+
+.cc-count {
+  font-size: 12px;
+  color: var(--sub);
+}
+
+.cc-spacer {
+  flex: 1;
+}
+
+.cc-total {
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.01em;
+}
+
+.cc-total.is-zero {
+  color: #b4b0a8;
+}
+
+/* ヘッダー右のアクション（明細を追加 / 取込 / AIで読取） */
+.cc-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 6px;
+}
+
+.cc-act {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 30px;
+  padding: 0 10px;
+  border: none;
+  background: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #3a3733;
+}
+
+.cc-act .msym {
+  font-size: 17px;
+  color: var(--sub);
+}
+
+.cc-act:hover {
+  background: #f2f0eb;
+}
+
+.cc-act.primary {
+  color: var(--accent);
+}
+
+.cc-act.primary .msym {
+  color: var(--accent);
+}
+
+.cc-act.primary:hover {
+  background: #eef1f7;
+}
+
+/* ── 本体（展開時） ── */
+.cc-body {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  margin-top: 14px;
+}
+
+/* スマホのアクションチップ（追加 / 取込 / AI読取） */
+.cc-chips {
+  display: flex;
+  gap: 8px;
+}
+
+.cc-chip {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 38px;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 10px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #3a3733;
+}
+
+.cc-chip .msym {
+  font-size: 18px;
+  color: var(--sub);
+}
+
+.cc-chip.primary {
+  color: var(--accent);
+}
+
+.cc-chip.primary .msym {
+  color: var(--accent);
+}
+
+/* ── リボ・分割の請求額補正 ── */
+.cc-ribo {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+
+.cc-ribo-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--sub);
+  user-select: none;
+}
+
+.cc-ribo-toggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.cc-billed {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #f8f6f2;
+  border: 1px solid #efece6;
+  border-radius: 10px;
+  padding: 11px 13px;
+}
+
+.cc-billed-lab {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.cc-billed-title {
+  font-size: 13px;
+  color: #3a3733;
   font-weight: 600;
 }
 
-.cb-input {
-  width: 120px;
-  text-align: right;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  padding: 5px 8px;
-  font: inherit;
-  font-variant-numeric: tabular-nums;
-  background: #fff;
+.cc-billed-lab .hint {
+  font-size: 11px;
+  color: var(--sub);
 }
 
-.cb-carry {
-  color: var(--sub);
+.cc-billed-input {
+  width: 140px;
+  flex: 0 0 auto;
+  text-align: right;
+  font-size: 14px;
   font-variant-numeric: tabular-nums;
+  padding: 8px 12px;
+  border: 1px solid #ddd9d2;
+  border-radius: 9px;
+  background: #fff;
+  color: var(--ink);
+}
+
+.cc-billed-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(31, 58, 95, .12);
+}
+
+/* =====================================================
+   明細テーブル（PC・編集可）
+   ===================================================== */
+.cd-table {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .cd-head,
 .cd-row {
   display: grid;
-  grid-template-columns: 140px 1fr 130px 110px 32px;
-  gap: 8px;
+  grid-template-columns: 138px minmax(130px, 1fr) 146px 104px 34px;
+  gap: 10px;
   align-items: center;
 }
 
 .cd-head {
-  padding: 4px 0;
-  border-bottom: 1px solid var(--line);
+  padding: 0 2px;
 }
 
 .cd-head span {
-  font-size: 11px;
-  color: var(--sub);
+  font-size: 11.5px;
   font-weight: 600;
+  color: #8f8b84;
 }
 
-.cd-row {
-  padding: 3px 0;
+.cd-head .cd-head-amt {
+  text-align: right;
 }
 
+/* 編集できる入力＝枠＋薄背景。focus は navy 枠＋リング。 */
 .cd-row input,
 .cd-row select {
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  padding: 5px 8px;
+  border: 1px solid #ddd9d2;
+  border-radius: 9px;
+  padding: 8px 11px;
   font: inherit;
-  background: #fff;
+  font-size: 14px;
+  background: #fcfbf9;
   width: 100%;
+  color: var(--ink);
+}
+
+.cd-date {
+  font-size: 13.5px !important;
+  font-variant-numeric: tabular-nums;
 }
 
 .cd-row .cd-amt {
@@ -170,19 +432,40 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* カテゴリ列：色ドット＋select */
-.cd-cat-cell,
-.bulk-cat-cell {
+.cd-row input:focus,
+.cd-row select:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(31, 58, 95, .12);
+}
+
+/* カテゴリ列：色ドット＋select（appearance なし＋自前の expand_more） */
+.cd-cat-cell {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 6px;
   min-width: 0;
 }
 
-.cd-cat-cell select,
-.bulk-cat-cell select {
+.cd-cat {
   flex: 1;
   min-width: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  padding-right: 28px !important;
+  cursor: pointer;
+}
+
+.cd-cat-chev {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 18px;
+  color: #a8a49d;
+  pointer-events: none;
 }
 
 .color-dot {
@@ -191,6 +474,30 @@
   border-radius: 50%;
   flex: none;
   border: 1px solid var(--line);
+}
+
+/* 削除ボタン（hover で赤系） */
+.cd-del {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #bdb9b1;
+}
+
+.cd-del .msym {
+  font-size: 18px;
+}
+
+.cd-del:hover {
+  background: var(--badbg);
+  border-color: #f0d3ce;
+  color: var(--bad);
 }
 
 /* 並び替え可能な見出し */
@@ -205,33 +512,101 @@
   color: var(--accent);
 }
 
-.cd-row input:focus,
-.cd-row select:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(31, 58, 95, .08);
+/* 明細0件の空状態 */
+.cd-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px;
+  background: #faf9f5;
+  border: 1px solid #f0eee9;
+  border-radius: 10px;
+  color: #a8a49d;
+  font-size: 13px;
+}
+
+.cd-empty .msym {
+  font-size: 18px;
+  color: #c3bfb6;
+}
+
+/* スマホの明細リスト（タップで編集シート） */
+.cd-mlist {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+/* =====================================================
+   ダイアログ共通の追加パーツ（白カード＋navy プライマリは dialog.css ＋ .btn.primary）
+   ===================================================== */
+/* 見出し横のアイコンチップ（AI読取） */
+.dialog-head-icon {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.dialog-head-icon h4 {
+  margin: 0;
+}
+
+.dialog-icon-chip {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: #eef1f7;
+  color: var(--accent);
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  flex: 0 0 auto;
+}
+
+.dialog-lead {
+  margin: -6px 0 14px;
+  font-size: 12.5px;
+  color: var(--sub);
 }
 
 /* CSV取込ボタン（隠しファイル入力をラベルで包む）＋取込結果メッセージ */
-.import-label {
-  cursor: pointer;
-}
-
 .import-input {
   display: none;
 }
 
-/* CSV種別選択ダイアログ */
+/* CSV種別選択：発行元ボタン（行・右に chevron） */
 .import-pick-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 9px;
   margin: 12px 0;
 }
 
 .import-pick-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 48px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 11px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
   cursor: pointer;
-  text-align: center;
+}
+
+.import-pick-item:hover {
+  border-color: var(--accent);
+  background: #f4f6fb;
+  color: var(--accent);
+}
+
+.import-pick-item .msym {
+  font-size: 19px;
+  color: #c3bfb6;
 }
 
 /* スクショ読み取りダイアログ */
@@ -242,36 +617,71 @@
   margin: 12px 0;
 }
 
+/* 画像を選択ボタン */
+.shot-pick {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 50px;
+  border: 1px solid #ddd9d2;
+  background: #fcfbf9;
+  border-radius: 11px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #3a3733;
+  cursor: pointer;
+}
+
+.shot-pick:hover {
+  border-color: var(--accent);
+  background: #f4f6fb;
+  color: var(--accent);
+}
+
+.shot-pick .msym {
+  font-size: 20px;
+}
+
+.shot-pick.is-disabled {
+  opacity: .5;
+  pointer-events: none;
+}
+
 .shot-paste {
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 46px;
+  border: 1px solid var(--line);
+  background: #faf9f5;
+  border-radius: 11px;
   font-size: 13px;
-  color: var(--muted, #667);
-  border: 1px dashed #cbd3dc;
-  border-radius: 7px;
-  padding: 10px;
+  color: var(--sub);
+}
+
+.shot-paste .msym {
+  font-size: 18px;
+  color: #b0aca4;
 }
 
 .shot-status {
   text-align: center;
   font-size: 13px;
-  color: var(--muted, #667);
+  color: var(--sub);
 }
 
-.import-pick-item.is-disabled {
-  opacity: .5;
-  pointer-events: none;
-}
-
-/* スクショ：PCではダイアログを少し広めに（width:100%＋max-widthなのでスマホは画面幅優先） */
+/* スクショ：PCではダイアログを少し広めに */
 .dialog-box.shot-box {
-  max-width: 560px;
+  max-width: 520px;
 }
 
 /* スクショ：見出し下の説明文 */
 .shot-intro {
   margin: -2px 0 12px;
   font-size: 13px;
-  line-height: 1.6;
+  line-height: 1.7;
   color: var(--sub);
 }
 
@@ -325,17 +735,27 @@
   background: var(--okbg);
   border: 1px solid #b7dccd;
   color: var(--ok);
-  border-radius: 7px;
+  border-radius: 9px;
   padding: 8px 12px;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
 }
 
-/* 一括カテゴリ ダイアログ */
-/* .dialog-box(max-width:420px)より後に定義されるため、複合セレクタで確実に上書きする */
+.import-msg .x {
+  border: none;
+  background: none;
+  color: var(--ok);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+/* =====================================================
+   一括カテゴリ ダイアログ
+   .dialog-box(max-width:420px)より後に定義されるため、複合セレクタで確実に上書き
+   ===================================================== */
 .dialog-box.bulk-box {
   max-width: 760px;
 }
@@ -351,13 +771,13 @@
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  padding: 10px 12px;
-  margin-bottom: 10px;
-  background: var(--paper);
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  background: #f8f6f2;
+  border: 1px solid #efece6;
+  border-radius: 12px;
   font-size: 13px;
-  color: var(--sub);
+  color: #3a3733;
 }
 
 .bulk-batch-cat {
@@ -373,6 +793,7 @@
 .bulk-check input {
   width: 16px;
   height: 16px;
+  accent-color: var(--accent);
   cursor: pointer;
 }
 
@@ -381,13 +802,13 @@
   grid-template-columns: 28px minmax(0, 1fr) 56px 100px 160px;
   gap: 12px;
   align-items: center;
-  padding: 7px 0;
-  border-bottom: 1px dashed var(--line);
+  padding: 11px 4px;
+  border-bottom: 1px solid #f3f1ec;
 }
 
 .bulk-head {
-  font-size: 13px;
-  color: var(--sub);
+  font-size: 12px;
+  color: #8f8b84;
   font-weight: 600;
   border-bottom: 1px solid var(--line);
 }
@@ -396,25 +817,30 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 15px;
+  font-size: 14px;
+  font-weight: 500;
 }
 
 .bulk-count,
 .bulk-total {
   text-align: right;
   font-variant-numeric: tabular-nums;
-  font-size: 15px;
+  font-size: 14px;
 }
 
 .bulk-row select,
 .bulk-batch select {
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  padding: 6px 8px;
+  border: 1px solid #ddd9d2;
+  border-radius: 9px;
+  padding: 7px 10px;
   font: inherit;
-  font-size: 14px;
+  font-size: 13.5px;
   background: #fff;
   width: 100%;
+}
+
+.bulk-row .bulk-cat-cell select {
+  background: #fcfbf9;
 }
 
 .bulk-filter {
@@ -427,4 +853,28 @@
 
 .bulk-filter select {
   width: 140px;
+}
+
+/* カテゴリ列：色ドット＋select（一括ダイアログ） */
+.bulk-cat-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.bulk-cat-cell select {
+  flex: 1;
+  min-width: 0;
+}
+
+/* =====================================================
+   スマホ：一括カテゴリボタンを2行に折り、明細テーブルは出さない
+   （明細はタップカード＝.cd-mlist で表示。月切替バーは monthly.css 共通）
+   ===================================================== */
+.app-shell.is-mobile .bulk-btn {
+  flex: 0 0 auto;
+  height: 40px;
+  line-height: 1.15;
+  text-align: left;
 }

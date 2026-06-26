@@ -53,7 +53,7 @@
 /* アクティブタブを明確化：accent色＋太字＋上端インジケータ＋淡い背景 */
 .botnav-item.active {
   color: var(--accent);
-  background: var(--okbg);
+  background: rgba(31, 58, 95, .08); /* navy（--accent）淡。サイドナビと統一 */
 }
 
 .botnav-item.active::before {
@@ -84,11 +84,6 @@
 }
 
 /* --- スマホ時の全体調整（is-mobile クラス駆動） --- */
-/* 上部の横タブはスマホでは下部バーに置換するため隠す */
-.app-shell.is-mobile .tabs {
-  display: none;
-}
-
 /* オーバーレイ（シート/ダイアログ）表示中は下部バーを隠す。
    下部バーは in-flow で最下段に在席しているため、シートの削除/完了や
    ダイアログの下部ボタンが下部バーと重なる/隠れるのを防ぐ。 */
@@ -373,55 +368,161 @@
 }
 
 /* =====================================================
-   月次（MonthlyTab）：スマホ調整
-   ===================================================== */
-/* 統計/資産ボタンは下部バーにあるためスマホでは隠す */
-.app-shell.is-mobile .top .stat-btn {
-  display: none;
-}
-
-/* 行内の名前入力が縮まず ✕ が画面外へ押し出される問題を防ぐ（flex の min-width:auto 対策）。
-   固定費(🔒)行など 名前＋金額＋✕ が詰まる行で効く。 */
-.app-shell.is-mobile .row input.name,
-.app-shell.is-mobile .row select.name {
-  min-width: 0;
-}
-
-/* =====================================================
    統計（GraphPage）：スマホ調整
    ===================================================== */
-/* 戻るは下部バーがあるため隠す（タイトルだけ残す） */
-.app-shell.is-mobile .graph-header .btn {
-  display: none;
-}
-
-/* 内訳一覧（⑥⑦）：5列は詰まるので割合(%)列を省略しドット/名前/金額/件数の4列に。
+/* 内訳一覧（カテゴリ別/カード別）：5列は詰まるので割合(%)列を省略しドット/名前/金額/件数の4列に。
    （資産構成カード pf-comp-card は割合を残したいので除外） */
-.app-shell.is-mobile .graph-card-full:not(.pf-comp-card) .spend-row {
+.app-shell.is-mobile .graph-card:not(.pf-comp-card) .spend-row {
   grid-template-columns: 14px 1fr auto auto;
   gap: 6px;
   font-size: 12.5px;
 }
 
-.app-shell.is-mobile .graph-card-full:not(.pf-comp-card) .spend-row > :nth-child(4) {
+.app-shell.is-mobile .graph-card:not(.pf-comp-card) .spend-row > :nth-child(4) {
   display: none;
+}
+
+/* 明細ドリルダウン（DetailDialog）：スマホは下からのボトムシート（案C） */
+.app-shell.is-mobile .dd-overlay {
+  align-items: flex-end;
+  padding: 0;
+  background: rgba(33, 38, 46, .28);
+}
+
+.app-shell.is-mobile .dd-box {
+  max-width: 100%;
+  border-radius: 20px 20px 0 0;
+  max-height: 78vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 -12px 36px rgba(33, 38, 46, .22);
+}
+
+.app-shell.is-mobile .dd-grabber {
+  display: block;
+  width: 38px;
+  height: 4px;
+  border-radius: 3px;
+  background: #e0dbd0;
+  margin: 8px auto 2px;
+}
+
+/* 高さ優先：カード別ミニ集計チップは省略、リストを伸縮領域に */
+.app-shell.is-mobile .dd-chips {
+  display: none;
+}
+
+.app-shell.is-mobile .dd-list {
+  max-height: none;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.app-shell.is-mobile .dd-total {
+  font-size: 26px;
+}
+
+/* カテゴリ設定はヘッダのリンクを隠し、下部固定の全幅ボタンに集約 */
+.app-shell.is-mobile .dd-categorize {
+  display: none;
+}
+
+.app-shell.is-mobile .dd-action-bar {
+  display: block;
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  background: #fbfaf7;
+  border-top: 1px solid #f0eee9;
 }
 
 /* =====================================================
    資産（Portfolio）：スマホ調整
    ===================================================== */
-/* 戻るは下部バーがあるため隠す */
-.app-shell.is-mobile .pf-head .btn {
+/* ヒーロー：スマホは総資産32px（PC38px を縮小）。価格更新メタはヒーロー内に出す（markup側） */
+.app-shell.is-mobile .pf-hero .hero-val {
+  font-size: 32px;
+}
+
+/* グループ見出し：スマホは出所キャプション・損益小計を省き、タイトル＋(米国株のみ)通貨トグル＋評価額小計に */
+.app-shell.is-mobile .pf-hgroup {
+  margin-top: 12px;
+}
+.app-shell.is-mobile .pf-ghead {
+  border-bottom: none;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.app-shell.is-mobile .pf-gsource,
+.app-shell.is-mobile .pf-gpl {
   display: none;
 }
 
-/* 保有一覧はサマリーカード（list-card）に切替済み。損益の色文字を見やすく */
-.app-shell.is-mobile .list-card-sub .pf-pos,
-.app-shell.is-mobile .list-card-sub .pf-neg {
+/* 保有＝タップ可能なカード（3行）＋右に▲▼並べ替え。list-card / list-card-wrap を流用 */
+.app-shell.is-mobile .pf-mcard {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.pf-mc-r1 {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.pf-mc-name {
+  font-size: 14.5px;
+  font-weight: 700;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pf-mc-val {
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.pf-mc-r2 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.pf-mc-pl {
+  font-size: 12.5px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
+.pf-mc-r3 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-top: 1px solid #f3f1ec;
+  padding-top: 7px;
+}
+.pf-mc-metrics {
+  font-size: 11px;
+  color: var(--sub);
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pf-mc-day {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* 並べ替えボタンは線アイコン（▲▼の代わりに keyboard_arrow_up/down） */
+.app-shell.is-mobile .list-card-move .msym {
+  font-size: 20px;
+}
 
+/* 資産構成：スマホはドーナツ上・一覧下の1カラムに（PCの 230px+760px 固定を解除して全幅に） */
+.app-shell.is-mobile .pf-comp-card .spend {
+  grid-template-columns: 1fr;
+}
 /* 資産構成リスト：スマホは ドット/名称/評価額/割合 を詰めて4列で残す */
 .app-shell.is-mobile .pf-comp-card .spend-row {
   grid-template-columns: 14px 1fr auto auto;
@@ -508,40 +609,38 @@
   justify-content: flex-end;
 }
 
-/* 総資産バー：縦積み（総資産 → 元本/評価損益 → 価格更新）に整理 */
-.app-shell.is-mobile .pf-summary-bar {
-  flex-direction: column;
-  align-items: stretch;
+/* 市場指数：スマホはヒーロー下に3列グリッドで折り返し（横スクロール廃止＝全件視認・#46）。
+   USD/JPY＋指数5本＝6チップが 3×2 で収まる。各チップは白カード（縦並び）。 */
+.app-shell.is-mobile .pf-ticker {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 8px;
+  background: none;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+  margin: 0 0 4px;
+  padding: 0;
 }
-
-.app-shell.is-mobile .pf-sum-main {
-  flex-wrap: wrap;
-  align-items: baseline;
+.app-shell.is-mobile .pf-tick {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  padding: 8px 10px;
 }
-
-.app-shell.is-mobile .pf-sum-label {
-  white-space: nowrap;
+.app-shell.is-mobile .pf-tick-name {
+  font-size: 10.5px;
 }
-
-.app-shell.is-mobile .pf-sum-sub {
-  flex-basis: 100%;   /* 元本・評価損益を次の行へ */
+.app-shell.is-mobile .pf-tick-val {
+  font-size: 13px;
 }
-
-.app-shell.is-mobile .pf-sum-meta {
-  justify-content: space-between;
-}
-
-/* 市場指標バー：スマホは折り返さず横スクロールのチップ列にする（縦に伸びて総資産帯を押し下げない） */
-.app-shell.is-mobile .pf-index-bar {
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  margin: 0 -2px 8px;
-  padding: 0 2px 2px;
-}
-.app-shell.is-mobile .pf-index-chip {
-  flex: 0 0 auto;
+.app-shell.is-mobile .pf-tick-pct {
+  font-size: 10.5px;
 }
 
 /* 取引・設定ダイアログの設定群：ラベル横並びだと文字が潰れるので縦積み（ラベル上・全幅） */

@@ -1,0 +1,30 @@
+@* PC 用の共通ページヘッダー（線アイコン＋画面名＋淡色サブ説明＋右側スロット）。
+   スマホは各ページのブランド（AppTitle「MoneyBoard v… · 画面名」）を使うため、ここは PC でのみ出す。
+   サイドナビと同じ字形・画面名で全画面（月次/カード/統計/資産/マイページ）の見出しを統一する（#55）。 *@
+@if (!IsMobile)
+{
+    <div class="page-topbar">
+        <div class="page-topbar-title">
+            <span class="msym page-topbar-ico">@Icon</span>
+            <h1 class="page-topbar-h1">@Title</h1>
+            @if (!string.IsNullOrEmpty(Subtitle))
+            {
+                <span class="page-topbar-sub">@Subtitle</span>
+            }
+        </div>
+        @if (Right != null)
+        {
+            <div class="page-topbar-right">@Right</div>
+        }
+    </div>
+}
+
+@code {
+    [CascadingParameter(Name = "IsMobile")] public bool IsMobile { get; set; }
+
+    [Parameter] public string Icon { get; set; } = "";
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public string? Subtitle { get; set; }
+    /// <summary>右側に置く任意の内容（例：資産画面の価格更新メタ＋ボタン）。</summary>
+    [Parameter] public RenderFragment? Right { get; set; }
+}
