@@ -19,6 +19,11 @@ public static class PortfolioMath
     /// <summary>買付ロットの実取得単価係数（ESPP は割引後＝実際に払った価格）。</summary>
     public static decimal CostFactor(BuyLot b) => b.IsEspp ? 1m - EsppDiscount : 1m;
 
+    /// <summary>1買付ロットの実取得原価（建て通貨）。Amount(受渡金額)があればそのまま（口数丸め・割引等は実額に内包済み）、
+    /// 無ければ数量×単価÷Divisor×ESPP係数。Summarize と CostBasisJpy 系で式を共有しドリフトを防ぐ。</summary>
+    private static decimal LotNativeCost(BuyLot b, int divisor)
+        => b.Amount > 0 ? b.Amount : b.Quantity * b.UnitPrice * CostFactor(b) / divisor;
+
     public static HoldingSummary Summarize(
         Holding h,
         IEnumerable<BuyLot> buys,
@@ -36,10 +41,8 @@ public static class PortfolioMath
         decimal soldQty = hs.Sum(s => s.Quantity);
         decimal qty = boughtQty - soldQty;
 
-        // 1ロットの実取得原価（建て通貨）。Amount(受渡金額)があればそのまま（口数丸め対策・割引等は実額に内包済み）、無ければ数量×単価÷Divisor×ESPP係数。
-        decimal LotCost(BuyLot b) => b.Amount > 0 ? b.Amount : b.Quantity * b.UnitPrice * CostFactor(b) / div;
         // 取得総額（建て通貨）＝買付ロットの実取得原価の合計。
-        decimal totalCost = hb.Sum(LotCost);
+        decimal totalCost = hb.Sum(b => LotNativeCost(b, div));
         // 平均取得単価（基準価額/単価・表示用）＝単価の数量加重平均。米国株は単価＝ドルなのでドルの加重平均、
         // 日本株は円/株、投信は基準価額。ESPP は割引後の実価格・再投資株は$0で薄まる。
         // （元本＝取得金額を入れた円拠出でも、単価・平均取得単価はドル建て＝価格通貨で表示する）
@@ -109,12 +112,10 @@ public static class PortfolioMath
         decimal qty = bq - sq;
         if (qty <= 0 || bq <= 0) return 0m;
 
-        // 1ロットの実取得原価（建て通貨）。Amount(受渡金額)があればそのまま、無ければ数量×単価÷Divisor×ESPP係数。
-        decimal LotNative(BuyLot b) => b.Amount > 0 ? b.Amount : b.Quantity * b.UnitPrice * CostFactor(b) / divsor;
         // 取得総額（円）。ドル建ては各ロットを約定レート(無ければ fallback)で円換算。
         decimal boughtJpy = h.CostCurrency == Currency.Usd
-            ? buys.Sum(b => LotNative(b) * (b.FxRate > 0 ? b.FxRate : fallback))
-            : buys.Sum(LotNative);
+            ? buys.Sum(b => LotNativeCost(b, divsor) * (b.FxRate > 0 ? b.FxRate : fallback))
+            : buys.Sum(b => LotNativeCost(b, divsor));
         // 現在保有分の元本＝取得総額 ×(現在数量 / 取得数量)。再投資株は$0で取得総額に寄与しないので平均が薄まる。
         return boughtJpy * (qty / bq);
     }
