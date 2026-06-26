@@ -45,6 +45,5 @@
     private decimal MaxAmount => Items.Count == 0 ? 0 : Items.Max(i => i.Amount);
     private string BarPct(decimal v) => MaxAmount == 0 ? "0" : (v / MaxAmount * 100).ToString("0.#");
 
-    private static string Yen(decimal v) => "¥" + v.ToString("#,0");
     private string Pct(decimal v) => Total == 0 ? "0%" : (v / Total * 100).ToString("0.0") + "%";
 }

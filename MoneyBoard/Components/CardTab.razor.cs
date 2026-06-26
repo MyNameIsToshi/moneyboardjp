@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.JSInterop;
 using MoneyBoard.Services;
 using MoneyBoardShared;
+using static MoneyBoard.MoneyFormat;
 
 // CardTab.razor の code-behind。markup・ディレクティブ(@inject)は .razor 側に残し、
 // 明細編集・折りたたみ/ソート・CSV取込・一括カテゴリの UI ロジックをこの partial class に集約する。
@@ -73,8 +74,6 @@ public partial class CardTab
         return (_sortAsc ? q.OrderBy(SortKey) : q.OrderByDescending(SortKey)).ToList();
     }
 
-    private static string Yen(decimal v) => "¥" + v.ToString("#,0");
-
     // ── カードパネルの折りたたみ ──
     // 既定は PC・スマホとも折りたたみ。_toggled は「ユーザーが展開した集合」。
     // 月変更・カード増減でも自然に既定（折りたたみ）へ戻る。
@@ -88,9 +87,6 @@ public partial class CardTab
     // ヒーローの「先月比」用：指定月の全カード利用額合計（未ロードの月は 0。月は新規作成しない）。
     private decimal CardTotalOf(string ym) =>
         Svc.State.Months.TryGetValue(ym, out var mo) ? mo.CardDetails.Sum(d => d.Amount) : 0m;
-
-    // 符号つき金額（先月比）。増＝+¥ / 減＝−¥。
-    private static string SignedYen(decimal v) => (v >= 0 ? "+¥" : "−¥") + Math.Abs(v).ToString("#,0");
 
     // ── 明細の並び替え（利用日/利用先/カテゴリ/金額）。全カードパネル共通 ──
     private string _sortKey = "date";

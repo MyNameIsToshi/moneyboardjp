@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Components;
 using MoneyBoard.Components;
 using MoneyBoard.Services;
 using MoneyBoardShared;
+using static MoneyBoard.MoneyFormat;
 
 // GraphPage.razor の code-behind。markup・ディレクティブ(@page/@inject/@using)は .razor 側に残し、
 // 統計の集計・期間処理・ドリルダウン状態をこの partial class に集約する。
@@ -447,10 +448,6 @@ public partial class GraphPage
     // 指定月の全口座台帳にセレクタを適用して合計（月が無ければ 0）
     private decimal MonthSum(string ym, Func<Ledger, decimal> selector) =>
         Svc.State.Months.GetValueOrDefault(ym)?.Ledgers.Values.Sum(selector) ?? 0;
-
-    private static string Yen(decimal v) => "¥" + v.ToString("#,0");
-    // 符号付き（要約ヒーロー用。±を必ず明示）
-    private static string SignedYen(decimal v) => (v >= 0 ? "+¥" : "−¥") + Math.Abs(v).ToString("#,0");
 
     public class ChartPoint
     {

@@ -126,8 +126,6 @@
 @code {
     [CascadingParameter(Name = "IsMobile")] public bool IsMobile { get; set; }
 
-    private static string Yen(decimal v) => "¥" + v.ToString("#,0");
-
     // 各設定セクションは折りたたみ式（スマホのみ・既定は畳んだ状態）
     private readonly HashSet<string> _open = new();
     private bool IsOpen(string key) => _open.Contains(key);

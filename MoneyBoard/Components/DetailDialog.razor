@@ -128,6 +128,5 @@
     private static string BadgeColor(DetailRow r) => string.IsNullOrEmpty(r.SubColor) ? "#bdbdbd" : r.SubColor;
     private string BarColor(DetailRow r, bool outlier) => outlier ? "#a3261f" : BadgeColor(r);
 
-    private static string Yen(decimal v) => "¥" + v.ToString("#,0");
     private static string FmtDate(string d) => DateTime.TryParse(d, out var dt) ? dt.ToString("M/d") : d;
 }

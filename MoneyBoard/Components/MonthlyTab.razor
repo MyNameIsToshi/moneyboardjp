@@ -290,8 +290,6 @@
 
     protected override void OnInitialized() => Mo = Svc.EnsureMonth(Svc.CurrentMonth);
 
-    private static string Yen(decimal v) => "¥" + v.ToString("#,0");
-
 
     private void Save() => _ = Svc.SaveAsync();
 

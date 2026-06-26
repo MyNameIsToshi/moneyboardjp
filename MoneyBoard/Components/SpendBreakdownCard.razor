@@ -56,6 +56,5 @@
     [Parameter] public EventCallback<string> OnRowClick { get; set; }
     [Parameter] public EventCallback<SelectedData<SpendSlice>> OnSliceSelected { get; set; }
 
-    private static string Yen(decimal v) => "¥" + v.ToString("#,0");
     private string Pct(decimal v) => Total == 0 ? "0%" : (v / Total * 100).ToString("0.0") + "%";
 }
