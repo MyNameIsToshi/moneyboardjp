@@ -609,29 +609,29 @@
   justify-content: flex-end;
 }
 
-/* 市場指数：スマホはヒーロー下に横スクロールの小カード列（PCの1枚カード→個別チップに戻す） */
+/* 市場指数：スマホはヒーロー下に3列グリッドで折り返し（横スクロール廃止＝全件視認・#46）。
+   USD/JPY＋指数5本＝6チップが 3×2 で収まる。各チップは白カード（縦並び）。 */
 .app-shell.is-mobile .pf-ticker {
-  display: flex;
-  flex-wrap: nowrap;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 8px;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
   background: none;
   border: none;
   box-shadow: none;
   border-radius: 0;
-  margin: 0 -2px 4px;
-  padding: 0 2px 4px;
+  margin: 0 0 4px;
+  padding: 0;
 }
 .app-shell.is-mobile .pf-tick {
-  flex: 0 0 auto;
   flex-direction: column;
   align-items: flex-start;
+  justify-content: center;
   gap: 2px;
+  min-width: 0;
   background: #fff;
   border: 1px solid var(--line);
   border-radius: 11px;
-  padding: 8px 12px;
+  padding: 8px 10px;
 }
 .app-shell.is-mobile .pf-tick-name {
   font-size: 10.5px;
