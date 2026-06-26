@@ -60,11 +60,9 @@ public partial class DataApi
 
             if (Anthropic is null) return new StatusCodeResult(StatusCodes.Status503ServiceUnavailable);
 
-            if (req.ContentLength > MaxBodyBytes)
-                return new StatusCodeResult(StatusCodes.Status413RequestEntityTooLarge);
-            var body = await ReadBodyCappedAsync(req.Body);
-            if (body == null) return new StatusCodeResult(StatusCodes.Status413RequestEntityTooLarge);
-            var reqData = JsonSerializer.Deserialize<ExtractCardRequest>(body, JsonOptions) ?? new ExtractCardRequest();
+            var (body, bodyError) = await ReadCappedBodyAsync(req);
+            if (bodyError is not null) return bodyError;
+            var reqData = JsonSerializer.Deserialize<ExtractCardRequest>(body!, JsonOptions) ?? new ExtractCardRequest();
 
             if (string.IsNullOrWhiteSpace(reqData.Image) || string.IsNullOrWhiteSpace(reqData.CardId))
                 return new BadRequestResult();
