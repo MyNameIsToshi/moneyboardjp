@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using ApexCharts;
 using Microsoft.AspNetCore.Components;
+using Microsoft.JSInterop;
 using MoneyBoard.Components;
 using MoneyBoard.Services;
 using MoneyBoardShared;
@@ -39,8 +40,26 @@ public partial class Portfolio
         await Load();
     }
 
-    public void Dispose() => Store.StateReloadedExternally -= OnReload;
+    public void Dispose()
+    {
+        Store.StateReloadedExternally -= OnReload;
+        // ページ離脱時にロックが残らないよう解除（開いたまま遷移した場合の保険）。
+        if (_scrollLocked) _ = JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", false);
+    }
     private void OnReload() => InvokeAsync(StateHasChanged);
+
+    // いずれかのダイアログ表示中は背面スクロールをロック（取引/新規登録/削除確認/破棄確認）。
+    private bool AnyDialogOpen => _addOpen || _txHoldingId != null || ShowConfirm || _txCloseWarn;
+    private bool _scrollLocked;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (AnyDialogOpen != _scrollLocked)
+        {
+            _scrollLocked = AnyDialogOpen;
+            await JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", _scrollLocked);
+        }
+    }
 
     private async Task Load()
     {
@@ -205,6 +224,90 @@ public partial class Portfolio
 
     private static string SignedYen(decimal v) => (v >= 0 ? "+¥" : "-¥") + Math.Abs(v).ToString("#,0");
 
+    // ヒーロー（ダーク地）の損益色クラス：益＝淡緑(up)／損＝淡赤(down)／0＝既定（白）。
+    private static string HeroVClass(decimal v) => v > 0 ? "up" : v < 0 ? "down" : "";
+
+    // 含み益/含み損（評価損益の符号）と、その率（評価損益 ÷ 元本・"+36.8%"）。元本0は空。
+    private bool HeroIsGain => TotalPnlJpy >= 0;
+    private string HeroGainPct
+    {
+        get
+        {
+            if (TotalCostJpy == 0) return "";
+            decimal p = TotalPnlJpy / TotalCostJpy * 100m;
+            return (p >= 0 ? "+" : "") + p.ToString("0.0") + "%";
+        }
+    }
+
+    // 当日損益率＝当日損益 ÷ 前日終値時点の総資産（＝現在総資産 − 当日損益）。前日総資産≦0は空。" (+1.2%)"
+    private string TotalDayPct(decimal dayJpy)
+    {
+        var prev = TotalAssets().Total - dayJpy;
+        if (prev <= 0) return "";
+        var p = dayJpy / prev * 100m;
+        return " (" + (p >= 0 ? "+" : "") + p.ToString("0.0") + "%)";
+    }
+
+    // 当日損益（全銘柄の前日比合計・円）。現在/前日のどちらも取れている銘柄だけ合算。1件も無ければ null。
+    private decimal? TotalDayPnlJpy()
+    {
+        decimal sum = 0m;
+        bool any = false;
+        foreach (var h in Ordered)
+        {
+            decimal cur = CurPrice(h.Id), prev = PrevPrice(h.Id);
+            if (cur <= 0 || prev <= 0) continue;
+            var qty = Summary(h).Quantity;
+            if (qty == 0) continue;
+            var vNow = PortfolioMath.ValuationJpy(h, qty, cur, Store.Data.UsdJpyRate);
+            var vPrev = PortfolioMath.ValuationJpy(h, qty, prev, Store.Data.UsdJpyRate);
+            if (!vNow.HasValue || !vPrev.HasValue) continue;
+            sum += vNow.Value - vPrev.Value;
+            any = true;
+        }
+        return any ? sum : (decimal?)null;
+    }
+
+    // ── 資産クラスごとのグループ小計（保有銘柄の各グループ見出し右）──
+    // 評価額（円・価格未取得は除外、全件未取得は null）／取得原価（円・銘柄単位の総和）／評価損益。
+    private decimal? GroupValueJpy(AssetClass c)
+    {
+        decimal sum = 0m;
+        bool any = false;
+        foreach (var h in Ordered.Where(h => h.Class == c))
+        {
+            var v = ValuationJpy(h, Summary(h).Quantity);
+            if (v.HasValue) { sum += v.Value; any = true; }
+        }
+        return any ? sum : (decimal?)null;
+    }
+    private decimal GroupCostJpy(AssetClass c) =>
+        Ordered.Where(h => h.Class == c)
+               .Sum(h => PortfolioMath.HoldingCostBasisJpyAsOf(Store.Data, h, DateTime.Today.ToString("yyyy-MM-dd"), 0m));
+    private decimal? GroupPnlJpy(AssetClass c)
+    {
+        var v = GroupValueJpy(c);
+        return v.HasValue ? v.Value - GroupCostJpy(c) : (decimal?)null;
+    }
+    // 円換算額をグループ表示通貨へ（米国株×ドル表示なら /fx でドル化・他は円）。換算不可は "—"。
+    private string GroupMoney(AssetClass c, decimal jpy)
+    {
+        if (c == AssetClass.UsStock && _usCcy == Currency.Usd)
+        {
+            decimal fx = Store.Data.UsdJpyRate;
+            return fx > 0 ? "$" + (jpy / fx).ToString("#,0.##") : "—";
+        }
+        return "¥" + jpy.ToString("#,0");
+    }
+    private string GroupValueDisp(AssetClass c) { var v = GroupValueJpy(c); return v.HasValue ? GroupMoney(c, v.Value) : "—"; }
+    private string GroupPnlDisp(AssetClass c) { var v = GroupPnlJpy(c); return v.HasValue ? (v.Value > 0 ? "+" : "") + GroupMoney(c, v.Value) : "—"; }
+    private decimal GroupPnlSign(AssetClass c) => GroupPnlJpy(c) ?? 0m;
+
+    // 保有カード（スマホ）の補助指標（淡色サブ行）＝元本・数量のみ（PC は表形式の各列で表示）。
+    private static string UnitSuffix(Holding h) => h.Class == AssetClass.Fund ? "口" : "株";
+    private string MetricsLineMobile(Holding h, HoldingSummary s) =>
+        $"元本 {Money(h, s.CostBasis)} ・ {Qty(s.Quantity)}{UnitSuffix(h)}";
+
     // ── 価格更新（Yahoo Finance から株価＋USD/JPY を取得し現在価格に反映）──
     private bool _updating;
     private string? _updateMsg;
@@ -339,12 +442,14 @@ public partial class Portfolio
         Store.Data.Snapshots.Sort((a, b) => string.CompareOrdinal(a.At, b.At));
     }
 
-    // ── 資産構成（クラス別／銘柄別のドーナツ）──
-    private string _compMode = "class";   // "class" | "holding"
+    // ── 資産構成（クラス別・銘柄別のドーナツ。PC＝両方を横並び／スマホ＝トグルで1つ）──
+    private string _compMode = "class";   // スマホのトグル: "class" | "holding"
     private int _compRev;                 // 再描画キー（データ更新ごとにインクリメント）
-    private List<SpendSlice> CompositionData = new();
-    private decimal CompTotal => CompositionData.Sum(s => s.Value);
-    private string CompPct(decimal v) => CompTotal == 0 ? "0%" : (v / CompTotal * 100).ToString("0.0") + "%";
+    private List<SpendSlice> CompClassData = new();
+    private List<SpendSlice> CompHoldingData = new();
+    private List<SpendSlice> CompMobileData => _compMode == "class" ? CompClassData : CompHoldingData;
+    private static decimal SlicesTotal(List<SpendSlice> data) => data.Sum(s => s.Value);
+    private static string CompPct(decimal v, decimal total) => total == 0 ? "0%" : (v / total * 100).ToString("0.0") + "%";
 
     // クラス別の固定色／銘柄別の循環パレット（家計簿のカード別と同様）
     private static readonly Dictionary<AssetClass, string> ClassColors = new()
@@ -359,11 +464,31 @@ public partial class Portfolio
         "#4db3d6", "#e879b9", "#7ac74f", "#f08a4b", "#6c7a89"
     };
 
-    // ドーナツ設定（家計簿の NewDonutOptions と同流儀。薄色の白飛び対策で hover/active を暗くする）
-    private readonly ApexChartOptions<SpendSlice> CompDonutOptions = new()
+    // ドーナツ設定（中央に総資産 total・万単位／凡例は一覧へ集約しOFF／白2pxストロークでスライスを分離）。
+    // クラス別・銘柄別で Colors が異なるため別インスタンス（PC は両方を同時描画する）。
+    private static ApexChartOptions<SpendSlice> NewCompDonut() => new()
     {
-        Chart = new Chart { Height = 300, Toolbar = new Toolbar { Show = false } },
-        Legend = new Legend { Position = LegendPosition.Bottom },
+        Chart = new Chart { Height = 260, Toolbar = new Toolbar { Show = false } },
+        Legend = new Legend { Show = false },
+        DataLabels = new DataLabels { Enabled = false },
+        Stroke = new Stroke { Width = 2, Colors = new List<string> { "#fff" } },
+        PlotOptions = new PlotOptions
+        {
+            Pie = new PlotOptionsPie
+            {
+                Donut = new PlotOptionsDonut
+                {
+                    Size = "70%",
+                    Labels = new DonutLabels
+                    {
+                        Show = true,
+                        Name = new DonutLabelName { Show = true, Color = "#8f8b84", FontSize = "12px", OffsetY = -2 },
+                        Value = new DonutLabelValue { Show = true, Color = "#21262e", FontSize = "19px", FontWeight = 700, OffsetY = 4, Formatter = "function(v){return '¥'+Math.round(v/10000)+'万'}" },
+                        Total = new DonutLabelTotal { Show = true, Label = "総資産", Color = "#8f8b84", FontSize = "12px", Formatter = "function(w){var t=w.globals.seriesTotals.reduce(function(a,b){return a+b},0);return '¥'+Math.round(t/10000)+'万'}" }
+                    }
+                }
+            }
+        },
         Tooltip = new Tooltip { Y = new TooltipY { Formatter = "function(v){return '¥'+v.toLocaleString()}" } },
         States = new States
         {
@@ -371,38 +496,42 @@ public partial class Portfolio
             Active = new StatesActive { Filter = new StatesFilter { Type = StatesFilterType.darken, Value = 0.12 } }
         }
     };
+    private readonly ApexChartOptions<SpendSlice> CompDonutClassOpt = NewCompDonut();
+    private readonly ApexChartOptions<SpendSlice> CompDonutHoldingOpt = NewCompDonut();
+    private ApexChartOptions<SpendSlice> CompMobileOpt => _compMode == "class" ? CompDonutClassOpt : CompDonutHoldingOpt;
 
-    private void SetCompMode(string mode) { _compMode = mode; BuildComposition(); }
+    // 両データは BuildComposition で同時に作る。スマホのトグルは表示切替のみ（再ビルド不要）。
+    private void SetCompMode(string mode) => _compMode = mode;
 
-    // 現在の評価額（円換算）から構成比スライスを作る。価格未取得・評価額0は除外。
+    // 現在の評価額（円換算）から構成比スライスを作る（クラス別・銘柄別の両方）。価格未取得・評価額0は除外。
     private void BuildComposition()
     {
-        var slices = new List<SpendSlice>();
-        if (_compMode == "class")
+        // クラス別（日本株/米国株/投資信託の固定色）
+        var cls = new List<SpendSlice>();
+        foreach (var grp in Groups)
         {
-            foreach (var grp in Groups)
-            {
-                decimal sum = 0m;
-                foreach (var h in Ordered.Where(h => h.Class == grp.Class))
-                {
-                    var v = ValuationJpy(h, Summary(h).Quantity);
-                    if (v.HasValue) sum += v.Value;
-                }
-                if (sum > 0) slices.Add(new SpendSlice { Key = grp.Class.ToString(), Label = grp.Label, Value = sum, Color = ClassColors[grp.Class] });
-            }
-        }
-        else
-        {
-            foreach (var h in Ordered)
+            decimal sum = 0m;
+            foreach (var h in Ordered.Where(h => h.Class == grp.Class))
             {
                 var v = ValuationJpy(h, Summary(h).Quantity);
-                if (v.HasValue && v.Value > 0) slices.Add(new SpendSlice { Key = h.Id, Label = DisplayName(h), Value = v.Value });
+                if (v.HasValue) sum += v.Value;
             }
-            slices = slices.OrderByDescending(s => s.Value).ToList();
-            for (int i = 0; i < slices.Count; i++) slices[i].Color = CompPalette[i % CompPalette.Length];
+            if (sum > 0) cls.Add(new SpendSlice { Key = grp.Class.ToString(), Label = grp.Label, Value = sum, Color = ClassColors[grp.Class] });
         }
-        CompositionData = slices;
-        CompDonutOptions.Colors = slices.Select(s => s.Color).ToList();
+        // 銘柄別（評価額の降順・循環パレット）
+        var hold = new List<SpendSlice>();
+        foreach (var h in Ordered)
+        {
+            var v = ValuationJpy(h, Summary(h).Quantity);
+            if (v.HasValue && v.Value > 0) hold.Add(new SpendSlice { Key = h.Id, Label = DisplayName(h), Value = v.Value });
+        }
+        hold = hold.OrderByDescending(s => s.Value).ToList();
+        for (int i = 0; i < hold.Count; i++) hold[i].Color = CompPalette[i % CompPalette.Length];
+
+        CompClassData = cls;
+        CompHoldingData = hold;
+        CompDonutClassOpt.Colors = cls.Select(s => s.Color).ToList();
+        CompDonutHoldingOpt.Colors = hold.Select(s => s.Color).ToList();
         _compRev++;
     }
 

@@ -12,6 +12,11 @@
   padding: 16px;
 }
 
+/* ダイアログ表示中の背面スクロール禁止（PC=html／スマホ=.app-scroll に付与。viewport.js が制御）。 */
+.dialog-lock {
+  overflow: hidden !important;
+}
+
 .dialog-box {
   background: var(--card);
   border-radius: var(--r);

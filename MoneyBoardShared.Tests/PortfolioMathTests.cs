@@ -235,4 +235,29 @@ public class PortfolioMathTests
         };
         Assert.Equal(0m, PortfolioMath.CostBasisJpyAsOf(data, "2026-02-15", 0m));
     }
+
+    // ── HoldingCostBasisJpyAsOf（銘柄単位版・グループ小計用。全体版＝各銘柄の総和）──
+    [Fact]
+    public void HoldingCostBasisJpyAsOf_PerHolding_SumsToAggregate()
+    {
+        var jp = new Holding { Id = "h", Class = AssetClass.JpStock, CostCurrency = Currency.Jpy };
+        var us = new Holding { Id = "u", Class = AssetClass.UsStock, CostCurrency = Currency.Usd };
+        var data = new PortfolioData
+        {
+            UsdJpyRate = 150m,
+            Holdings = { jp, us },
+            Buys =
+            {
+                new BuyLot { HoldingId = "h", Date = "2026-01-10", Quantity = 10, UnitPrice = 100 },          // 1,000 円
+                new BuyLot { HoldingId = "u", Date = "2026-01-10", Quantity = 10, UnitPrice = 50, FxRate = 140 }, // $500 ×140 = 70,000 円
+            },
+        };
+        // 銘柄単位＝各々の取得原価（円）
+        Assert.Equal(1_000m, PortfolioMath.HoldingCostBasisJpyAsOf(data, jp, "2026-02-15", 0m));
+        Assert.Equal(70_000m, PortfolioMath.HoldingCostBasisJpyAsOf(data, us, "2026-02-15", 0m));
+        // 全体版は銘柄単位の総和に一致する
+        Assert.Equal(
+            PortfolioMath.HoldingCostBasisJpyAsOf(data, jp, "2026-02-15", 0m) + PortfolioMath.HoldingCostBasisJpyAsOf(data, us, "2026-02-15", 0m),
+            PortfolioMath.CostBasisJpyAsOf(data, "2026-02-15", 0m));
+    }
 }
