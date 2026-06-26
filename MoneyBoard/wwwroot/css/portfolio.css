@@ -27,40 +27,8 @@
   margin-bottom: 0;
 }
 
-/* ── PC トップバー（アイコン＋資産＋ポートフォリオ ｜ 価格更新メタ＋ボタン）── */
-.pf-topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin: 4px 0 18px;
-}
-.pf-topbar-title {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-}
-.pf-topbar-ico {
-  font-size: 24px;
-  color: var(--accent);
-}
-.pf-topbar-h1 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: -.01em;
-}
-.pf-topbar-sub {
-  font-size: 13px;
-  color: #a8a49d;
-  font-weight: 500;
-}
-.pf-topbar-meta {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
+/* ── ページヘッダー右の価格更新メタ＋ボタン（共通 .page-topbar の Right スロットに入る）── */
+.pf-topbar-metatext {
   font-size: 12px;
   color: #8f8b84;
   font-variant-numeric: tabular-nums;

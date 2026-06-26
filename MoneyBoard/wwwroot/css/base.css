@@ -143,6 +143,47 @@ body {
   font-weight: 400;
 }
 
+/* =====================================================
+   共通ページヘッダー（PCのみ・線アイコン＋画面名＋サブ＋右スロット）。PageHeader.razor
+   ===================================================== */
+.page-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  /* 上マージンは置かない：各ページの包み（.pf-sticky / .graph-sticky / .wrap 直下）で
+     マージン相殺の挙動が変わり数pxズレるため、常に .wrap の上余白(20px)に揃える。 */
+  margin: 0 0 18px;
+  min-height: 32px;
+}
+.page-topbar-title {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+.page-topbar-ico {
+  font-size: 24px;
+  color: var(--accent);
+}
+.page-topbar-h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+}
+.page-topbar-sub {
+  font-size: 13px;
+  color: #a8a49d;
+  font-weight: 500;
+}
+.page-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .home-head {
   display: flex;
   align-items: center;

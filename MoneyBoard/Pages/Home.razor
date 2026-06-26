@@ -44,9 +44,22 @@
         }
         else
         {
-            @if (ActiveTab == "monthly")  { <MonthlyTab @key="ReloadKey" RequestTab="SetTab" /> }
-            @if (ActiveTab == "card")     { <CardTab @key="ReloadKey" /> }
-            @if (ActiveTab == "mypage")   { <MyPageTab @key="ReloadKey" /> }
+            @* PC用の共通ページヘッダー（スマホは PageHeader 側で非表示。サイドナビと同じ字形・画面名） *@
+            @if (ActiveTab == "monthly")
+            {
+                <PageHeader Icon="calendar_month" Title="月次管理" Subtitle="収支・口座残高" />
+                <MonthlyTab @key="ReloadKey" RequestTab="SetTab" />
+            }
+            @if (ActiveTab == "card")
+            {
+                <PageHeader Icon="credit_card" Title="カード" Subtitle="明細・請求" />
+                <CardTab @key="ReloadKey" />
+            }
+            @if (ActiveTab == "mypage")
+            {
+                <PageHeader Icon="person" Title="マイページ" Subtitle="設定・アクセス" />
+                <MyPageTab @key="ReloadKey" />
+            }
         }
     }
 </div>

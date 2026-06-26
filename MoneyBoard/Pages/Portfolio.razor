@@ -15,31 +15,23 @@
         @if (Loaded && !Store.IsPending && !LoadFailed)
         {
             var dayTotal = TotalDayPnlJpy();
-            @* ── PC トップバー（アイコン＋資産＋ポートフォリオ ｜ 価格更新メタ＋ボタン）。スマホはヒーロー内にメタを出す ── *@
-            if (!IsMobile)
-            {
-                <div class="pf-topbar">
-                    <div class="pf-topbar-title">
-                        <span class="msym pf-topbar-ico">savings</span>
-                        <h1 class="pf-topbar-h1">資産</h1>
-                        <span class="pf-topbar-sub">ポートフォリオ</span>
-                    </div>
-                    <div class="pf-topbar-meta">
-                        @if (!string.IsNullOrEmpty(Store.Data.PricedAt))
+            @* ── 共通ページヘッダー（PCのみ・savings＋資産＋ポートフォリオ ｜ 右に価格更新メタ＋ボタン）。スマホはヒーロー内にメタを出す ── *@
+            <PageHeader Icon="savings" Title="資産" Subtitle="ポートフォリオ">
+                <Right>
+                    @if (!string.IsNullOrEmpty(Store.Data.PricedAt))
+                    {
+                        <span class="pf-topbar-metatext">価格更新 @Store.Data.PricedAt</span>
+                        @if (Store.Data.UsdJpyRate > 0)
                         {
-                            <span>価格更新 @Store.Data.PricedAt</span>
-                            @if (Store.Data.UsdJpyRate > 0)
-                            {
-                                <span class="pf-meta-dot"></span>
-                                <span>USD/JPY @Store.Data.UsdJpyRate.ToString("#,0.##")</span>
-                            }
+                            <span class="pf-meta-dot"></span>
+                            <span class="pf-topbar-metatext">USD/JPY @Store.Data.UsdJpyRate.ToString("#,0.##")</span>
                         }
-                        <button class="pf-refresh" disabled="@_updating" @onclick="() => UpdatePrices()">
-                            <span class="msym">refresh</span>@(_updating ? "更新中…" : "価格更新")
-                        </button>
-                    </div>
-                </div>
-            }
+                    }
+                    <button class="pf-refresh" disabled="@_updating" @onclick="() => UpdatePrices()">
+                        <span class="msym">refresh</span>@(_updating ? "更新中…" : "価格更新")
+                    </button>
+                </Right>
+            </PageHeader>
 
             @* ── 要約バンド：総資産ヒーロー（評価損益/当日損益を集約）＋指数（PC＝1枚カードに5本／スマホ＝下に横スクロール）── *@
             <div class="pf-summary">
