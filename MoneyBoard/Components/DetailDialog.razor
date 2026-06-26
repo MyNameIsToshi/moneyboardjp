@@ -1,26 +1,88 @@
-@* 明細ドリルダウンのモーダル（カテゴリ別／カード別の個別明細一覧）。 *@
-<div class="dialog-overlay" @onclick="OnClose">
-    <div class="dialog-box cat-detail-box" @onclick:stopPropagation="true">
-        <div class="cat-detail-head">
-            @if (!string.IsNullOrEmpty(Color))
-            {
-                <span class="color-dot" style="background:@Color"></span>
-            }
-            <h4>@Title の明細</h4>
-            <button class="x" @onclick="OnClose">✕</button>
+@* 明細ドリルダウン（カテゴリ別／カード別の個別明細一覧）。
+   PC＝中央モーダル(案A)／スマホ＝ボトムシート(案C)。質感・並べ替え・金額バーを持つが、
+   明細の抽出・集計・件数・合計の結果は親から渡る値のまま（このコンポーネントは表示のみ）。 *@
+<div class="dialog-overlay dd-overlay" @onclick="OnClose">
+    <div class="dialog-box dd-box" @onclick:stopPropagation="true">
+        <div class="dd-grabber"></div>
+
+        <div class="dd-head">
+            <div class="dd-title">
+                @if (!string.IsNullOrEmpty(Color))
+                {
+                    <span class="dd-dot" style="background:@Color"></span>
+                }
+                <span class="dd-title-main">@Title</span><span class="dd-title-sub">の明細</span>
+            </div>
+            <button class="dd-x msym" @onclick="OnClose" title="閉じる">close</button>
         </div>
-        <div class="cat-detail-sub">@SubLabel ・ @Count 件 ・ 合計 @Yen(Total)</div>
-        <div class="cat-detail-list">
-            @foreach (var r in Rows)
+
+        <div class="dd-total-row">
+            <span class="dd-total">@Yen(Total)</span>
+            <span class="dd-meta">@Count 件 ・ @SubLabel</span>
+        </div>
+
+        @if (CardSummary.Count > 1)
+        {
+            <div class="dd-chips">
+                @foreach (var c in CardSummary)
+                {
+                    <span class="dd-chip">
+                        <span class="dd-dot sm" style="background:@c.Color"></span>@c.Name
+                        <b>@Yen(c.Amount)</b>
+                    </span>
+                }
+            </div>
+        }
+
+        <div class="dd-tools">
+            <div class="dd-seg">
+                <button class="@(_sort == Sort.Amount ? "on" : "")" @onclick="() => SetSort(Sort.Amount)">金額が大きい順</button>
+                <button class="@(_sort == Sort.Date ? "on" : "")" @onclick="() => SetSort(Sort.Date)">日付順</button>
+            </div>
+            @if (ShowCategorize)
             {
-                <div class="spend-detail-row">
-                    <span class="sd-date">@FmtDate(r.Date)</span>
-                    <span class="sd-name" title="@r.Store">@r.Store</span>
-                    <span class="sd-card">@r.Sub</span>
-                    <span class="sd-amt">@Yen(r.Amount)</span>
+                <button class="dd-categorize" @onclick="OnCategorize" title="未分類の明細にカテゴリを設定">
+                    <span class="msym">checklist</span>選択してカテゴリ設定
+                </button>
+            }
+        </div>
+
+        <div class="dd-list">
+            @foreach (var r in SortedRows)
+            {
+                var outlier = IsOutlier(r);
+                <div class="dd-row @(outlier ? "out" : "")">
+                    <span class="dd-date">@FmtDate(r.Date)</span>
+                    <span class="dd-name" title="@r.Store">@r.Store</span>
+                    <span class="dd-amt">@Yen(r.Amount)</span>
+                    <div class="dd-row2">
+                        @if (!string.IsNullOrEmpty(r.Sub))
+                        {
+                            <span class="dd-badge">
+                                <span class="dd-dot sm" style="background:@BadgeColor(r)"></span>@r.Sub
+                            </span>
+                        }
+                        <span class="dd-bar"><i style="width:@BarPct(r)%;background:@BarColor(r, outlier)"></i></span>
+                        @if (outlier)
+                        {
+                            <span class="dd-flag msym-pre"><span class="msym">priority_high</span>突出</span>
+                        }
+                    </div>
                 </div>
             }
         </div>
+
+        <div class="dd-foot">
+            <span>@Count 件中 @Rows.Count 件を表示</span>
+            <span>合計 <b>@Yen(Total)</b></span>
+        </div>
+
+        @if (ShowCategorize)
+        {
+            <div class="dd-action-bar">
+                <button class="dd-action" @onclick="OnCategorize"><span class="msym">label</span>カテゴリを設定</button>
+            </div>
+        }
     </div>
 </div>
 
@@ -31,10 +93,40 @@
     [Parameter] public decimal Total { get; set; }
     [Parameter] public string SubLabel { get; set; } = "";
     [Parameter] public List<DetailRow> Rows { get; set; } = new();
+    [Parameter] public bool ShowCategorize { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnCategorize { get; set; }
 
     // 明細1行。Sub はカテゴリ別=カード名 / カード別=カテゴリ名 を入れる補足列。
-    public record DetailRow(string Date, string Store, string Sub, decimal Amount);
+    // SubColor は Sub に対応する色（カード別ドーナツ／カテゴリ設定色）。バッジ・金額バーに使う。
+    public record DetailRow(string Date, string Store, string Sub, decimal Amount, string SubColor = "");
+
+    private enum Sort { Amount, Date }
+    private Sort _sort = Sort.Amount;
+    private void SetSort(Sort s) => _sort = s;
+
+    private IEnumerable<DetailRow> SortedRows => _sort == Sort.Amount
+        ? Rows.OrderByDescending(r => r.Amount)
+        : Rows.OrderByDescending(r => DateTime.TryParse(r.Date, out var d) ? d : DateTime.MinValue);
+
+    // ヘッダのカード別ミニ集計（Sub＝カード/カテゴリ名で合算。色は SubColor）。
+    private record CardChip(string Name, string Color, decimal Amount);
+    private List<CardChip> CardSummary => Rows
+        .Where(r => !string.IsNullOrEmpty(r.Sub))
+        .GroupBy(r => r.Sub)
+        .Select(g => new CardChip(g.Key, g.First().SubColor, g.Sum(r => r.Amount)))
+        .OrderByDescending(c => c.Amount)
+        .ToList();
+
+    private decimal MaxAmount => Rows.Count == 0 ? 0 : Rows.Max(r => r.Amount);
+
+    // 突出＝最大行で、かつ合計の25%以上を1行で占める（小さく均等な並びでは出さない）
+    private bool IsOutlier(DetailRow r) =>
+        Rows.Count >= 2 && Total > 0 && r.Amount == MaxAmount && r.Amount >= Total * 0.25m;
+
+    private string BarPct(DetailRow r) => MaxAmount == 0 ? "0" : (r.Amount / MaxAmount * 100).ToString("0.#");
+    private static string BadgeColor(DetailRow r) => string.IsNullOrEmpty(r.SubColor) ? "#bdbdbd" : r.SubColor;
+    private string BarColor(DetailRow r, bool outlier) => outlier ? "#a3261f" : BadgeColor(r);
 
     private static string Yen(decimal v) => "¥" + v.ToString("#,0");
     private static string FmtDate(string d) => DateTime.TryParse(d, out var dt) ? dt.ToString("M/d") : d;

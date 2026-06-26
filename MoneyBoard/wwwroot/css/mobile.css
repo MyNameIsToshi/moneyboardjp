@@ -370,16 +370,68 @@
 /* =====================================================
    統計（GraphPage）：スマホ調整
    ===================================================== */
-/* 内訳一覧（⑥⑦）：5列は詰まるので割合(%)列を省略しドット/名前/金額/件数の4列に。
+/* 内訳一覧（カテゴリ別/カード別）：5列は詰まるので割合(%)列を省略しドット/名前/金額/件数の4列に。
    （資産構成カード pf-comp-card は割合を残したいので除外） */
-.app-shell.is-mobile .graph-card-full:not(.pf-comp-card) .spend-row {
+.app-shell.is-mobile .graph-card:not(.pf-comp-card) .spend-row {
   grid-template-columns: 14px 1fr auto auto;
   gap: 6px;
   font-size: 12.5px;
 }
 
-.app-shell.is-mobile .graph-card-full:not(.pf-comp-card) .spend-row > :nth-child(4) {
+.app-shell.is-mobile .graph-card:not(.pf-comp-card) .spend-row > :nth-child(4) {
   display: none;
+}
+
+/* 明細ドリルダウン（DetailDialog）：スマホは下からのボトムシート（案C） */
+.app-shell.is-mobile .dd-overlay {
+  align-items: flex-end;
+  padding: 0;
+  background: rgba(33, 38, 46, .28);
+}
+
+.app-shell.is-mobile .dd-box {
+  max-width: 100%;
+  border-radius: 20px 20px 0 0;
+  max-height: 78vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 -12px 36px rgba(33, 38, 46, .22);
+}
+
+.app-shell.is-mobile .dd-grabber {
+  display: block;
+  width: 38px;
+  height: 4px;
+  border-radius: 3px;
+  background: #e0dbd0;
+  margin: 8px auto 2px;
+}
+
+/* 高さ優先：カード別ミニ集計チップは省略、リストを伸縮領域に */
+.app-shell.is-mobile .dd-chips {
+  display: none;
+}
+
+.app-shell.is-mobile .dd-list {
+  max-height: none;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.app-shell.is-mobile .dd-total {
+  font-size: 26px;
+}
+
+/* カテゴリ設定はヘッダのリンクを隠し、下部固定の全幅ボタンに集約 */
+.app-shell.is-mobile .dd-categorize {
+  display: none;
+}
+
+.app-shell.is-mobile .dd-action-bar {
+  display: block;
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  background: #fbfaf7;
+  border-top: 1px solid #f0eee9;
 }
 
 /* =====================================================

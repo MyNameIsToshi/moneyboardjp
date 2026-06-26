@@ -2,7 +2,7 @@
 
 @* 統計の「ドーナツ＋一覧」カード。カテゴリ別支出・カード別利用額で共用する。
    行クリック／スライス選択で親にキーを通知し、親側でドリルダウンを開く。 *@
-<div class="graph-card graph-card-full">
+<div class="graph-card @(FullWidth ? "graph-card-full" : "")">
     <h4>@Title</h4>
     @if (Items.Count > 0)
     {
@@ -46,6 +46,7 @@
 
 @code {
     [Parameter] public string Title { get; set; } = "";
+    [Parameter] public bool FullWidth { get; set; } = true;
     [Parameter] public string ItemColumnLabel { get; set; } = "";
     [Parameter] public List<SpendSlice> Items { get; set; } = new();
     [Parameter] public decimal Total { get; set; }
