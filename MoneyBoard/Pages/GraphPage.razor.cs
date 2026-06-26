@@ -48,8 +48,8 @@ public partial class GraphPage
     private record IncomeSeries(string Name, List<ChartPoint> Data);
 
     // Y軸は万単位の概略表示、tooltip はフル円表示（spec §3）。グリッド線・軸ラベルも淡色で統一。
-    private const string YMan = "function(v){return '¥'+Math.round(v/10000)+'万'}";
-    private const string YFull = "function(v){return '¥'+v.toLocaleString()}";
+    private const string YMan = MoneyFormat.ChartYenMan;
+    private const string YFull = MoneyFormat.ChartYenFull;
 
     private static YAxis ManAxis() => new() { Labels = new YAxisLabels { Formatter = YMan } };
     private static Grid SoftGrid() => new() { BorderColor = "#f0eee9" };

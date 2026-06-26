@@ -481,13 +481,13 @@ public partial class Portfolio
                     {
                         Show = true,
                         Name = new DonutLabelName { Show = true, Color = "#8f8b84", FontSize = "12px", OffsetY = -2 },
-                        Value = new DonutLabelValue { Show = true, Color = "#21262e", FontSize = "19px", FontWeight = 700, OffsetY = 4, Formatter = "function(v){return '¥'+Math.round(v/10000)+'万'}" },
+                        Value = new DonutLabelValue { Show = true, Color = "#21262e", FontSize = "19px", FontWeight = 700, OffsetY = 4, Formatter = MoneyFormat.ChartYenMan },
                         Total = new DonutLabelTotal { Show = true, Label = "総資産", Color = "#8f8b84", FontSize = "12px", Formatter = "function(w){var t=w.globals.seriesTotals.reduce(function(a,b){return a+b},0);return '¥'+Math.round(t/10000)+'万'}" }
                     }
                 }
             }
         },
-        Tooltip = new Tooltip { Y = new TooltipY { Formatter = "function(v){return '¥'+v.toLocaleString()}" } },
+        Tooltip = new Tooltip { Y = new TooltipY { Formatter = MoneyFormat.ChartYenFull } },
         States = new States
         {
             Hover = new StatesHover { Filter = new StatesFilter { Type = StatesFilterType.darken, Value = 0.12 } },
