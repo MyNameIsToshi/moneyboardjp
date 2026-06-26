@@ -222,8 +222,6 @@ public partial class Portfolio
     // 評価損益（合計・円）＝総資産 − 元本（一部未取得時は概算）。
     private decimal TotalPnlJpy => TotalAssets().Total - TotalCostJpy;
 
-    private static string SignedYen(decimal v) => (v >= 0 ? "+¥" : "-¥") + Math.Abs(v).ToString("#,0");
-
     // ヒーロー（ダーク地）の損益色クラス：益＝淡緑(up)／損＝淡赤(down)／0＝既定（白）。
     private static string HeroVClass(decimal v) => v > 0 ? "up" : v < 0 ? "down" : "";
 
