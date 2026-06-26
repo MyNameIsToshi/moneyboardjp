@@ -120,33 +120,39 @@ else
 @code {
     [CascadingParameter(Name = "IsMobile")] public bool IsMobile { get; set; }
 
-    // スマホ：編集シートで開いている口座（直接編集・即時保存）。
+    // スマホ：編集シートで開いている口座。既存は State の実体を直接編集（即時保存）、
+    // ＋追加は未コミットのドラフトを編集し、決定（完了）時にだけ State へ追加・保存する。
     private string? _editId;
-    private bool _isNew;   // ＋追加で開いた新規口座か（未入力のまま閉じたら破棄する）
-    private Account? Editing => _editId is null ? null : Svc.State.Accounts.FirstOrDefault(a => a.Id == _editId);
-    private void OpenEdit(string id) { _editId = id; _isNew = false; }
+    private bool _isNew;       // ＋追加のドラフトを編集中か
+    private Account? _draft;   // ＋追加のドラフト（決定するまで State に入れない）
+    private Account? Editing => _isNew ? _draft : (_editId is null ? null : Svc.State.Accounts.FirstOrDefault(a => a.Id == _editId));
+    private void OpenEdit(string id) { _editId = id; _isNew = false; _draft = null; }
 
     private void CloseEdit()
     {
-        // 口座名が空のまま閉じた新規口座は追加しない（破棄）。
-        if (_isNew && Editing is { } a && string.IsNullOrWhiteSpace(a.Name))
+        // ＋追加のドラフトは「決定」時にだけコミット。口座名が空なら破棄（State には何も作らない）。
+        if (_isNew)
         {
-            Svc.State.Accounts.RemoveAll(x => x.Id == _editId);
-            Save();
+            var d = _draft;
+            _isNew = false; _draft = null; _editId = null;
+            if (d is not null && !string.IsNullOrWhiteSpace(d.Name))
+            {
+                Svc.State.Accounts.Add(d);
+                if (d.IsBonusAccount) SetBonusAccount(d.Id);   // 1口座のみ＝コミット時に確定
+                else Save();
+            }
+            return;
         }
         _editId = null;
-        _isNew = false;
     }
 
-    // ＋追加：スマホは空の口座を作ってそのまま編集シートを開く。PCは従来の追加ダイアログ。
+    // ＋追加：スマホはドラフトを作って編集シートを開く（State には未追加）。PCは従来の追加ダイアログ。
     private void AddClicked()
     {
         if (IsMobile)
         {
-            var a = new Account { Name = "", SortOrder = Svc.State.Accounts.Count };
-            Svc.State.Accounts.Add(a);
-            Save();
-            _editId = a.Id;
+            _draft = new Account { Name = "", SortOrder = Svc.State.Accounts.Count };
+            _editId = _draft.Id;
             _isNew = true;
         }
         else OpenAddDialog();
@@ -154,13 +160,15 @@ else
 
     private void SetBonus(Account a, bool val)
     {
+        if (_isNew) { a.IsBonusAccount = val; return; }   // ドラフト：印だけ付け、確定はコミット時
         if (val) SetBonusAccount(a.Id);
         else { a.IsBonusAccount = false; Save(); }
     }
 
-    // シートから削除：シートを閉じてから削除判定（使用中チェック→確認/警告）。
+    // シートから削除：ドラフトは破棄、既存はシートを閉じてから削除判定（使用中チェック→確認/警告）。
     private void DeleteEditing()
     {
+        if (_isNew) { _isNew = false; _draft = null; _editId = null; return; }
         var id = _editId;
         _editId = null;
         if (id != null) RequestDelete(id);
@@ -175,7 +183,8 @@ else
     private List<string> WarnMessages = new();
     private string WarnSubMessage = "";
 
-    private void Save() => _ = Svc.SaveAsync();
+    // ドラフト編集中（_isNew）は永続化しない。決定（CloseEdit）で State へ追加してから保存する。
+    private void Save() { if (_isNew) return; _ = Svc.SaveAsync(); }
 
     private void SetBonusAccount(string id)
     {

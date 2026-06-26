@@ -14,49 +14,51 @@ public partial class FixedCostTab
 {
     [CascadingParameter(Name = "IsMobile")] public bool IsMobile { get; set; }
 
-    // スマホ：編集シートで開いている固定費（id）。直接その固定費を編集（即時保存）。
+    // スマホ：編集シートで開いている固定費。既存は State の実体を直接編集（即時保存）、
+    // ＋追加は未コミットのドラフトを編集し、決定（完了）時にだけ State へ追加・保存する。
     private string? _editId;
-    private bool _isNew;   // ＋追加で開いた新規項目か（未入力のまま閉じたら破棄する）
-    private FixedCost? Editing => _editId is null ? null : Svc.State.FixedCosts.FirstOrDefault(f => f.Id == _editId);
-    private void OpenEdit(string id) { _editId = id; _isNew = false; }
+    private bool _isNew;        // ＋追加のドラフトを編集中か
+    private FixedCost? _draft;  // ＋追加のドラフト（決定するまで State に入れない）
+    private FixedCost? Editing => _isNew ? _draft : (_editId is null ? null : Svc.State.FixedCosts.FirstOrDefault(f => f.Id == _editId));
+    private void OpenEdit(string id) { _editId = id; _isNew = false; _draft = null; }
 
     private void CloseEdit()
     {
-        // 値未入力（項目名が空）のまま閉じた新規項目は追加しない（破棄）。
-        if (_isNew && Editing is { } fc && string.IsNullOrWhiteSpace(fc.Name))
+        // ＋追加のドラフトは「決定」時にだけコミット。項目名が空なら破棄（State には何も作らない）。
+        if (_isNew)
         {
-            Svc.State.FixedCosts.RemoveAll(f => f.Id == _editId);
-            SaveWithReload();
+            var fc = _draft;
+            _isNew = false; _draft = null; _editId = null;
+            if (fc is not null && !string.IsNullOrWhiteSpace(fc.Name)) { Svc.State.FixedCosts.Add(fc); SaveWithReload(); }
+            return;
         }
         _editId = null;
-        _isNew = false;
     }
     private string AccountName(string id) => Svc.ActiveAccounts.FirstOrDefault(a => a.Id == id)?.Name ?? "口座未選択";
 
-    // シートから削除：シートを閉じてから確認ダイアログを出す（重なり順の都合）。
+    // シートから削除：ドラフトは破棄、既存はシートを閉じてから確認ダイアログを出す（重なり順の都合）。
     private void DeleteEditing()
     {
+        if (_isNew) { _isNew = false; _draft = null; _editId = null; return; }
         var id = _editId;
         _editId = null;
         if (id is not null) RemoveFixedCost(id);
     }
 
-    // ＋追加：スマホは空の固定費を作ってそのまま編集シートを開く。PCは従来の追加ダイアログ。
+    // ＋追加：スマホはドラフトを作って編集シートを開く（State には未追加）。PCは従来の追加ダイアログ。
     private void AddClicked()
     {
         if (!Svc.ActiveAccounts.Any()) { ShowNoAccountWarn = true; return; }
         if (IsMobile)
         {
-            var fc = new FixedCost
+            _draft = new FixedCost
             {
                 Name = "",
                 AccountId = Svc.ActiveAccounts.First().Id,
                 Amount = 0,
                 SortOrder = Svc.State.FixedCosts.Count
             };
-            Svc.State.FixedCosts.Add(fc);
-            SaveWithReload();
-            _editId = fc.Id;
+            _editId = _draft.Id;
             _isNew = true;
         }
         else OpenAddDialog();
@@ -91,10 +93,11 @@ public partial class FixedCostTab
 
     private HashSet<string> ExpandedIds = new();
     private void Save() => _ = Svc.SaveAsync();
+    // ドラフト編集中（_isNew）は永続化しない（決定時に State へ追加してから保存）。
     // 構造変更・単発イベント用（即時保存）
-    private void SaveWithReload() { Svc.OnFixedCostChanged(); _ = Svc.SaveAsync(); }
+    private void SaveWithReload() { if (_isNew) return; Svc.OnFixedCostChanged(); _ = Svc.SaveAsync(); }
     // 金額入力など高頻度の編集用（再展開は即時・メモリ内、保存はデバウンス）
-    private void RequestSaveWithReload() { Svc.OnFixedCostChanged(); Svc.RequestSave(); }
+    private void RequestSaveWithReload() { if (_isNew) return; Svc.OnFixedCostChanged(); Svc.RequestSave(); }
     private void ToggleExpand(string id) { if (!ExpandedIds.Remove(id)) ExpandedIds.Add(id); }
 
     // スマホ：▲▼ で並べ替え（フィルター無し時のみ＝IsManualOrder）。SortOrder を 0..n に振り直す。
