@@ -14,17 +14,23 @@ else if (IsMobile)
 {
     @foreach (var a in Svc.ActiveAccounts)
     {
-        <button class="list-card" @onclick="() => OpenEdit(a.Id)">
-            <div class="cat-card-row">
-                <span class="acct-row-chip msym">account_balance</span>
-                <span class="list-card-name">@(string.IsNullOrEmpty(a.Name) ? "(名称未設定)" : a.Name)</span>
-                <span class="list-card-chev msym">chevron_right</span>
+        <div class="list-card-wrap">
+            <button class="list-card" @onclick="() => OpenEdit(a.Id)">
+                <div class="cat-card-row">
+                    <span class="acct-row-chip msym">account_balance</span>
+                    <span class="list-card-name">@(string.IsNullOrEmpty(a.Name) ? "(名称未設定)" : a.Name)</span>
+                    <span class="list-card-chev msym">chevron_right</span>
+                </div>
+                @if (a.IsBonusAccount)
+                {
+                    <div class="list-card-sub"><span class="bonus-tag">ボーナス受取</span></div>
+                }
+            </button>
+            <div class="list-card-move">
+                <button @onclick="() => MoveAccount(a, -1)" disabled="@(a == Svc.ActiveAccounts.First())" aria-label="上へ">▲</button>
+                <button @onclick="() => MoveAccount(a, 1)" disabled="@(a == Svc.ActiveAccounts.Last())" aria-label="下へ">▼</button>
             </div>
-            @if (a.IsBonusAccount)
-            {
-                <div class="list-card-sub"><span class="bonus-tag">ボーナス受取</span></div>
-            }
-        </button>
+        </div>
     }
 }
 else
@@ -36,7 +42,14 @@ else
     <div class="set-list">
         @foreach (var a in Svc.ActiveAccounts)
         {
-            <div class="acct-row">
+            <div class="acct-row @(DragOverId == a.Id ? "drag-over" : "")"
+                 draggable="true"
+                 @ondragstart="() => OnDragStart(a.Id)"
+                 @ondragover:preventDefault="true"
+                 @ondragover="() => OnDragOver(a.Id)"
+                 @ondrop="() => OnDrop(a.Id)"
+                 @ondragend="OnDragEnd">
+                <span class="drag-handle msym">drag_indicator</span>
                 <span class="acct-row-chip msym">account_balance</span>
                 <input class="set-input" @bind="a.Name" @bind:after="Save" placeholder="口座名" />
                 <span class="acct-bonus">
@@ -172,6 +185,49 @@ else
         var id = _editId;
         _editId = null;
         if (id != null) RequestDelete(id);
+    }
+
+    // スマホ：▲▼ で並べ替え（dir=-1 上 / +1 下）。SortOrder を 0..n に振り直す。
+    private void MoveAccount(Account a, int dir)
+    {
+        var list = Svc.ActiveAccounts;
+        int i = list.IndexOf(a);
+        int j = i + dir;
+        if (i < 0 || j < 0 || j >= list.Count) return;
+        (list[i], list[j]) = (list[j], list[i]);
+        for (int k = 0; k < list.Count; k++) list[k].SortOrder = k;
+        Save();
+    }
+
+    // ── ドラッグ＆ドロップ並び替え（PC）──────────────────
+    private string? DragSourceId;
+    private string? DragOverId;
+
+    private void OnDragStart(string id) => DragSourceId = id;
+    private void OnDragOver(string id) => DragOverId = id;
+
+    private void OnDrop(string targetId)
+    {
+        if (DragSourceId == null || DragSourceId == targetId) { OnDragEnd(); return; }
+
+        var ordered = Svc.ActiveAccounts;
+        var srcIdx = ordered.FindIndex(a => a.Id == DragSourceId);
+        var tgtIdx = ordered.FindIndex(a => a.Id == targetId);
+        if (srcIdx < 0 || tgtIdx < 0) { OnDragEnd(); return; }
+
+        var item = ordered[srcIdx];
+        ordered.RemoveAt(srcIdx);
+        ordered.Insert(tgtIdx, item);
+        for (int i = 0; i < ordered.Count; i++) ordered[i].SortOrder = i;
+
+        OnDragEnd();
+        Save();
+    }
+
+    private void OnDragEnd()
+    {
+        DragSourceId = null;
+        DragOverId = null;
     }
 
     private string NewName = "";

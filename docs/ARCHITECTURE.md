@@ -125,7 +125,7 @@ C:\Development\moneyboard\launch.bat をダブルクリック
 C:\Development\moneyboard\
   MoneyBoard\
     Components\
-      AccountsTab.razor       口座管理（マイページ内に内包・口座番号は廃止・チップ＋枠付き行/列見出し整列・#50）
+      AccountsTab.razor       口座管理（マイページ内に内包・口座番号は廃止・チップ＋枠付き行/列見出し整列・#50。スマホ=▲▼/PC=D&D 並べ替え・#53）
       FixedCostTab.razor      固定費設定タブ（口座フィルター[Excel風複数選択]・D&D並び替え）
       MonthlyTab.razor        月次管理タブ（収入[給料/ボーナス/ATM入金/臨時収入]・支出[固定費/カード/ATM出金/手入力]・送金。サマリ=ヒーロー、口座カード/固定費/カードは折りたたみ・#43 リデザイン）
       CardTab.razor           カードタブ（明細の手入力/カードCSV取込[JCB/三井住友/PayPay/au PAY/楽天]/AIで読取[スクショ]/一括カテゴリ・カードごと折りたたみ・#49でリデザイン）
