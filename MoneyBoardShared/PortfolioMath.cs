@@ -57,30 +57,28 @@ public static class PortfolioMath
         return new HoldingSummary(qty, avg, costBasis, realized, divSum);
     }
 
+    /// <summary>評価額の共通計算。数量0は0、価格未取得(&lt;=0)は null。convertToJpy なら USD/JPY で円換算
+    /// （為替不足は null）、それ以外は raw（建て通貨）をそのまま返す。Valuation/ValuationJpy の差は円換算条件のみ。</summary>
+    private static decimal? RawValuation(Holding h, decimal qty, decimal nativePrice, decimal usdJpyRate, bool convertToJpy)
+    {
+        if (qty == 0) return 0m;
+        if (nativePrice <= 0) return null;
+        decimal raw = qty * nativePrice / Divisor(h.Class);
+        if (convertToJpy)
+            return usdJpyRate > 0 ? raw * usdJpyRate : (decimal?)null;
+        return raw;
+    }
+
     /// <summary>
     /// 現在評価額（建て通貨ベース）。数量0は0、価格未取得(&lt;=0)や為替不足は null。
     /// 米国株の現在価格はドル建て前提（Yahoo Finance）。円建て米国株は USD/JPY で円換算して返す。
     /// </summary>
     public static decimal? Valuation(Holding h, decimal qty, decimal nativePrice, decimal usdJpyRate)
-    {
-        if (qty == 0) return 0m;
-        if (nativePrice <= 0) return null;
-        decimal raw = qty * nativePrice / Divisor(h.Class);
-        if (h.Class == AssetClass.UsStock && h.CostCurrency == Currency.Jpy)
-            return usdJpyRate > 0 ? raw * usdJpyRate : (decimal?)null;
-        return raw;
-    }
+        => RawValuation(h, qty, nativePrice, usdJpyRate, h.Class == AssetClass.UsStock && h.CostCurrency == Currency.Jpy);
 
     /// <summary>現在評価額（円換算・総資産集計用）。数量0は0、価格未取得や為替不足は null。</summary>
     public static decimal? ValuationJpy(Holding h, decimal qty, decimal nativePrice, decimal usdJpyRate)
-    {
-        if (qty == 0) return 0m;
-        if (nativePrice <= 0) return null;
-        decimal raw = qty * nativePrice / Divisor(h.Class);
-        if (h.Class == AssetClass.UsStock)
-            return usdJpyRate > 0 ? raw * usdJpyRate : (decimal?)null;
-        return raw;
-    }
+        => RawValuation(h, qty, nativePrice, usdJpyRate, h.Class == AssetClass.UsStock);
 
     /// <summary>
     /// 指定日（"yyyy-MM-dd"）時点の取得原価合計（円換算）。買付/売却を日付で絞り平均取得単価法で算出。
