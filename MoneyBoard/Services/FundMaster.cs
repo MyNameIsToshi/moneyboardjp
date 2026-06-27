@@ -28,7 +28,4 @@ public static class FundMaster
         new("野村世界業種別投資シリーズ（世界半導体株投資）", "01313098", "JP90C0006G52"),
     };
 
-    public static FundMasterItem? ByName(string? name) =>
-        string.IsNullOrWhiteSpace(name) ? null
-        : Items.FirstOrDefault(f => string.Equals(f.Name, name.Trim(), StringComparison.Ordinal));
 }
