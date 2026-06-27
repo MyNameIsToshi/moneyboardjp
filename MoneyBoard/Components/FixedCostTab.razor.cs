@@ -13,6 +13,7 @@ using MoneyBoardShared;
 public partial class FixedCostTab
 {
     [CascadingParameter(Name = "IsMobile")] public bool IsMobile { get; set; }
+    [CascadingParameter(Name = "IsMasked")] public bool IsMasked { get; set; }
 
     // スマホ：編集シートで開いている固定費。既存は State の実体を直接編集（即時保存）、
     // ＋追加は未コミットのドラフトを編集し、決定（完了）時にだけ State へ追加・保存する。

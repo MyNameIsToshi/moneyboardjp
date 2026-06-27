@@ -1,13 +1,15 @@
 @inherits LayoutComponentBase
 @inject ViewportService Viewport
+@inject AmountMaskService MaskSvc
 @inject NavigationManager Nav
 @inject IJSRuntime JS
 @inject LedgerService Svc
 @implements IDisposable
 
-@* IsMobile を全ページへ配布。スマホ時はアプリシェル（縦flex）で中身(.app-scroll)だけ
+@* IsMobile / IsMasked を全ページへ配布。スマホ時はアプリシェル（縦flex）で中身(.app-scroll)だけ
    内部スクロールさせ下部バーを最下段に常時在席させる。PC は左サイドナビ＋本文の横並び。 *@
 <CascadingValue Value="Viewport.IsMobile" Name="IsMobile">
+<CascadingValue Value="MaskSvc.IsMasked" Name="IsMasked">
     <div class="app-shell @(Viewport.IsMobile ? "is-mobile" : "has-sidenav")">
         @if (!Viewport.IsMobile)
         {
@@ -22,17 +24,21 @@
         }
     </div>
 </CascadingValue>
+</CascadingValue>
 
 @code {
     protected override async Task OnInitializedAsync()
     {
         Viewport.Changed += OnViewportChanged;
+        MaskSvc.Changed += OnMaskChanged;
         Nav.LocationChanged += OnLocationChanged;
         await Viewport.InitAsync();
+        await MaskSvc.InitAsync();
         StateHasChanged();
     }
 
     private void OnViewportChanged() => InvokeAsync(StateHasChanged);
+    private void OnMaskChanged() => InvokeAsync(StateHasChanged);
 
     // スマホはタブ/ページ遷移ごとに内部スクロールを先頭へ戻す（位置の持ち越しを防ぐ）。
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
@@ -51,6 +57,7 @@
     public void Dispose()
     {
         Viewport.Changed -= OnViewportChanged;
+        MaskSvc.Changed -= OnMaskChanged;
         Nav.LocationChanged -= OnLocationChanged;
     }
 }

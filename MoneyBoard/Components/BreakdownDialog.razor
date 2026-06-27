@@ -10,7 +10,7 @@
         </div>
 
         <div class="dd-total-row">
-            <span class="dd-total">@Yen(Total)</span>
+            <span class="dd-total">@MaskedYen(IsMasked, Total)</span>
             <span class="dd-meta">@Items.Count 項目 ・ @SubLabel</span>
         </div>
 
@@ -19,7 +19,7 @@
             {
                 <div class="bd-row">
                     <span class="bd-name" title="@it.Name">@it.Name</span>
-                    <span class="bd-amt">@Yen(it.Amount)</span>
+                    <span class="bd-amt">@MaskedYen(IsMasked, it.Amount)</span>
                     <span class="bd-pct">@Pct(it.Amount)</span>
                     <span class="dd-bar bd-bar"><i style="width:@BarPct(it.Amount)%"></i></span>
                 </div>
@@ -28,12 +28,14 @@
 
         <div class="dd-foot">
             <span>@Items.Count 項目</span>
-            <span>合計 <b>@Yen(Total)</b></span>
+            <span>合計 <b>@MaskedYen(IsMasked, Total)</b></span>
         </div>
     </div>
 </div>
 
 @code {
+    [CascadingParameter(Name = "IsMasked")] public bool IsMasked { get; set; }
+
     [Parameter] public string Title { get; set; } = "";
     [Parameter] public string SubLabel { get; set; } = "";
     [Parameter] public decimal Total { get; set; }

@@ -18,6 +18,7 @@ using static MoneyBoard.MoneyFormat;
 public partial class CardTab
 {
     [CascadingParameter(Name = "IsMobile")] public bool IsMobile { get; set; }
+    [CascadingParameter(Name = "IsMasked")] public bool IsMasked { get; set; }
 
     private MonthData Mo = new();
 

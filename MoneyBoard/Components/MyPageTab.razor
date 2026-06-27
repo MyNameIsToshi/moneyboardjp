@@ -40,7 +40,7 @@
             <span class="mph-div"></span>
             <div class="mph-stat">
                 <span class="mph-stat-lab">固定費（月）</span>
-                <span class="mph-stat-val">@Yen(fixedTotal)</span>
+                <span class="mph-stat-val">@MaskedYen(IsMasked, fixedTotal)</span>
             </div>
         </div>
     </div>
@@ -125,6 +125,7 @@
 
 @code {
     [CascadingParameter(Name = "IsMobile")] public bool IsMobile { get; set; }
+    [CascadingParameter(Name = "IsMasked")] public bool IsMasked { get; set; }
 
     // 各設定セクションは折りたたみ式（スマホのみ・既定は畳んだ状態）
     private readonly HashSet<string> _open = new();

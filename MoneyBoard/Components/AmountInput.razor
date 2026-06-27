@@ -6,15 +6,24 @@
    blur 時にカンマ整形＋空欄→0 で確定する。
 *@
 
-<input class="@CssClass"
-       inputmode="@(Decimals > 0 ? "decimal" : "numeric")"
-       placeholder="@Placeholder"
-       value="@DisplayValue"
-       @onfocus="OnFocus"
-       @oninput="OnInput"
-       @onblur="OnBlur" />
+@if (IsMasked)
+{
+    <span class="@CssClass masked-val">¥****</span>
+}
+else
+{
+    <input class="@CssClass"
+           inputmode="@(Decimals > 0 ? "decimal" : "numeric")"
+           placeholder="@Placeholder"
+           value="@DisplayValue"
+           @onfocus="OnFocus"
+           @oninput="OnInput"
+           @onblur="OnBlur" />
+}
 
 @code {
+    [CascadingParameter(Name = "IsMasked")] public bool IsMasked { get; set; }
+
     [Parameter] public decimal Value { get; set; }
     [Parameter] public EventCallback<decimal> ValueChanged { get; set; }
     [Parameter] public string CssClass { get; set; } = "num";

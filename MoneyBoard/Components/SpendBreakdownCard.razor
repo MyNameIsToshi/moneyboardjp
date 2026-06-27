@@ -27,14 +27,14 @@
                     <div class="spend-row spend-row-click" @onclick="() => OnRowClick.InvokeAsync(s.Key)" title="明細を表示">
                         <span class="color-dot" style="background:@s.Color"></span>
                         <span class="spend-name">@s.Label</span>
-                        <span class="spend-amt">@Yen(s.Value)</span>
+                        <span class="spend-amt">@MaskedYen(IsMasked,s.Value)</span>
                         <span class="spend-pct">@Pct(s.Value)</span>
                         <span class="spend-cnt">@s.Count 件 <span class="spend-chevron">›</span></span>
                     </div>
                 }
                 <div class="spend-row spend-total">
                     <span></span><span>合計</span>
-                    <span class="spend-amt">@Yen(Total)</span>
+                    <span class="spend-amt">@MaskedYen(IsMasked,Total)</span>
                     <span></span>
                     <span class="spend-cnt">@Items.Sum(s => s.Count) 件</span>
                 </div>
@@ -55,6 +55,8 @@
     [Parameter] public string EmptyMessage { get; set; } = "データがありません";
     [Parameter] public EventCallback<string> OnRowClick { get; set; }
     [Parameter] public EventCallback<SelectedData<SpendSlice>> OnSliceSelected { get; set; }
+
+    [CascadingParameter(Name = "IsMasked")] public bool IsMasked { get; set; }
 
     private string Pct(decimal v) => Total == 0 ? "0%" : (v / Total * 100).ToString("0.0") + "%";
 }
