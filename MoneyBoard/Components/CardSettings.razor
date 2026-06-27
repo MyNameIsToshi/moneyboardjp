@@ -23,7 +23,8 @@ else
             {
                 <div class="list-card-wrap">
                     <button class="list-card" @onclick="() => OpenEdit(card.Id)">
-                        <div class="list-card-main">
+                        <div class="list-card-main with-chip">
+                            <span class="acct-row-chip c-card msym">credit_card</span>
                             <span class="list-card-name">@(string.IsNullOrEmpty(card.Name) ? "(名称未設定)" : card.Name)</span>
                         </div>
                         <div class="list-card-sub">
@@ -47,6 +48,7 @@ else
                      @ondrop="() => OnDrop(card.Id)"
                      @ondragend="OnDragEnd">
                     <span class="drag-handle msym">drag_indicator</span>
+                    <span class="acct-row-chip c-card msym">credit_card</span>
                     <input class="set-input" @bind="card.Name" @bind:after="Save" placeholder="カード名" />
                     <div class="set-select-wrap card-acct">
                         <select class="set-select" @bind="card.AccountId" @bind:after="Save">
@@ -114,35 +116,40 @@ else
 
     private IEnumerable<Card> Ordered => Svc.State.Cards.Where(c => !c.IsDeleted).OrderBy(c => c.SortOrder);
 
-    // スマホ：編集シートで開いているカード（直接編集・即時保存）。
+    // スマホ：編集シートで開いているカード。既存は State の実体を直接編集（即時保存）、
+    // ＋追加は未コミットのドラフトを編集し、決定（完了）時にだけ State へ追加・保存する。
     private string? _editId;
-    private bool _isNew;   // ＋追加で開いた新規カードか（未入力のまま閉じたら破棄する）
-    private Card? Editing => _editId is null ? null : Svc.State.Cards.FirstOrDefault(c => c.Id == _editId);
-    private void OpenEdit(string id) { _editId = id; _isNew = false; }
+    private bool _isNew;     // ＋追加のドラフトを編集中か
+    private Card? _draft;    // ＋追加のドラフト（決定するまで State に入れない）
+    private Card? Editing => _isNew ? _draft : (_editId is null ? null : Svc.State.Cards.FirstOrDefault(c => c.Id == _editId));
+    private void OpenEdit(string id) { _editId = id; _isNew = false; _draft = null; }
 
     private void CloseEdit()
     {
-        // カード名が空のまま閉じた新規カードは追加しない（破棄）。
-        if (_isNew && Editing is { } card && string.IsNullOrWhiteSpace(card.Name))
+        // ＋追加のドラフトは「決定」時にだけコミット。カード名が空なら破棄（State には何も作らない）。
+        if (_isNew)
         {
-            Svc.State.Cards.RemoveAll(c => c.Id == _editId);
-            Save();
+            var d = _draft;
+            _isNew = false; _draft = null; _editId = null;
+            if (d is not null && !string.IsNullOrWhiteSpace(d.Name)) { Svc.State.Cards.Add(d); Save(); }
+            return;
         }
         _editId = null;
-        _isNew = false;
     }
     private string AccountName(string id) => Svc.ActiveAccounts.FirstOrDefault(a => a.Id == id)?.Name ?? "口座未選択";
 
-    // シートから削除：シートを閉じてから確認ダイアログを出す（重なり順の都合）。
+    // シートから削除：ドラフトは破棄、既存はシートを閉じてから確認ダイアログを出す（重なり順の都合）。
     private void DeleteEditing()
     {
+        if (_isNew) { _isNew = false; _draft = null; _editId = null; return; }
         var card = Editing;
         _editId = null;
         if (card is not null) AskDelete(card);
     }
 
-    // カード変更は当月以降の月次カード Debit を作り直してから保存する
-    private void Save() { Svc.OnCardsChanged(); _ = Svc.SaveAsync(); }
+    // カード変更は当月以降の月次カード Debit を作り直してから保存する。
+    // ドラフト編集中（_isNew）は永続化しない（決定時に State へ追加してから保存）。
+    private void Save() { if (_isNew) return; Svc.OnCardsChanged(); _ = Svc.SaveAsync(); }
 
     // スマホ：▲▼ で並べ替え（dir=-1 上 / +1 下）。SortOrder を 0..n に振り直す。
     private void Move(Card c, int dir)
@@ -168,9 +175,9 @@ else
             AccountId = Svc.ActiveAccounts.FirstOrDefault()?.Id ?? "",
             SortOrder = Ordered.Count()
         };
-        Svc.State.Cards.Add(card);
-        Save();
-        if (IsMobile) { _editId = card.Id; _isNew = true; }   // スマホは作成後すぐ編集シートを開く
+        // スマホはドラフトとして編集シートを開く（決定時にコミット）。PCは従来どおり即追加＋インライン編集。
+        if (IsMobile) { _draft = card; _editId = card.Id; _isNew = true; }
+        else { Svc.State.Cards.Add(card); Save(); }
     }
 
     // ── 削除（確認ダイアログで消えるデータを明示）──

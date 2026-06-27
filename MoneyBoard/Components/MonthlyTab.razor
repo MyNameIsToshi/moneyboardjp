@@ -297,11 +297,10 @@
     private void ToggleCardBlock(string aid) { if (!_cardOpen.Add(aid)) _cardOpen.Remove(aid); }
     private void ToggleFixed(string aid) { if (!_fixedOpen.Add(aid)) _fixedOpen.Remove(aid); }
 
-    // 新規ユーザー（作成済み月次が当月サイクルのみ）は過去月に戻れない
-    private bool IsNewUser => !Svc.State.Months.Keys
-        .Any(ym => string.Compare(ym, LedgerService.CurrentCycleStartYm()) < 0);
-    private bool IsPrevDisabled => IsNewUser &&
-        string.Compare(Svc.CurrentMonth, LedgerService.CurrentCycleStartYm()) <= 0;
+    // 起点月（State.Months 最古）より過去へは戻れない
+    private bool IsPrevDisabled =>
+        !Svc.State.Months.Keys.Any() ||
+        string.Compare(Svc.CurrentMonth, Svc.State.Months.Keys.Min()) <= 0;
 
 
     // カード明細はカードタブで編集する。月次の月をカードタブへ引き継いでから切替。

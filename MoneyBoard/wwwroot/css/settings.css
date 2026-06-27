@@ -17,7 +17,7 @@
    ラベルは入力欄の上で中央、右ラベルは対応する列（ボーナス/口座）の上に置く。
    ===================================================== */
 
-/* 口座：chip(30) + name(flex) + bonus(36) + del(30)、gap 11 */
+/* 口座：drag(20) + chip(30) + name(flex) + bonus(72) + del(30)、gap 11 */
 .acct-colhead {
   display: flex;
   align-items: center;
@@ -26,9 +26,9 @@
 }
 
 .acct-colhead::before {
-  /* 行頭アイコンチップ（30px）ぶんのスペーサ */
+  /* ドラッグハンドル（20px）＋ギャップ（11px）＋アイコンチップ（30px）ぶんのスペーサ */
   content: "";
-  flex: 0 0 30px;
+  flex: 0 0 61px;
 }
 
 .acct-colhead .ch-bonus {
@@ -43,6 +43,14 @@
   flex: 0 0 30px;
 }
 
+/* 口座行：ドラッグ中のハイライト（.set-row.drag-over と同定義） */
+.acct-row.drag-over {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 8px;
+  opacity: .9;
+}
+
 /* カード：drag(20) + name(flex) + select(148) + del(30)、gap 9 */
 .card-colhead {
   display: flex;
@@ -52,9 +60,9 @@
 }
 
 .card-colhead::before {
-  /* ドラッグハンドル（20px）ぶんのスペーサ */
+  /* ドラッグハンドル（20px）＋ギャップ（9px）＋アイコンチップ（30px）ぶんのスペーサ */
   content: "";
-  flex: 0 0 20px;
+  flex: 0 0 59px;
 }
 
 .card-colhead .ch-acct {
