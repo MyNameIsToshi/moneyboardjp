@@ -115,7 +115,7 @@
             RenderFragment compBlock(List<SpendSlice> data, ApexChartOptions<SpendSlice> opt, string colLabel, string keySuffix) =>
                 @<div class="spend">
                     <div class="spend-chart">
-                        <ApexChart TItem="SpendSlice" Options="opt" @key="@($"comp-{keySuffix}-{_compRev}")">
+                        <ApexChart TItem="SpendSlice" Options="opt" @key="@($"comp-{keySuffix}-{_compRev}-{_donutRev}")">
                             <ApexPointSeries TItem="SpendSlice"
                                              Items="data"
                                              SeriesType="SeriesType.Donut"
@@ -502,12 +502,12 @@
 
             <div class="pf-tx-summary">
                 <span>数量 <b>@Qty(s.Quantity)</b></span>
-                <span>平均取得単価 <b>@Price(h, s.AvgUnitPrice)</b></span>
-                <span>取得原価 <b>@Money(h, s.CostBasis)</b></span>
-                <span>評価額 <b>@MoneyOpt(h, EditVal(s.Quantity))</b></span>
-                <span>評価損益 <b class="@PnlClass(EditUpnl(s) ?? 0)">@MoneySignedOpt(h, EditUpnl(s))@PnlPct(EditUpnl(s), s.CostBasis)</b></span>
-                <span>実現損益 <b class="@PnlClass(s.RealizedPnl)">@MoneySigned(h, s.RealizedPnl)</b></span>
-                <span>配当合計 <b>@Money(h, s.Dividends)</b></span>
+                <span>平均取得単価 <b>@(IsMasked ? CurSym(h) + "****" : Price(h, s.AvgUnitPrice))</b></span>
+                <span>取得原価 <b>@MaskedMoney(h, s.CostBasis)</b></span>
+                <span>評価額 <b>@(IsMasked ? CurSym(h) + "****" : MoneyOpt(h, EditVal(s.Quantity)))</b></span>
+                <span>評価損益 <b class="@PnlClass(EditUpnl(s) ?? 0)">@(IsMasked ? CurSym(h) + "****" : MoneySignedOpt(h, EditUpnl(s)))@PnlPct(EditUpnl(s), s.CostBasis)</b></span>
+                <span>実現損益 <b class="@PnlClass(s.RealizedPnl)">@MaskedMoneySigned(h, s.RealizedPnl)</b></span>
+                <span>配当合計 <b>@MaskedMoney(h, s.Dividends)</b></span>
             </div>
 
             @* 買付 *@

@@ -210,7 +210,11 @@ public partial class Portfolio
 
     // ドーナツ設定（中央に総資産 total・万単位／凡例は一覧へ集約しOFF／白2pxストロークでスライスを分離）。
     // クラス別・銘柄別で Colors が異なるため別インスタンス（PC は両方を同時描画する）。
-    private static ApexChartOptions<SpendSlice> NewCompDonut() => new()
+    // IsMasked 変化時は RebuildDonutOptions() で差し替えるため readonly を外す。
+    private int _donutRev;
+    private bool _prevMasked;
+
+    private ApexChartOptions<SpendSlice> NewCompDonut() => new()
     {
         Chart = new Chart { Height = 260, Toolbar = new Toolbar { Show = false } },
         Legend = new Legend { Show = false },
@@ -227,22 +231,53 @@ public partial class Portfolio
                     {
                         Show = true,
                         Name = new DonutLabelName { Show = true, Color = "#8f8b84", FontSize = "12px", OffsetY = -2 },
-                        Value = new DonutLabelValue { Show = true, Color = "#21262e", FontSize = "19px", FontWeight = 700, OffsetY = 4, Formatter = MoneyFormat.ChartYenMan },
-                        Total = new DonutLabelTotal { Show = true, Label = "総資産", Color = "#8f8b84", FontSize = "12px", Formatter = "function(w){var t=w.globals.seriesTotals.reduce(function(a,b){return a+b},0);return '¥'+Math.round(t/10000)+'万'}" }
+                        Value = new DonutLabelValue { Show = true, Color = "#21262e", FontSize = "19px", FontWeight = 700, OffsetY = 4,
+                            Formatter = IsMasked ? "function(v){return '¥****'}" : MoneyFormat.ChartYenMan },
+                        Total = new DonutLabelTotal { Show = true, Label = "総資産", Color = "#8f8b84", FontSize = "12px",
+                            Formatter = IsMasked
+                                ? "function(w){return '¥****'}"
+                                : "function(w){var t=w.globals.seriesTotals.reduce(function(a,b){return a+b},0);return '¥'+Math.round(t/10000)+'万'}" }
                     }
                 }
             }
         },
-        Tooltip = new Tooltip { Y = new TooltipY { Formatter = MoneyFormat.ChartYenFull } },
+        Tooltip = new Tooltip { Y = new TooltipY { Formatter = IsMasked ? "function(v){return '¥****'}" : MoneyFormat.ChartYenFull } },
         States = new States
         {
             Hover = new StatesHover { Filter = new StatesFilter { Type = StatesFilterType.darken, Value = 0.12 } },
             Active = new StatesActive { Filter = new StatesFilter { Type = StatesFilterType.darken, Value = 0.12 } }
         }
     };
-    private readonly ApexChartOptions<SpendSlice> CompDonutClassOpt = NewCompDonut();
-    private readonly ApexChartOptions<SpendSlice> CompDonutHoldingOpt = NewCompDonut();
+
+    private ApexChartOptions<SpendSlice> CompDonutClassOpt = default!;
+    private ApexChartOptions<SpendSlice> CompDonutHoldingOpt = default!;
     private ApexChartOptions<SpendSlice> CompMobileOpt => _compMode == "class" ? CompDonutClassOpt : CompDonutHoldingOpt;
+
+    private void RebuildDonutOptions()
+    {
+        var clsColors = CompDonutClassOpt?.Colors;
+        var holdColors = CompDonutHoldingOpt?.Colors;
+        CompDonutClassOpt = NewCompDonut();
+        CompDonutHoldingOpt = NewCompDonut();
+        if (clsColors != null) CompDonutClassOpt.Colors = clsColors;
+        if (holdColors != null) CompDonutHoldingOpt.Colors = holdColors;
+        _donutRev++;
+    }
+
+    protected override void OnInitialized()
+    {
+        RebuildDonutOptions();
+        _donutRev = 0;
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (IsMasked != _prevMasked)
+        {
+            _prevMasked = IsMasked;
+            RebuildDonutOptions();
+        }
+    }
 
     // 両データは BuildComposition で同時に作る。スマホのトグルは表示切替のみ（再ビルド不要）。
     private void SetCompMode(string mode) => _compMode = mode;

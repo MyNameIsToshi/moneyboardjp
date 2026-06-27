@@ -17,7 +17,7 @@
         </div>
 
         <div class="dd-total-row">
-            <span class="dd-total">@Yen(Total)</span>
+            <span class="dd-total">@MaskedYen(IsMasked, Total)</span>
             <span class="dd-meta">@Count 件 ・ @SubLabel</span>
         </div>
 
@@ -28,7 +28,7 @@
                 {
                     <span class="dd-chip">
                         <span class="dd-dot sm" style="background:@c.Color"></span>@c.Name
-                        <b>@Yen(c.Amount)</b>
+                        <b>@MaskedYen(IsMasked, c.Amount)</b>
                     </span>
                 }
             </div>
@@ -54,7 +54,7 @@
                 <div class="dd-row @(outlier ? "out" : "")">
                     <span class="dd-date">@FmtDate(r.Date)</span>
                     <span class="dd-name" title="@r.Store">@r.Store</span>
-                    <span class="dd-amt">@Yen(r.Amount)</span>
+                    <span class="dd-amt">@MaskedYen(IsMasked, r.Amount)</span>
                     <div class="dd-row2">
                         @if (!string.IsNullOrEmpty(r.Sub))
                         {
@@ -74,7 +74,7 @@
 
         <div class="dd-foot">
             <span>@Count 件中 @Rows.Count 件を表示</span>
-            <span>合計 <b>@Yen(Total)</b></span>
+            <span>合計 <b>@MaskedYen(IsMasked, Total)</b></span>
         </div>
 
         @if (ShowCategorize)
@@ -87,6 +87,8 @@
 </div>
 
 @code {
+    [CascadingParameter(Name = "IsMasked")] public bool IsMasked { get; set; }
+
     [Parameter] public string Title { get; set; } = "";
     [Parameter] public string Color { get; set; } = "";
     [Parameter] public int Count { get; set; }

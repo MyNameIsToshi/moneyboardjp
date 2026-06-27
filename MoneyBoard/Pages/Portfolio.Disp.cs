@@ -228,8 +228,9 @@ public partial class Portfolio
     private decimal CostBasisJpyAsOf(string date, decimal snapRate) =>
         PortfolioMath.CostBasisJpyAsOf(Store.Data, date, snapRate);
 
-    // ── 保有一覧用マスク対応ラッパー（ダイアログ内 Money/MoneyOpt 等は編集中のため非対象）──
+    // ── マスク対応ラッパー ──
     private string MaskedMoney(Holding h, decimal v) => IsMasked ? CurSym(h) + "****" : Money(h, v);
+    private string MaskedMoneySigned(Holding h, decimal v) => IsMasked ? CurSym(h) + "****" : MoneySigned(h, v);
     private string MaskedMoneyDisp(Holding h, decimal v) => IsMasked ? CcySym(DispCcy(h)) + "****" : MoneyDisp(h, v);
     private string MaskedMoneyDispSigned(Holding h, decimal v) => IsMasked ? CcySym(DispCcy(h)) + "****" : MoneyDispSigned(h, v);
     private string MaskedMoneyDispOpt(Holding h, decimal? v) => IsMasked ? CcySym(DispCcy(h)) + "****" : MoneyDispOpt(h, v);

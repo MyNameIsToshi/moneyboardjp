@@ -362,6 +362,17 @@ body {
   margin: 8px 4px;
 }
 
+/* AmountInput マスク時の代替表示（入力欄と同じレイアウトを維持） */
+.masked-val {
+  display: inline-block;
+  width: 128px;
+  text-align: right;
+  padding: 6px 9px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  letter-spacing: 0.05em;
+}
+
 /* マスクトグルボタン：アクティブ時（隠す→表示モード）はアイコン色を accent */
 .sidenav-mask.masked .sn-ico,
 .sidenav-mask.masked .sn-lab {

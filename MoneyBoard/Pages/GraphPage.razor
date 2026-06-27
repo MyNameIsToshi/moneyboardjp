@@ -91,7 +91,7 @@
                 </button>
                 <div class="stat">
                     <div class="lab">貯蓄率</div>
-                    <div class="val accent">@(SavingsRate is { } r ? (r * 100).ToString("0.0") + "%" : "—")</div>
+                    <div class="val accent">@(IsMasked ? "****" : (SavingsRate is { } r ? (r * 100).ToString("0.0") + "%" : "—"))</div>
                     <div class="stat-note">収入に対する収支</div>
                 </div>
             </div>
