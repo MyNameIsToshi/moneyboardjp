@@ -131,12 +131,7 @@ public partial class Portfolio
         return f <= 0 ? (decimal?)null : v.Value * f;
     }
     // 評価損益率＝評価損益 ÷ 取得原価 ×100。金額の後ろに " (+12.3%)" として併記。価格未取得・原価0は空。
-    private static string PnlPct(decimal? upnl, decimal costBasis)
-    {
-        if (!upnl.HasValue || costBasis == 0) return "";
-        decimal p = upnl.Value / costBasis * 100m;
-        return " (" + (p >= 0 ? "+" : "") + p.ToString("0.0") + "%)";
-    }
+    private static string PnlPct(decimal? upnl, decimal costBasis) => PortfolioMath.PnlPct(upnl, costBasis);
     private static string UnitLabel(Holding h) => h.Class == AssetClass.Fund ? "基準価額" : h.Class == AssetClass.UsStock ? "単価($)" : "単価";
     private static string AccountLabel(AccountKind a) => a switch
     {
@@ -167,11 +162,7 @@ public partial class Portfolio
     // ── 前日比（銘柄の値動き。現在/前日のどちらかが無ければ非表示）──
     // %はネイティブ価格ベース（為替を含まない銘柄の値動き）。金額は評価額の表示通貨に一致させ、
     // 現在/前日の評価額の差＝銘柄の値動きぶん（為替は現在レートで固定）として出す。
-    private decimal? DayChangePct(Holding h)
-    {
-        decimal cur = CurPrice(h.Id), prev = PrevPrice(h.Id);
-        return (cur > 0 && prev > 0) ? (cur - prev) / prev * 100m : (decimal?)null;
-    }
+    private decimal? DayChangePct(Holding h) => PortfolioMath.DayChangePct(CurPrice(h.Id), PrevPrice(h.Id));
     // 前日比（銘柄の値動き％・表示通貨に依らない）。PC は専用「前日比」列に素の％、スマホは損益の下に「前日 …」。
     private static string DayPct(decimal pct) => (pct >= 0 ? "+" : "") + pct.ToString("0.0") + "%";
     // 前日比の金額（評価額の表示通貨に合わせる）＝現在/前日の評価額の差。現在/前日のどちらかが無ければ null。

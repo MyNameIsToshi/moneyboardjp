@@ -260,4 +260,34 @@ public class PortfolioMathTests
             PortfolioMath.HoldingCostBasisJpyAsOf(data, jp, "2026-02-15", 0m) + PortfolioMath.HoldingCostBasisJpyAsOf(data, us, "2026-02-15", 0m),
             PortfolioMath.CostBasisJpyAsOf(data, "2026-02-15", 0m));
     }
+
+    // ── PnlPct ──
+    [Theory]
+    [InlineData(100, 1000, " (+10.0%)")]
+    [InlineData(-100, 1000, " (-10.0%)")]
+    [InlineData(0, 1000, " (+0.0%)")]
+    [InlineData(1, 3, " (+33.3%)")]
+    public void PnlPct_FormatsSignedPercent(decimal upnl, decimal cost, string expected) =>
+        Assert.Equal(expected, PortfolioMath.PnlPct(upnl, cost));
+
+    [Fact]
+    public void PnlPct_NullUpnl_ReturnsEmpty() => Assert.Equal("", PortfolioMath.PnlPct(null, 1000));
+
+    [Fact]
+    public void PnlPct_ZeroCost_ReturnsEmpty() => Assert.Equal("", PortfolioMath.PnlPct(100, 0));
+
+    // ── DayChangePct ──
+    [Theory]
+    [InlineData(110, 100, 10.0)]
+    [InlineData(90, 100, -10.0)]
+    [InlineData(100, 100, 0.0)]
+    public void DayChangePct_ReturnsCorrectPercent(decimal cur, decimal prev, double expected) =>
+        Assert.Equal((decimal)expected, PortfolioMath.DayChangePct(cur, prev)!.Value, precision: 1);
+
+    [Theory]
+    [InlineData(0, 100)]
+    [InlineData(100, 0)]
+    [InlineData(0, 0)]
+    public void DayChangePct_ZeroOrNegativePrice_ReturnsNull(decimal cur, decimal prev) =>
+        Assert.Null(PortfolioMath.DayChangePct(cur, prev));
 }

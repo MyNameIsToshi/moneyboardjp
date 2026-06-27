@@ -118,6 +118,18 @@ public static class PortfolioMath
         return boughtJpy * (qty / bq);
     }
 
+    /// <summary>評価損益率の表示文字列（" (+12.3%)" 形式）。損益 null または取得原価 0 は空文字。</summary>
+    public static string PnlPct(decimal? upnl, decimal costBasis)
+    {
+        if (!upnl.HasValue || costBasis == 0) return "";
+        decimal p = upnl.Value / costBasis * 100m;
+        return " (" + (p >= 0 ? "+" : "") + p.ToString("0.0") + "%)";
+    }
+
+    /// <summary>前日比（%）。現在価格/前日価格のどちらかが 0 以下なら null。</summary>
+    public static decimal? DayChangePct(decimal curPrice, decimal prevPrice)
+        => (curPrice > 0 && prevPrice > 0) ? (curPrice - prevPrice) / prevPrice * 100m : (decimal?)null;
+
     /// <summary>Yahoo Finance 用シンボル。日本株は証券コードに .T を付与（既に "." 付きはそのまま）、米国株はティッカーそのまま。</summary>
     public static string YahooSymbol(Holding h)
     {
