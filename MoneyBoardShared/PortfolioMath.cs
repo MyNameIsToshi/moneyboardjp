@@ -130,6 +130,22 @@ public static class PortfolioMath
     public static decimal? DayChangePct(decimal curPrice, decimal prevPrice)
         => (curPrice > 0 && prevPrice > 0) ? (curPrice - prevPrice) / prevPrice * 100m : (decimal?)null;
 
+    /// <summary>資産クラスごとの評価額合計（円換算）。価格未取得の銘柄を除外し、全件未取得なら null。
+    /// 現在価格は data.CurrentPrices から取得する。</summary>
+    public static decimal? GroupValuationJpy(PortfolioData data, AssetClass c)
+    {
+        decimal sum = 0m;
+        bool any = false;
+        foreach (var h in data.Holdings.Where(h => !h.IsDeleted && h.Class == c))
+        {
+            var qty = Summarize(h, data.Buys, data.Sells, data.Dividends).Quantity;
+            var price = data.CurrentPrices.GetValueOrDefault(h.Id);
+            var v = ValuationJpy(h, qty, price, data.UsdJpyRate);
+            if (v.HasValue) { sum += v.Value; any = true; }
+        }
+        return any ? sum : (decimal?)null;
+    }
+
     /// <summary>Yahoo Finance 用シンボル。日本株は証券コードに .T を付与（既に "." 付きはそのまま）、米国株はティッカーそのまま。</summary>
     public static string YahooSymbol(Holding h)
     {

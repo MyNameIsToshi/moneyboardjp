@@ -290,4 +290,55 @@ public class PortfolioMathTests
     [InlineData(0, 0)]
     public void DayChangePct_ZeroOrNegativePrice_ReturnsNull(decimal cur, decimal prev) =>
         Assert.Null(PortfolioMath.DayChangePct(cur, prev));
+
+    // ── GroupValuationJpy ──
+    [Fact]
+    public void GroupValuationJpy_SumsOnlyMatchingClass()
+    {
+        var jp = new Holding { Id = "j", Class = AssetClass.JpStock, CostCurrency = Currency.Jpy };
+        var us = new Holding { Id = "u", Class = AssetClass.UsStock, CostCurrency = Currency.Usd };
+        var data = new PortfolioData
+        {
+            UsdJpyRate = 150m,
+            Holdings = { jp, us },
+            Buys =
+            {
+                new BuyLot { HoldingId = "j", Quantity = 10 },   // qty=10
+                new BuyLot { HoldingId = "u", Quantity = 5 },    // qty=5
+            },
+            CurrentPrices = { ["j"] = 200m, ["u"] = 100m },
+        };
+        // 日本株：10株 × ¥200 = ¥2,000
+        Assert.Equal(2_000m, PortfolioMath.GroupValuationJpy(data, AssetClass.JpStock));
+        // 米国株：5株 × $100 × 150 = ¥75,000
+        Assert.Equal(75_000m, PortfolioMath.GroupValuationJpy(data, AssetClass.UsStock));
+        // 投信は保有なし → null
+        Assert.Null(PortfolioMath.GroupValuationJpy(data, AssetClass.Fund));
+    }
+
+    [Fact]
+    public void GroupValuationJpy_ExcludesDeletedHoldings()
+    {
+        var h = new Holding { Id = "h", Class = AssetClass.JpStock, CostCurrency = Currency.Jpy, IsDeleted = true };
+        var data = new PortfolioData
+        {
+            Holdings = { h },
+            Buys = { new BuyLot { HoldingId = "h", Quantity = 10 } },
+            CurrentPrices = { ["h"] = 200m },
+        };
+        Assert.Null(PortfolioMath.GroupValuationJpy(data, AssetClass.JpStock));
+    }
+
+    [Fact]
+    public void GroupValuationJpy_NoPriceIsNull()
+    {
+        var h = new Holding { Id = "h", Class = AssetClass.JpStock, CostCurrency = Currency.Jpy };
+        var data = new PortfolioData
+        {
+            Holdings = { h },
+            Buys = { new BuyLot { HoldingId = "h", Quantity = 10 } },
+            // CurrentPrices に登録なし → 価格未取得 → null
+        };
+        Assert.Null(PortfolioMath.GroupValuationJpy(data, AssetClass.JpStock));
+    }
 }

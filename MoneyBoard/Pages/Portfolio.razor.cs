@@ -259,17 +259,7 @@ public partial class Portfolio
 
     // ── 資産クラスごとのグループ小計（保有銘柄の各グループ見出し右）──
     // 評価額（円・価格未取得は除外、全件未取得は null）／取得原価（円・銘柄単位の総和）／評価損益。
-    private decimal? GroupValueJpy(AssetClass c)
-    {
-        decimal sum = 0m;
-        bool any = false;
-        foreach (var h in Ordered.Where(h => h.Class == c))
-        {
-            var v = ValuationJpy(h, Summary(h).Quantity);
-            if (v.HasValue) { sum += v.Value; any = true; }
-        }
-        return any ? sum : (decimal?)null;
-    }
+    private decimal? GroupValueJpy(AssetClass c) => PortfolioMath.GroupValuationJpy(Store.Data, c);
     private decimal GroupCostJpy(AssetClass c) =>
         Ordered.Where(h => h.Class == c)
                .Sum(h => PortfolioMath.HoldingCostBasisJpyAsOf(Store.Data, h, DateTime.Today.ToString("yyyy-MM-dd"), 0m));
