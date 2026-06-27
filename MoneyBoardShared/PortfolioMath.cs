@@ -146,6 +146,26 @@ public static class PortfolioMath
         return any ? sum : (decimal?)null;
     }
 
+    /// <summary>
+    /// 現在の価格情報からスナップショット1点を構築する。評価額が1件も取れなければ null。
+    /// 同日上書き・リストへの追加は呼び出し側で行う（副作用なし）。
+    /// </summary>
+    public static PriceSnapshot? BuildSnapshot(PortfolioData data, string at)
+    {
+        var values = new List<HoldingValue>();
+        foreach (var h in data.Holdings.Where(h => !h.IsDeleted))
+        {
+            var qty = Summarize(h, data.Buys, data.Sells, data.Dividends).Quantity;
+            if (qty == 0) continue;
+            var nativePrice = data.CurrentPrices.GetValueOrDefault(h.Id);
+            var vJpy = ValuationJpy(h, qty, nativePrice, data.UsdJpyRate);
+            if (!vJpy.HasValue) continue;
+            values.Add(new HoldingValue { HoldingId = h.Id, PriceNative = nativePrice, ValuationJpy = vJpy.Value });
+        }
+        if (values.Count == 0) return null;
+        return new PriceSnapshot { At = at, UsdJpyRate = data.UsdJpyRate, Values = values };
+    }
+
     /// <summary>Yahoo Finance 用シンボル。日本株は証券コードに .T を付与（既に "." 付きはそのまま）、米国株はティッカーそのまま。</summary>
     public static string YahooSymbol(Holding h)
     {

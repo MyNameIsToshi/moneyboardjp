@@ -180,26 +180,12 @@ public partial class Portfolio
     // 評価額が1件も取れなければ記録しない。同じ日付の点は最新で上書き（1日1点・自動更新でも履歴が育つ）。
     private void RecordSnapshot()
     {
-        var values = new List<HoldingValue>();
-        foreach (var h in Ordered)
-        {
-            var qty = Summary(h).Quantity;
-            if (qty == 0) continue;
-            var vJpy = ValuationJpy(h, qty);
-            if (!vJpy.HasValue) continue;   // 価格未取得の銘柄は除外
-            values.Add(new HoldingValue { HoldingId = h.Id, PriceNative = CurPrice(h.Id), ValuationJpy = vJpy.Value });
-        }
-        if (values.Count == 0) return;
-
         var now = DateTime.Now;
+        var snap = PortfolioMath.BuildSnapshot(Store.Data, now.ToString("yyyy-MM-dd HH:mm"));
+        if (snap == null) return;
         var today = now.ToString("yyyy-MM-dd");
         Store.Data.Snapshots.RemoveAll(s => s.At.StartsWith(today));   // 同日は上書き
-        Store.Data.Snapshots.Add(new PriceSnapshot
-        {
-            At = now.ToString("yyyy-MM-dd HH:mm"),
-            UsdJpyRate = Store.Data.UsdJpyRate,
-            Values = values
-        });
+        Store.Data.Snapshots.Add(snap);
         Store.Data.Snapshots.Sort((a, b) => string.CompareOrdinal(a.At, b.At));
     }
 
