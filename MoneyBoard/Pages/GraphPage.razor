@@ -71,22 +71,22 @@
                         <span class="msym">@(IsSurplus ? "trending_up" : "trending_down")</span>@(IsSurplus ? "黒字" : "赤字")
                     </span>
                 </div>
-                <div class="hero-val">@SignedYen(NetTotal)</div>
-                <div class="hero-sub">@RangeLabel 累計　収入 @Yen(IncomeTotal) − 支出 @Yen(ExpenseTotal)</div>
+                <div class="hero-val">@MaskedSignedYen(IsMasked, NetTotal)</div>
+                <div class="hero-sub">@RangeLabel 累計　収入 @MaskedYen(IsMasked, IncomeTotal) − 支出 @MaskedYen(IsMasked, ExpenseTotal)</div>
             </div>
 
             <div class="stat-metrics">
                 <button type="button" class="stat stat-click" @onclick="OpenIncomeBreakdown">
                     <div class="lab">収入 合計</div>
-                    <div class="val ok">@Yen(IncomeTotal)</div>
+                    <div class="val ok">@MaskedYen(IsMasked, IncomeTotal)</div>
                 </button>
                 <button type="button" class="stat stat-click" @onclick="OpenExpenseBreakdown">
                     <div class="lab">支出 合計</div>
-                    <div class="val">@Yen(ExpenseTotal)</div>
+                    <div class="val">@MaskedYen(IsMasked, ExpenseTotal)</div>
                 </button>
                 <button type="button" class="stat stat-click" @onclick="OpenFixedBreakdown">
                     <div class="lab">固定費 合計</div>
-                    <div class="val">@Yen(FixedTotal)</div>
+                    <div class="val">@MaskedYen(IsMasked, FixedTotal)</div>
                     <div class="stat-note">支出の約@(FixedPctOfExpense)%</div>
                 </button>
                 <div class="stat">
@@ -105,7 +105,7 @@
             </div>
             @if (IncomeData.Any())
             {
-                <ApexChart TItem="ChartPoint" Options="ComboOptions" @key="@($"combo-{SelectedPeriod}")"
+                <ApexChart TItem="ChartPoint" Options="ComboOptions" @key="@($"combo-{SelectedPeriod}-{_maskRev}")"
                            OnDataPointSelection="OnIncomeVsExpenseSelected">
                     <ApexPointSeries TItem="ChartPoint"
                                      Items="IncomeData"
@@ -137,7 +137,7 @@
                 <h4>収入の内訳推移</h4>
                 @if (IncomeBreakdown.Any())
                 {
-                    <ApexChart TItem="ChartPoint" Options="IncomeBreakdownOptions" @key="@($"inc-{SelectedPeriod}")">
+                    <ApexChart TItem="ChartPoint" Options="IncomeBreakdownOptions" @key="@($"inc-{SelectedPeriod}-{_maskRev}")">
                         @foreach (var s in IncomeBreakdown)
                         {
                             <ApexPointSeries TItem="ChartPoint"
@@ -157,7 +157,7 @@
                 <h4>口座別 月末残高推移</h4>
                 @if (BalanceSeriesData.Any())
                 {
-                    <ApexChart TItem="ChartPoint" Options="BalanceLineOptions">
+                    <ApexChart TItem="ChartPoint" Options="BalanceLineOptions" @key="@($"bal-{SelectedPeriod}-{_maskRev}")">
                         @foreach (var series in BalanceSeriesData)
                         {
                             <ApexPointSeries TItem="ChartPoint"
@@ -181,7 +181,7 @@
                                 Items="CategorySpendData"
                                 Total="CategoryTotal"
                                 Options="DonutOptions"
-                                RenderKey="@($"cat-{SelectedPeriod}")"
+                                RenderKey="@($"cat-{SelectedPeriod}-{_maskRev}")"
                                 EmptyMessage="カード明細がありません"
                                 OnRowClick="OpenCatDetail"
                                 OnSliceSelected="OnSliceSelected" />
@@ -192,7 +192,7 @@
                                 Items="CardSpendData"
                                 Total="CardTotal"
                                 Options="CardDonutOptions"
-                                RenderKey="@($"card-{SelectedPeriod}")"
+                                RenderKey="@($"card-{SelectedPeriod}-{_maskRev}")"
                                 EmptyMessage="カード明細がありません"
                                 OnRowClick="OpenCardDetail"
                                 OnSliceSelected="OnCardSliceSelected" />

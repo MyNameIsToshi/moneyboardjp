@@ -15,6 +15,12 @@ public static class MoneyFormat
     /// <summary>ApexCharts 用 JS フォーマッタ。フル円表示（例: ¥1,234,567）。tooltip で共有。</summary>
     public const string ChartYenFull = "function(v){return '¥'+v.toLocaleString()}";
 
+    /// <summary>金額マスク時は ¥****、非マスク時は Yen(v) を返す。</summary>
+    public static string MaskedYen(bool masked, decimal v) => masked ? "¥****" : Yen(v);
+
+    /// <summary>金額マスク時は ¥****、非マスク時は SignedYen(v) を返す。</summary>
+    public static string MaskedSignedYen(bool masked, decimal v) => masked ? "¥****" : SignedYen(v);
+
     /// <summary>ドーナツグラフ共通パレット（銘柄別・カード別で共用）。10 色循環。</summary>
     public static readonly string[] DonutPalette =
     {

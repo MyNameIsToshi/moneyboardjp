@@ -131,7 +131,7 @@ public partial class Portfolio
 
     private string TotalJpyDisplay
     {
-        get { var (total, missing) = TotalAssets(); return "¥" + total.ToString("#,0") + (missing ? "（一部未取得）" : ""); }
+        get { var (total, missing) = TotalAssets(); return IsMasked ? "¥****" : "¥" + total.ToString("#,0") + (missing ? "（一部未取得）" : ""); }
     }
 
     // 元本（取得原価合計・円換算）＝現存保有分。価格に依存しないので常に表示できる。
@@ -227,4 +227,14 @@ public partial class Portfolio
     // 指定日時点の取得原価合計（円換算）。計算本体は PortfolioMath（純粋ロジック・テスト対象）へ委譲する。
     private decimal CostBasisJpyAsOf(string date, decimal snapRate) =>
         PortfolioMath.CostBasisJpyAsOf(Store.Data, date, snapRate);
+
+    // ── 保有一覧用マスク対応ラッパー（ダイアログ内 Money/MoneyOpt 等は編集中のため非対象）──
+    private string MaskedMoney(Holding h, decimal v) => IsMasked ? CurSym(h) + "****" : Money(h, v);
+    private string MaskedMoneyDisp(Holding h, decimal v) => IsMasked ? CcySym(DispCcy(h)) + "****" : MoneyDisp(h, v);
+    private string MaskedMoneyDispSigned(Holding h, decimal v) => IsMasked ? CcySym(DispCcy(h)) + "****" : MoneyDispSigned(h, v);
+    private string MaskedMoneyDispOpt(Holding h, decimal? v) => IsMasked ? CcySym(DispCcy(h)) + "****" : MoneyDispOpt(h, v);
+    private string MaskedMoneyDispSignedOpt(Holding h, decimal? v) => IsMasked ? CcySym(DispCcy(h)) + "****" : MoneyDispSignedOpt(h, v);
+    private string MaskedGroupValueDisp(AssetClass c) => IsMasked ? (c == AssetClass.UsStock && _usCcy == Currency.Usd ? "$****" : "¥****") : GroupValueDisp(c);
+    private string MaskedGroupPnlDisp(AssetClass c) => IsMasked ? (c == AssetClass.UsStock && _usCcy == Currency.Usd ? "$****" : "¥****") : GroupPnlDisp(c);
+    private string MaskedMetricsLineMobile(Holding h, HoldingSummary s) => IsMasked ? $"元本 {CurSym(h)}**** ・ {Qty(s.Quantity)}{UnitSuffix(h)}" : MetricsLineMobile(h, s);
 }

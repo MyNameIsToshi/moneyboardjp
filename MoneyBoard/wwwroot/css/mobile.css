@@ -83,6 +83,11 @@
   letter-spacing: .02em;
 }
 
+/* マスクトグルボタン：masked 状態時はアイコン＋ラベルを accent 色で強調 */
+.botnav-mask.masked {
+  color: var(--accent);
+}
+
 /* --- スマホ時の全体調整（is-mobile クラス駆動） --- */
 /* オーバーレイ（シート/ダイアログ）表示中は下部バーを隠す。
    下部バーは in-flow で最下段に在席しているため、シートの削除/完了や

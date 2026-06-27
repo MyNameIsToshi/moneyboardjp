@@ -17,6 +17,7 @@ using MoneyBoardShared;
 public partial class Portfolio
 {
     [CascadingParameter(Name = "IsMobile")] public bool IsMobile { get; set; }
+    [CascadingParameter(Name = "IsMasked")] public bool IsMasked { get; set; }
 
     private bool Loaded;
     private bool LoadFailed;

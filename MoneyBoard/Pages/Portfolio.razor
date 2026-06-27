@@ -51,10 +51,10 @@
                     <div class="pf-hero-foot">
                         @if (!IsMobile)
                         {
-                            <span class="pf-hero-cell"><span class="pf-hero-k">元本</span><span class="pf-hero-v">¥@TotalCostJpy.ToString("#,0")</span></span>
+                            <span class="pf-hero-cell"><span class="pf-hero-k">元本</span><span class="pf-hero-v">@MaskedYen(IsMasked, TotalCostJpy)</span></span>
                         }
-                        <span class="pf-hero-cell"><span class="pf-hero-k">評価損益</span><span class="pf-hero-v @HeroVClass(TotalPnlJpy)">@SignedYen(TotalPnlJpy)@(string.IsNullOrEmpty(HeroGainPct) ? "" : $" ({HeroGainPct})")</span></span>
-                        <span class="pf-hero-cell"><span class="pf-hero-k">当日損益</span><span class="pf-hero-v @HeroVClass(dayTotal ?? 0)">@(dayTotal.HasValue ? SignedYen(dayTotal.Value) + TotalDayPct(dayTotal.Value) : "—")</span></span>
+                        <span class="pf-hero-cell"><span class="pf-hero-k">評価損益</span><span class="pf-hero-v @HeroVClass(TotalPnlJpy)">@MaskedSignedYen(IsMasked, TotalPnlJpy)@(string.IsNullOrEmpty(HeroGainPct) ? "" : $" ({HeroGainPct})")</span></span>
+                        <span class="pf-hero-cell"><span class="pf-hero-k">当日損益</span><span class="pf-hero-v @HeroVClass(dayTotal ?? 0)">@(dayTotal.HasValue ? MaskedSignedYen(IsMasked, dayTotal.Value) + TotalDayPct(dayTotal.Value) : "—")</span></span>
                     </div>
                 </div>
                 <div class="pf-ticker">
@@ -133,13 +133,13 @@
                             <div class="spend-row">
                                 <span class="color-dot" style="background:@s.Color"></span>
                                 <span class="spend-name">@s.Label</span>
-                                <span class="spend-amt">¥@s.Value.ToString("#,0")</span>
+                                <span class="spend-amt">@MaskedYen(IsMasked, s.Value)</span>
                                 <span class="spend-pct">@CompPct(s.Value, SlicesTotal(data))</span>
                             </div>
                         }
                         <div class="spend-row spend-total">
                             <span></span><span>合計</span>
-                            <span class="spend-amt">¥@SlicesTotal(data).ToString("#,0")</span>
+                            <span class="spend-amt">@MaskedYen(IsMasked, SlicesTotal(data))</span>
                             <span></span>
                         </div>
                     </div>
@@ -245,8 +245,8 @@
                             <span class="pf-gsource">@ClassDelayNote(grp.Class)</span>
                         </div>
                         <div class="pf-ghead-r">
-                            <span class="pf-gval">@GroupValueDisp(grp.Class)</span>
-                            <span class="pf-gpl @PnlClass(GroupPnlSign(grp.Class))">@GroupPnlDisp(grp.Class)</span>
+                            <span class="pf-gval">@MaskedGroupValueDisp(grp.Class)</span>
+                            <span class="pf-gpl @PnlClass(GroupPnlSign(grp.Class))">@MaskedGroupPnlDisp(grp.Class)</span>
                         </div>
                     </div>
 
@@ -261,17 +261,17 @@
                                 <button class="list-card pf-mcard" @onclick="() => OpenTx(h.Id)">
                                     <div class="pf-mc-r1">
                                         <span class="pf-mc-name">@DisplayName(h)</span>
-                                        <span class="pf-mc-val">@MoneyDispOpt(h, ValDisp(h, s.Quantity))</span>
+                                        <span class="pf-mc-val">@MaskedMoneyDispOpt(h, ValDisp(h, s.Quantity))</span>
                                     </div>
                                     <div class="pf-mc-r2">
                                         <span class="pf-hbadge">@AccountLabel(h.Account)</span>
-                                        <span class="pf-mc-pl @PnlClass(upnl ?? 0)">@MoneyDispSignedOpt(h, UpnlDisp(h, s))@PnlPct(upnl, s.CostBasis)</span>
+                                        <span class="pf-mc-pl @PnlClass(upnl ?? 0)">@MaskedMoneyDispSignedOpt(h, UpnlDisp(h, s))@PnlPct(upnl, s.CostBasis)</span>
                                     </div>
                                     <div class="pf-mc-r3">
-                                        <span class="pf-mc-metrics">@MetricsLineMobile(h, s)</span>
+                                        <span class="pf-mc-metrics">@MaskedMetricsLineMobile(h, s)</span>
                                         @if (day is decimal dv)
                                         {
-                                            <span class="pf-mc-day @PnlClass(dv)">前日 @MoneyDispSignedOpt(h, DayChangeAmount(h, s.Quantity)) (@DayPct(dv))</span>
+                                            <span class="pf-mc-day @PnlClass(dv)">前日 @MaskedMoneyDispSignedOpt(h, DayChangeAmount(h, s.Quantity)) (@DayPct(dv))</span>
                                         }
                                     </div>
                                 </button>
@@ -311,12 +311,12 @@
                                         <span class="pf-hbadge">@AccountLabel(h.Account)</span>
                                     </span>
                                 </span>
-                                <span class="pf-num">@Money(h, s.CostBasis)</span>
+                                <span class="pf-num">@MaskedMoney(h, s.CostBasis)</span>
                                 <span class="pf-num">@Price(h, s.AvgUnitPrice)</span>
                                 <span class="pf-num">@Qty(s.Quantity)</span>
                                 <span class="pf-num">@CurPriceDisp(h)</span>
-                                <span class="pf-num">@MoneyDispOpt(h, ValDisp(h, s.Quantity))<span class="pf-sub-pnl @PnlClass(upnl ?? 0)">@MoneyDispSignedOpt(h, UpnlDisp(h, s))<span class="pf-pnl-pct">@PnlPct(upnl, s.CostBasis)</span></span></span>
-                                <span class="pf-num @(day is decimal dc ? PnlClass(dc) : "")">@if (day is decimal dv){@MoneyDispSignedOpt(h, DayChangeAmount(h, s.Quantity))<span class="pf-day">@DayPct(dv)</span>}else{<text>—</text>}</span>
+                                <span class="pf-num">@MaskedMoneyDispOpt(h, ValDisp(h, s.Quantity))<span class="pf-sub-pnl @PnlClass(upnl ?? 0)">@MaskedMoneyDispSignedOpt(h, UpnlDisp(h, s))<span class="pf-pnl-pct">@PnlPct(upnl, s.CostBasis)</span></span></span>
+                                <span class="pf-num @(day is decimal dc ? PnlClass(dc) : "")">@if (day is decimal dv){@MaskedMoneyDispSignedOpt(h, DayChangeAmount(h, s.Quantity))<span class="pf-day">@DayPct(dv)</span>}else{<text>—</text>}</span>
                                 <button class="pf-tx-btn" @onclick="() => OpenTx(h.Id)"><span class="msym">tune</span>取引</button>
                                 <button class="pf-del-btn" @onclick="() => AskDelete(h)" aria-label="削除"><span class="msym">close</span></button>
                             </div>

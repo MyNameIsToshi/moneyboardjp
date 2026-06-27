@@ -1,4 +1,5 @@
 @inject NavigationManager Nav
+@inject AmountMaskService MaskSvc
 @implements IDisposable
 
 @* スマホ用の下部固定タブバー。表示可否は MainLayout が IsMobile で制御する。
@@ -18,6 +19,10 @@
     </button>
     <button class="botnav-item @(IsHomeTab("mypage") ? "active" : "")" @onclick='() => GoTab("mypage")'>
         <span class="bn-ico msym">person</span><span class="bn-lab">マイページ</span>
+    </button>
+    <button class="botnav-item botnav-mask @(MaskSvc.IsMasked ? "masked" : "")" @onclick="MaskSvc.ToggleAsync" title="@(MaskSvc.IsMasked ? "金額を表示する" : "金額を隠す")">
+        <span class="bn-ico msym">@(MaskSvc.IsMasked ? "visibility_off" : "visibility")</span>
+        <span class="bn-lab">@(MaskSvc.IsMasked ? "表示" : "隠す")</span>
     </button>
 </nav>
 

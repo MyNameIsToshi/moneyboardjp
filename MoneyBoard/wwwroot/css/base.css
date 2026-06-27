@@ -355,6 +355,19 @@ body {
   letter-spacing: .02em;
 }
 
+/* サイドナビ下部セパレーター */
+.sidenav-sep {
+  height: 1px;
+  background: var(--line);
+  margin: 8px 4px;
+}
+
+/* マスクトグルボタン：アクティブ時（隠す→表示モード）はアイコン色を accent */
+.sidenav-mask.masked .sn-ico,
+.sidenav-mask.masked .sn-lab {
+  color: var(--accent);
+}
+
 /* PC（サイドナビ表示時）はブランド/画面名・戻るを各ページ頭から消す（サイドナビに集約）。
    スマホは従来どおりページ頭にブランド（AppTitle）を出す。 */
 .app-shell.has-sidenav .home-head,

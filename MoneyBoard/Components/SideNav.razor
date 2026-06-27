@@ -1,5 +1,6 @@
 @inject NavigationManager Nav
 @inject LedgerService Svc
+@inject AmountMaskService MaskSvc
 @implements IDisposable
 
 @* PC用の左サイドナビ。表示可否は MainLayout が PC 時のみレンダーする。
@@ -24,6 +25,11 @@
         </button>
         <button class="sidenav-item @(IsHomeTab("mypage") ? "active" : "")" @onclick='() => GoTab("mypage")'>
             <span class="sn-ico msym">person</span><span class="sn-lab">マイページ</span>
+        </button>
+        <div class="sidenav-sep"></div>
+        <button class="sidenav-item sidenav-mask @(MaskSvc.IsMasked ? "masked" : "")" @onclick="MaskSvc.ToggleAsync">
+            <span class="sn-ico msym">@(MaskSvc.IsMasked ? "visibility_off" : "visibility")</span>
+            <span class="sn-lab">@(MaskSvc.IsMasked ? "金額を表示" : "金額を隠す")</span>
         </button>
     </div>
 </nav>

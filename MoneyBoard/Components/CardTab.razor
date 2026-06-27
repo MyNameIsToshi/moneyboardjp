@@ -42,11 +42,11 @@
                 @if (showDelta)
                 {
                     <span class="hero-pill @(delta > 0 ? "up" : "down")">
-                        <span class="msym">@(delta > 0 ? "trending_up" : "trending_down")</span>先月比 @SignedYen(delta)
+                        <span class="msym">@(delta > 0 ? "trending_up" : "trending_down")</span>先月比 @MaskedSignedYen(IsMasked, delta)
                     </span>
                 }
             </div>
-            <div class="hero-val">@Yen(cardTotal)</div>
+            <div class="hero-val">@MaskedYen(IsMasked,cardTotal)</div>
             <div class="hero-sub">@monthLabel 全カードの利用額合計（口座の支出へ反映）</div>
         </div>
         <div class="stat">
@@ -98,7 +98,7 @@
                                 <span class="cc-name">@card.Name</span>
                                 <span class="cc-bank">@Svc.AccountName(card.AccountId)</span>
                             </span>
-                            <span class="cc-total @(used == 0 ? "is-zero" : "")">@Yen(used)</span>
+                            <span class="cc-total @(used == 0 ? "is-zero" : "")">@MaskedYen(IsMasked,used)</span>
                         </div>
                     }
                     else
@@ -115,7 +115,7 @@
                                 <span class="cc-count">@details.Count 件</span>
                             }
                             <span class="cc-spacer"></span>
-                            <span class="cc-total @(used == 0 ? "is-zero" : "")">@Yen(used)</span>
+                            <span class="cc-total @(used == 0 ? "is-zero" : "")">@MaskedYen(IsMasked,used)</span>
                             @if (!collapsed)
                             {
                                 <div class="cc-actions">
@@ -151,7 +151,7 @@
                                     <div class="cc-billed">
                                         <span class="cc-billed-lab">
                                             <span class="cc-billed-title">今月の請求額（口座引落）</span>
-                                            <span class="hint">口座末残高はこの額で計算（明細＝利用額 @Yen(used) は統計にそのまま残ります）</span>
+                                            <span class="hint">口座末残高はこの額で計算（明細＝利用額 @MaskedYen(IsMasked,used) は統計にそのまま残ります）</span>
                                         </span>
                                         <AmountInput CssClass="cc-billed-input" Value="@(BilledOf(card.Id) ?? 0)"
                                                      ValueChanged="v => OnBilledChanged(card.Id, v)" />
@@ -206,7 +206,7 @@
                                         <button class="list-card" @onclick="() => OpenDetail(d.Id)">
                                             <div class="list-card-main">
                                                 <span class="list-card-name">@(string.IsNullOrEmpty(d.Name) ? "(利用先なし)" : d.Name)</span>
-                                                <span class="list-card-amount">@Yen(d.Amount)</span>
+                                                <span class="list-card-amount">@MaskedYen(IsMasked,d.Amount)</span>
                                             </div>
                                             <div class="list-card-sub">
                                                 <span>@d.Date ・ <span class="color-dot" style="background:@DotColor(d.CategoryId)"></span> @CatName(d.CategoryId)</span>
@@ -368,7 +368,7 @@
                             <span class="bulk-check"><input type="checkbox" checked="@_bulkChecked.Contains(g.Store)" @onchange="() => ToggleBulkCheck(g.Store)" /></span>
                             <span class="bulk-store" title="@g.Store">@g.Store</span>
                             <span class="bulk-count">@g.Count 件</span>
-                            <span class="bulk-total">@Yen(g.Total)</span>
+                            <span class="bulk-total">@MaskedYen(IsMasked,g.Total)</span>
                             <div class="bulk-cat-cell">
                                 <span class="color-dot" style="background:@DotColor(BulkSelection.GetValueOrDefault(g.Store))"></span>
                                 <select value="@BulkSelection[g.Store]"

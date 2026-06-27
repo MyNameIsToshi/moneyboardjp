@@ -23,6 +23,7 @@ builder.Services.AddScoped<PortfolioService>();
 builder.Services.AddScoped<PortfolioStore>();
 builder.Services.AddScoped<QuoteService>();
 builder.Services.AddScoped<ViewportService>();
+builder.Services.AddScoped<AmountMaskService>();
 builder.Services.AddApexCharts();
 
 await builder.Build().RunAsync();

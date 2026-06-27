@@ -47,47 +47,75 @@ public partial class GraphPage
     private List<IncomeSeries> IncomeBreakdown = new();
     private record IncomeSeries(string Name, List<ChartPoint> Data);
 
-    // Y軸は万単位の概略表示、tooltip はフル円表示（spec §3）。グリッド線・軸ラベルも淡色で統一。
-    private const string YMan = MoneyFormat.ChartYenMan;
-    private const string YFull = MoneyFormat.ChartYenFull;
+    [CascadingParameter(Name = "IsMasked")] public bool IsMasked { get; set; }
 
-    private static YAxis ManAxis() => new() { Labels = new YAxisLabels { Formatter = YMan } };
-    private static Grid SoftGrid() => new() { BorderColor = "#f0eee9" };
-    private static Tooltip FullYenTip() => new() { Y = new TooltipY { Formatter = YFull } };
+    // マスク切替のたびにインクリメント → チャート @key に含めて強制再生成。
+    private int _maskRev;
+    private bool _prevMasked;
+
+    // Y軸・ツールチップのフォーマッタ（マスク時は ¥****）。
+    private string YAxis => IsMasked ? "function(v){return '¥****'}" : MoneyFormat.ChartYenMan;
+    private string YTip  => IsMasked ? "function(v){return '¥****'}" : MoneyFormat.ChartYenFull;
 
     // ApexChartOptions はチャート固有の状態を書き込むため、1インスタンスを複数の
     // <ApexChart> で共有すると最初の1つしか描画されない。チャートごとに専用インスタンスを持つ。
-    private static ApexChartOptions<ChartPoint> NewLineOptions() => new()
+    // IsMasked 変化時に RebuildChartOptions() で差し替えるため readonly を外す。
+    private ApexChartOptions<ChartPoint> ComboOptions = default!;
+    private ApexChartOptions<ChartPoint> BalanceLineOptions = default!;
+    private ApexChartOptions<ChartPoint> IncomeBreakdownOptions = default!;
+
+    private static Grid SoftGrid() => new() { BorderColor = "#f0eee9" };
+    private ApexChartOptions<ChartPoint> NewLineOptions() => new()
     {
         Chart = new Chart { Height = 240, Toolbar = new Toolbar { Show = false } },
         Stroke = new Stroke { Curve = Curve.Smooth },
         Grid = SoftGrid(),
-        Tooltip = FullYenTip(),
-        Yaxis = new List<YAxis> { ManAxis() }
+        Tooltip = new Tooltip { Y = new TooltipY { Formatter = YTip } },
+        Yaxis = new List<YAxis> { new() { Labels = new YAxisLabels { Formatter = YAxis } } }
     };
 
-    private static ApexChartOptions<ChartPoint> NewBarOptions(bool stacked = false) => new()
+    private ApexChartOptions<ChartPoint> NewBarOptions(bool stacked = false) => new()
     {
         Chart = new Chart { Height = 240, Stacked = stacked, Toolbar = new Toolbar { Show = false } },
         Grid = SoftGrid(),
-        Tooltip = FullYenTip(),
-        Yaxis = new List<YAxis> { ManAxis() }
+        Tooltip = new Tooltip { Y = new TooltipY { Formatter = YTip } },
+        Yaxis = new List<YAxis> { new() { Labels = new YAxisLabels { Formatter = YAxis } } }
     };
 
     // メイン：収入(棒)・支出(棒)＋収支(折れ線)のコンボ。色は既存トークン（収入=緑/支出=赤/収支線=navy）。
-    private static ApexChartOptions<ChartPoint> NewComboOptions() => new()
+    private ApexChartOptions<ChartPoint> NewComboOptions() => new()
     {
         Chart = new Chart { Height = 340, Toolbar = new Toolbar { Show = false } },
         Colors = new List<string> { "#0f6e56", "#a3261f", "#1f3a5f" },
         Stroke = new Stroke { Width = new List<int> { 0, 0, 3 }, Curve = Curve.Smooth },
         Grid = SoftGrid(),
-        Tooltip = FullYenTip(),
-        Yaxis = new List<YAxis> { ManAxis() }
+        Tooltip = new Tooltip { Y = new TooltipY { Formatter = YTip } },
+        Yaxis = new List<YAxis> { new() { Labels = new YAxisLabels { Formatter = YAxis } } }
     };
 
-    private readonly ApexChartOptions<ChartPoint> ComboOptions = NewComboOptions();
-    private readonly ApexChartOptions<ChartPoint> BalanceLineOptions = NewLineOptions();
-    private readonly ApexChartOptions<ChartPoint> IncomeBreakdownOptions = NewBarOptions(stacked: true);
+    private void RebuildChartOptions()
+    {
+        ComboOptions = NewComboOptions();
+        BalanceLineOptions = NewLineOptions();
+        IncomeBreakdownOptions = NewBarOptions(stacked: true);
+        // ドーナツは再生成後に色を引き継ぐ（BuildCategorySpend/BuildCardSpend で設定済みの色を保持）
+        var catColors = DonutOptions?.Colors;
+        var cardColors = CardDonutOptions?.Colors;
+        DonutOptions = NewDonutOptions();
+        CardDonutOptions = NewDonutOptions();
+        if (catColors != null) DonutOptions.Colors = catColors;
+        if (cardColors != null) CardDonutOptions.Colors = cardColors;
+        _maskRev++;
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (ComboOptions is null || IsMasked != _prevMasked)
+        {
+            _prevMasked = IsMasked;
+            RebuildChartOptions();
+        }
+    }
 
     private List<SpendSlice> CategorySpendData = new();
     private decimal CategoryTotal => CategorySpendData.Sum(s => s.Value);
@@ -209,12 +237,12 @@ public partial class GraphPage
 
     // ドーナツ共通設定（カテゴリ/カードで別インスタンスにする。1インスタンスを
     // 複数の <ApexChart> で共有すると最初の1つしか描画されないため）。
-    private static ApexChartOptions<T> NewDonutOptions<T>() where T : class => new()
+    // 既定のホバー効果(lighten)だと薄い色(未分類のグレー)が白飛びするため、わずかに暗くする
+    private ApexChartOptions<SpendSlice> NewDonutOptions() => new()
     {
         Chart = new Chart { Height = 300, Toolbar = new Toolbar { Show = false } },
         Legend = new Legend { Position = LegendPosition.Bottom },
-        Tooltip = new Tooltip { Y = new TooltipY { Formatter = "function(v){return '¥'+v.toLocaleString()}" } },
-        // 既定のホバー効果(lighten)だと薄い色(未分類のグレー)が白飛びするため、わずかに暗くする
+        Tooltip = new Tooltip { Y = new TooltipY { Formatter = YTip } },
         States = new States
         {
             Hover = new StatesHover { Filter = new StatesFilter { Type = StatesFilterType.darken, Value = 0.12 } },
@@ -222,8 +250,8 @@ public partial class GraphPage
         }
     };
 
-    private readonly ApexChartOptions<SpendSlice> DonutOptions = NewDonutOptions<SpendSlice>();
-    private readonly ApexChartOptions<SpendSlice> CardDonutOptions = NewDonutOptions<SpendSlice>();
+    private ApexChartOptions<SpendSlice> DonutOptions = default!;
+    private ApexChartOptions<SpendSlice> CardDonutOptions = default!;
 
     // 読み込み完了まで操作不可（/graph を直接リロードしたケースに対応）
     private bool Loaded;

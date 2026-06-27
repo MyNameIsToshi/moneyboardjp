@@ -25,7 +25,7 @@
                     <span class="hero-pill"><span class="msym">trending_down</span>赤字</span>
                 }
             </div>
-            <div class="hero-val">@Yen(Total)</div>
+            <div class="hero-val">@MaskedYen(IsMasked,Total)</div>
             <div class="hero-sub">@LedgerService.Label(Svc.CurrentMonth) 全口座の見込み合計</div>
         </div>
         <div class="stat @(Short > 0 ? "warn" : "")">
@@ -44,7 +44,7 @@
         </div>
         <div class="stat">
             <div class="lab">当月の支出</div>
-            <div class="val">@Yen(MonthSpend)</div>
+            <div class="val">@MaskedYen(IsMasked,MonthSpend)</div>
         </div>
     </div>
 
@@ -79,7 +79,7 @@
                     <span class="badge">@(bad ? "不足" : "OK")</span>
                     @if (collapsed)
                     {
-                        <span class="ahead-close">@Yen(close)</span>
+                        <span class="ahead-close">@MaskedYen(IsMasked,close)</span>
                     }
                     <span class="msym ahead-chev">@(collapsed ? "expand_more" : "expand_less")</span>
                 </button>
@@ -99,12 +99,12 @@
                         else
                         {
                             var opening = Svc.OpeningOf(Svc.CurrentMonth, a.Id);
-                            <span class="opening-auto @(opening < 0 ? "neg" : "")">@Yen(opening)</span>
+                            <span class="opening-auto @(opening < 0 ? "neg" : "")">@MaskedYen(IsMasked,opening)</span>
                         }
                     </div>
 
                     <div class="sec">
-                        <h4>収入 <span class="sec-total">@Yen(incomeTotal)</span></h4>
+                        <h4>収入 <span class="sec-total">@MaskedYen(IsMasked,incomeTotal)</span></h4>
                         <div class="field">
                             <label>給料</label>
                             <AmountInput Value="@l.Salary" ValueChanged="v => { l.Salary = v; Svc.RequestSave(); }" />
@@ -136,7 +136,7 @@
                     </div>
 
                     <div class="sec">
-                        <h4>支出 <span class="sec-total">@Yen(spendTotal)</span></h4>
+                        <h4>支出 <span class="sec-total">@MaskedYen(IsMasked,spendTotal)</span></h4>
                         @* 固定費＝表示専用（折りたたみ）。金額の変更は固定費設定タブから。 *@
                         @if (fixedDebits.Count > 0)
                         {
@@ -144,7 +144,7 @@
                                 <button class="fold-head" @onclick="() => ToggleFixed(a.Id)">
                                     <span class="fold-head-lab"><span class="msym">lock</span> 固定費 @fixedDebits.Count 件</span>
                                     <span class="fold-head-right">
-                                        <span class="fold-total">@Yen(fixedDebits.Sum(d => d.Amount))</span>
+                                        <span class="fold-total">@MaskedYen(IsMasked,fixedDebits.Sum(d => d.Amount))</span>
                                         <span class="msym fold-chev">@(fixedOpen ? "expand_less" : "expand_more")</span>
                                     </span>
                                 </button>
@@ -156,7 +156,7 @@
                                             <div class="fixed-row">
                                                 <span class="fixed-name">@d.Name</span>
                                                 <span class="msym fixed-lock" title="固定費マスタから展開">lock</span>
-                                                <span class="fixed-amt">@Yen(d.Amount)</span>
+                                                <span class="fixed-amt">@MaskedYen(IsMasked,d.Amount)</span>
                                             </div>
                                         }
                                     </div>
@@ -170,7 +170,7 @@
                                 <button class="fold-head" @onclick="() => ToggleCardBlock(a.Id)">
                                     <span class="fold-head-lab"><span class="msym">credit_card</span> カード @cardDebits.Count 件</span>
                                     <span class="fold-head-right">
-                                        <span class="fold-total">@Yen(cardDebits.Sum(d => d.Amount))</span>
+                                        <span class="fold-total">@MaskedYen(IsMasked,cardDebits.Sum(d => d.Amount))</span>
                                         <span class="msym fold-chev">@(cardOpen ? "expand_less" : "expand_more")</span>
                                     </span>
                                 </button>
@@ -181,7 +181,7 @@
                                         {
                                             <div class="row card-row" @onclick="() => GoToCard(d.CardId)" title="カードタブで明細を編集">
                                                 <span class="name card-name"><span class="msym">credit_card</span> @d.Name</span>
-                                                <span class="amt card-amt">@Yen(d.Amount)</span>
+                                                <span class="amt card-amt">@MaskedYen(IsMasked,d.Amount)</span>
                                                 <span class="card-arrow msym">chevron_right</span>
                                             </div>
                                         }
@@ -234,7 +234,7 @@
                             {
                                 <div class="xfer-line">
                                     <span>@Svc.AccountName(t.From) より</span>
-                                    <span class="in">+@Yen(t.Amount)</span>
+                                    <span class="in">+@MaskedYen(IsMasked,t.Amount)</span>
                                 </div>
                             }
                         </div>
@@ -242,7 +242,7 @@
 
                     <div class="close">
                         <div class="lab">月末残高</div>
-                        <div class="amt">@Yen(close)</div>
+                        <div class="amt">@MaskedYen(IsMasked,close)</div>
                     </div>
                 }
             </div>
@@ -261,6 +261,7 @@
 
     // スマホ=折りたたみ / PC=展開を既定にするため IsMobile を受ける。
     [CascadingParameter(Name = "IsMobile")] public bool IsMobile { get; set; }
+    [CascadingParameter(Name = "IsMasked")] public bool IsMasked { get; set; }
 
     // 開閉状態（口座IDを保持）。_toggled＝口座カードを既定から反転した口座。
     // カード/固定費ブロックは既定折りたたみで、_cardOpen/_fixedOpen は展開中の口座。
