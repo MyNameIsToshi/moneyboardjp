@@ -27,14 +27,16 @@
             <span class="sn-ico msym">person</span><span class="sn-lab">マイページ</span>
         </button>
         <div class="sidenav-sep"></div>
-        <button class="sidenav-item sidenav-mask @(MaskSvc.IsMasked ? "masked" : "")" @onclick="MaskSvc.ToggleAsync">
-            <span class="sn-ico msym">@(MaskSvc.IsMasked ? "visibility_off" : "visibility")</span>
-            <span class="sn-lab">@(MaskSvc.IsMasked ? "金額を表示" : "金額を隠す")</span>
+        <button class="sidenav-item sidenav-mask @(IsMasked ? "masked" : "")" @onclick="MaskSvc.ToggleAsync">
+            <span class="sn-ico msym">@(IsMasked ? "visibility_off" : "visibility")</span>
+            <span class="sn-lab">@(IsMasked ? "金額を表示" : "金額を隠す")</span>
         </button>
     </div>
 </nav>
 
 @code {
+    [CascadingParameter(Name = "IsMasked")] public bool IsMasked { get; set; }
+
     protected override void OnInitialized() => Nav.LocationChanged += OnLocationChanged;
 
     private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
