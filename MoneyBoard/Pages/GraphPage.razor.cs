@@ -108,9 +108,16 @@ public partial class GraphPage
         _maskRev++;
     }
 
+    protected override void OnInitialized()
+    {
+        // OnInitializedAsync より先に実行 → Load() が使う前にオプションを確保する。
+        RebuildChartOptions();
+        _maskRev = 0; // 初回は rev を 0 に戻す（RebuildChartOptions が ++するため）
+    }
+
     protected override void OnParametersSet()
     {
-        if (ComboOptions is null || IsMasked != _prevMasked)
+        if (IsMasked != _prevMasked)
         {
             _prevMasked = IsMasked;
             RebuildChartOptions();
