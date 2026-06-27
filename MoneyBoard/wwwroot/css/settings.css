@@ -60,9 +60,9 @@
 }
 
 .card-colhead::before {
-  /* ドラッグハンドル（20px）ぶんのスペーサ */
+  /* ドラッグハンドル（20px）＋ギャップ（9px）＋アイコンチップ（30px）ぶんのスペーサ */
   content: "";
-  flex: 0 0 20px;
+  flex: 0 0 59px;
 }
 
 .card-colhead .ch-acct {

@@ -280,6 +280,15 @@
   gap: 10px;
 }
 
+.list-card-main.with-chip {
+  align-items: center;
+}
+
+.list-card-main.with-chip .list-card-name {
+  flex: 1;
+  min-width: 0;
+}
+
 .list-card-name {
   font-size: 15px;
   font-weight: 600;

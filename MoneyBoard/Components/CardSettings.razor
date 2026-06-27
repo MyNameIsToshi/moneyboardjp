@@ -23,7 +23,8 @@ else
             {
                 <div class="list-card-wrap">
                     <button class="list-card" @onclick="() => OpenEdit(card.Id)">
-                        <div class="list-card-main">
+                        <div class="list-card-main with-chip">
+                            <span class="acct-row-chip c-card msym">credit_card</span>
                             <span class="list-card-name">@(string.IsNullOrEmpty(card.Name) ? "(名称未設定)" : card.Name)</span>
                         </div>
                         <div class="list-card-sub">
@@ -47,6 +48,7 @@ else
                      @ondrop="() => OnDrop(card.Id)"
                      @ondragend="OnDragEnd">
                     <span class="drag-handle msym">drag_indicator</span>
+                    <span class="acct-row-chip c-card msym">credit_card</span>
                     <input class="set-input" @bind="card.Name" @bind:after="Save" placeholder="カード名" />
                     <div class="set-select-wrap card-acct">
                         <select class="set-select" @bind="card.AccountId" @bind:after="Save">

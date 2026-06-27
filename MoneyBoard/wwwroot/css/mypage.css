@@ -439,6 +439,9 @@
   flex-shrink: 0;
 }
 
+.acct-row-chip.c-fixed { background: #f3ece1; color: #9a6b2e; }
+.acct-row-chip.c-card  { background: #e6f2ea; color: #2c7a52; }
+
 .acct-bonus {
   /* 「ボーナス受取」見出しがラジオ列の上にちょうど収まる幅（ラベル≒66px） */
   width: 72px;
