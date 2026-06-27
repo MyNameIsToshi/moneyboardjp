@@ -200,11 +200,7 @@ public partial class GraphPage
     private decimal CardTotal => CardSpendData.Sum(s => s.Value);
 
     // カードは色設定を持たないため、表示順に割り当てる固定パレット。
-    private static readonly string[] CardPalette =
-    {
-        "#5b8def", "#34c3a3", "#f6a609", "#ef6a6a", "#9b7ede",
-        "#4db3d6", "#e879b9", "#7ac74f", "#f08a4b", "#6c7a89"
-    };
+    private static readonly string[] CardPalette = MoneyFormat.DonutPalette;
 
     // ② 口座別月末残高推移の線色（spec §5：青/橙/赤/緑をローテ）。
     private static readonly string[] BalancePalette = { "#3a52c0", "#b86a18", "#a3261f", "#2c7a52" };

@@ -205,11 +205,7 @@ public partial class Portfolio
         [AssetClass.UsStock] = "#34c3a3",
         [AssetClass.Fund] = "#f6a609",
     };
-    private static readonly string[] CompPalette =
-    {
-        "#5b8def", "#34c3a3", "#f6a609", "#ef6a6a", "#9b7ede",
-        "#4db3d6", "#e879b9", "#7ac74f", "#f08a4b", "#6c7a89"
-    };
+    private static readonly string[] CompPalette = MoneyFormat.DonutPalette;
 
     // ドーナツ設定（中央に総資産 total・万単位／凡例は一覧へ集約しOFF／白2pxストロークでスライスを分離）。
     // クラス別・銘柄別で Colors が異なるため別インスタンス（PC は両方を同時描画する）。

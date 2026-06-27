@@ -14,4 +14,11 @@ public static class MoneyFormat
 
     /// <summary>ApexCharts 用 JS フォーマッタ。フル円表示（例: ¥1,234,567）。tooltip で共有。</summary>
     public const string ChartYenFull = "function(v){return '¥'+v.toLocaleString()}";
+
+    /// <summary>ドーナツグラフ共通パレット（銘柄別・カード別で共用）。10 色循環。</summary>
+    public static readonly string[] DonutPalette =
+    {
+        "#5b8def", "#34c3a3", "#f6a609", "#ef6a6a", "#9b7ede",
+        "#4db3d6", "#e879b9", "#7ac74f", "#f08a4b", "#6c7a89"
+    };
 }
