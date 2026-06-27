@@ -12,7 +12,7 @@
 - GitHub: https://github.com/MyNameIsToshi/moneyboardjp
 - 本番URL: https://purple-stone-08eacab00.7.azurestaticapps.net
 - ローカルパス: `C:\Development\moneyboard\`
-- **現行バージョン: `1.4.0`**（2026-06-21 本番リリース・PR #22。**Phase 4 土台＝Claude Vision でカード明細スクショをAI読み取り→当月へ取込**。詳細は「Phase 4」節）。`1.3.4`（2026-06-20・PR #21。CI のカバレッジを PR コメント＋Job Summary に出力＝テスト件数・備考・閾値の明示）／`1.3.3`（2026-06-20・PR #20。Step4 前クリーンアップ＝テスト基盤整備・純粋ロジック抽出・巨大razorの code-behind 分離＋楽天カード対応・表記統一）／`1.3.2`（2026-06-20・証券ポートフォリオ表示改善＋深いURL404修正＋認証永続化明示）／`1.3.1`（2026-06-19・スマホ実機フィードバック修正）／`1.3.0`=スマホUI全面最適化／`1.2.0`=Phase 3 証券ポートフォリオ。
+- **現行バージョン: `2.1.0`**（2026-06-27 本番リリース・PR #60。マイページ口座並べ替え▲▼/D&D・設定行アイコン統一・起点月より過去へ戻れる不具合修正・追加時空データ出現不具合修正）。`2.0.0`（2026-06-26・PR #58。全画面リデザイン＆PCサイドバーナビ＝ヒーロー集約＋線アイコン統一、月次/カード/統計/資産/マイページ全画面刷新、PC左サイドバー、ポートフォリオ市場指数3列グリッド。メジャー番号＝UIの大節目・API非互換なし）。`1.5.0`（2026-06-21・PR #35。市場指標バー=NYダウ/ナスダック/S&P500/日経/KOSPI 5本・AI読取エラー可視化）。`1.4.0`（2026-06-21・PR #22。**Phase 4 土台＝Claude Vision でカード明細スクショをAI読み取り→当月へ取込**。詳細は「Phase 4」節）。`1.3.4`（2026-06-20・PR #21。CIカバレッジをPRコメント＋Job Summaryに出力）／`1.3.3`（PR #20。Step4前クリーンアップ＝テスト基盤整備・純粋ロジック抽出・巨大razor code-behind分離）／`1.3.2`=証券ポートフォリオ表示改善＋深いURL404修正／`1.3.1`=スマホ実機修正／`1.3.0`=スマホUI全面最適化／`1.2.0`=Phase 3 証券ポートフォリオ。
 - 次の AI 機能（C案カテゴリ推定・月次コメント・FABチャット 等）は Phase 4 の土台を再利用して順次追加。
 
 ---
@@ -148,6 +148,9 @@ C:\Development\moneyboard\
         code-behind を分離（`*.razor.cs` の partial class）。v1.3.3 で導入＝挙動不変・見通し改善。
         @page/@inject/@implements/@using は .razor 側、ロジックは .razor.cs。.cs は `_Imports` が
         効かないため using を明示する。
+      Portfolio.Disp.cs は Portfolio.razor.cs の同一 partial を補完する表示ヘルパファイル（v2.1.0・issue #57）。
+        表示フォーマッタ・通貨切替・評価額・総資産・グループ小計・市場指標の表示補助を集約。
+        ライフサイクル・価格更新・チャートビルド・D&D・ダイアログは Portfolio.razor.cs が保持。
     Services\
       LedgerService.cs        家計簿ドメインロジック（年月・月次展開・残高計算・口座/固定費/カード/カテゴリ操作）
       AppStateStore.cs        状態保持＋永続化（読込/保存/デバウンス/直列化/競合処理・IsPending/IsOwner）
@@ -179,8 +182,8 @@ C:\Development\moneyboard\
     StorageContracts.cs       GET/POST DTO（DataEnvelope/SettingsPart/MonthPart）
     StatsMath.cs              統計（グラフ）の純粋ロジック（SelectPeriodYms=期間選択。GraphPage が委譲・v1.3.3）
     FixedCostPeriod.cs        固定費の有効期間 StartYm/EndYm の解析・組み立て・表示整形（YearPart/MonthPart/ComposeYm/FmtBound/Summary。FixedCostTab が委譲・v1.3.3）
-    Portfolio.cs / PortfolioMath.cs  証券ポートフォリオのモデルと集計計算（Phase 3）。PortfolioMath に CostBasisJpyAsOf（指定日元本・円換算）/ YahooSymbol（日本株 .T 付与）を v1.3.3 で抽出
-  MoneyBoardShared.Tests\     ※ xUnit(net8.0)。LedgerMath / LedgerEngine / PortfolioMath / StatsMath / FixedCostPeriod / CardCsvParser / Ym / SchemaMigration / FixedCost のユニットテスト（計102・`dotnet test`／カバレッジは `--collect:"XPlat Code Coverage"`）
+    Portfolio.cs / PortfolioMath.cs  証券ポートフォリオのモデルと集計計算（Phase 3）。PortfolioMath に CostBasisJpyAsOf（指定日元本・円換算）/ YahooSymbol（日本株 .T 付与）を v1.3.3 で抽出。v2.1.0（issue #57）で PnlPct・DayChangePct・GroupValuationJpy を追加（テスト 118件）。issue #36 で BuildSnapshot（スナップショット構築）を追加（テスト 125件）
+  MoneyBoardShared.Tests\     ※ xUnit(net8.0)。LedgerMath / LedgerEngine / PortfolioMath / StatsMath / FixedCostPeriod / CardCsvParser / Ym / SchemaMigration / FixedCost のユニットテスト（計125・`dotnet test`／カバレッジは `--collect:"XPlat Code Coverage"`）
 ```
 
 ### MoneyBoardShared の憲章（役割定義）
@@ -193,7 +196,7 @@ C:\Development\moneyboard\
 ### テスト方針
 - **対象＝自動テスト可能な純粋ロジック**。**API の CRUD/認証は Cosmos オーケストレーションのため対象外**（結合テスト領域・ROI低）。Blazor UI も自動化困難で対象外。
 - **テストプロジェクトは2つ**（いずれも xUnit・net8.0）：
-  - `MoneyBoardShared.Tests`：`LedgerMath` / `LedgerEngine`（残高連鎖・ExpandCards・重複除外・固定費）/ `PortfolioMath`（集計・Valuation・CostBasisJpyAsOf・YahooSymbol）/ `StatsMath`（期間選択）/ `FixedCostPeriod`（年月の解析・整形）/ `CardCsvParser` / `Ym` / `SchemaMigration` / `FixedCost`（計**102**・v1.3.3 で 63→102）。
+  - `MoneyBoardShared.Tests`：`LedgerMath` / `LedgerEngine`（残高連鎖・ExpandCards・重複除外・固定費）/ `PortfolioMath`（集計・Valuation・CostBasisJpyAsOf・YahooSymbol・PnlPct・DayChangePct・GroupValuationJpy・BuildSnapshot）/ `StatsMath`（期間選択）/ `FixedCostPeriod`（年月の解析・整形）/ `CardCsvParser` / `Ym` / `SchemaMigration` / `FixedCost`（計**125**・v1.3.3 で 63→102・v2.1.0 で 102→118・issue #36 で 118→125）。
   - `MoneyBoardApi.Tests`：API の**純粋ロジックのみ**（計20）。`DataApi.IsStructurallyValid`（保存前データ健全性ガード）／価格パーサ `ParseYahooQuote`・`ParseFundCsv`（取得=HTTPと分離した解析部）／`ParseCardImageResponse`（スクショAI応答JSON→CardDetail[]・日付正規化/金額/不正行スキップ）。テストのため対象は `internal static`＋`InternalsVisibleTo("MoneyBoardApi.Tests")`。
 - **カバレッジ**：`--collect:"XPlat Code Coverage"`（coverlet）。ロジック層は行/分岐とも高水準（LedgerMath/SchemaMigration=100% など）。DTO/モデルやCRUD/HTTP部は対象外のため class 全体の数値は薄く出る点に注意（=想定どおり）。**カバレッジ100%でもバグ不在の証明ではない**点は前提として共有。
 - **CI**：`.github/workflows/dotnet-test.yml` が dev push / main への PR で**両テストプロジェクト**を `dotnet test`（カバレッジ収集）。main への PR で「必須チェック」に設定すればマージゲートになる（要：Settings→Branches の保護ルール）。

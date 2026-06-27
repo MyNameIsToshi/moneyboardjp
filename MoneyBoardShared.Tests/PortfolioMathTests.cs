@@ -260,4 +260,191 @@ public class PortfolioMathTests
             PortfolioMath.HoldingCostBasisJpyAsOf(data, jp, "2026-02-15", 0m) + PortfolioMath.HoldingCostBasisJpyAsOf(data, us, "2026-02-15", 0m),
             PortfolioMath.CostBasisJpyAsOf(data, "2026-02-15", 0m));
     }
+
+    // ── PnlPct ──
+    [Theory]
+    [InlineData(100, 1000, " (+10.0%)")]
+    [InlineData(-100, 1000, " (-10.0%)")]
+    [InlineData(0, 1000, " (+0.0%)")]
+    [InlineData(1, 3, " (+33.3%)")]
+    public void PnlPct_FormatsSignedPercent(decimal upnl, decimal cost, string expected) =>
+        Assert.Equal(expected, PortfolioMath.PnlPct(upnl, cost));
+
+    [Fact]
+    public void PnlPct_NullUpnl_ReturnsEmpty() => Assert.Equal("", PortfolioMath.PnlPct(null, 1000));
+
+    [Fact]
+    public void PnlPct_ZeroCost_ReturnsEmpty() => Assert.Equal("", PortfolioMath.PnlPct(100, 0));
+
+    // ── DayChangePct ──
+    [Theory]
+    [InlineData(110, 100, 10.0)]
+    [InlineData(90, 100, -10.0)]
+    [InlineData(100, 100, 0.0)]
+    public void DayChangePct_ReturnsCorrectPercent(decimal cur, decimal prev, double expected) =>
+        Assert.Equal((decimal)expected, PortfolioMath.DayChangePct(cur, prev)!.Value, precision: 1);
+
+    [Theory]
+    [InlineData(0, 100)]
+    [InlineData(100, 0)]
+    [InlineData(0, 0)]
+    public void DayChangePct_ZeroOrNegativePrice_ReturnsNull(decimal cur, decimal prev) =>
+        Assert.Null(PortfolioMath.DayChangePct(cur, prev));
+
+    // ── GroupValuationJpy ──
+    [Fact]
+    public void GroupValuationJpy_SumsOnlyMatchingClass()
+    {
+        var jp = new Holding { Id = "j", Class = AssetClass.JpStock, CostCurrency = Currency.Jpy };
+        var us = new Holding { Id = "u", Class = AssetClass.UsStock, CostCurrency = Currency.Usd };
+        var data = new PortfolioData
+        {
+            UsdJpyRate = 150m,
+            Holdings = { jp, us },
+            Buys =
+            {
+                new BuyLot { HoldingId = "j", Quantity = 10 },   // qty=10
+                new BuyLot { HoldingId = "u", Quantity = 5 },    // qty=5
+            },
+            CurrentPrices = { ["j"] = 200m, ["u"] = 100m },
+        };
+        // 日本株：10株 × ¥200 = ¥2,000
+        Assert.Equal(2_000m, PortfolioMath.GroupValuationJpy(data, AssetClass.JpStock));
+        // 米国株：5株 × $100 × 150 = ¥75,000
+        Assert.Equal(75_000m, PortfolioMath.GroupValuationJpy(data, AssetClass.UsStock));
+        // 投信は保有なし → null
+        Assert.Null(PortfolioMath.GroupValuationJpy(data, AssetClass.Fund));
+    }
+
+    [Fact]
+    public void GroupValuationJpy_ExcludesDeletedHoldings()
+    {
+        var h = new Holding { Id = "h", Class = AssetClass.JpStock, CostCurrency = Currency.Jpy, IsDeleted = true };
+        var data = new PortfolioData
+        {
+            Holdings = { h },
+            Buys = { new BuyLot { HoldingId = "h", Quantity = 10 } },
+            CurrentPrices = { ["h"] = 200m },
+        };
+        Assert.Null(PortfolioMath.GroupValuationJpy(data, AssetClass.JpStock));
+    }
+
+    [Fact]
+    public void GroupValuationJpy_NoPriceIsNull()
+    {
+        var h = new Holding { Id = "h", Class = AssetClass.JpStock, CostCurrency = Currency.Jpy };
+        var data = new PortfolioData
+        {
+            Holdings = { h },
+            Buys = { new BuyLot { HoldingId = "h", Quantity = 10 } },
+            // CurrentPrices に登録なし → 価格未取得 → null
+        };
+        Assert.Null(PortfolioMath.GroupValuationJpy(data, AssetClass.JpStock));
+    }
+
+    // ── BuildSnapshot ──
+    [Fact]
+    public void BuildSnapshot_NoHoldings_ReturnsNull()
+    {
+        var data = new PortfolioData();
+        Assert.Null(PortfolioMath.BuildSnapshot(data, "2026-01-01 10:00"));
+    }
+
+    [Fact]
+    public void BuildSnapshot_NoPrices_ReturnsNull()
+    {
+        var data = new PortfolioData
+        {
+            Holdings = { new Holding { Id = "h", Class = AssetClass.JpStock, CostCurrency = Currency.Jpy } },
+            Buys = { new BuyLot { HoldingId = "h", Quantity = 10, UnitPrice = 100 } },
+            // CurrentPrices 未設定 → ValuationJpy が null → スナップショット不成立
+        };
+        Assert.Null(PortfolioMath.BuildSnapshot(data, "2026-01-01 10:00"));
+    }
+
+    [Fact]
+    public void BuildSnapshot_ExcludesDeletedHoldings()
+    {
+        var data = new PortfolioData
+        {
+            Holdings = { new Holding { Id = "h", Class = AssetClass.JpStock, CostCurrency = Currency.Jpy, IsDeleted = true } },
+            Buys = { new BuyLot { HoldingId = "h", Quantity = 10, UnitPrice = 100 } },
+            CurrentPrices = { ["h"] = 200m },
+        };
+        Assert.Null(PortfolioMath.BuildSnapshot(data, "2026-01-01 10:00"));
+    }
+
+    [Fact]
+    public void BuildSnapshot_ExcludesZeroQtyHoldings()
+    {
+        var data = new PortfolioData
+        {
+            Holdings = { new Holding { Id = "h", Class = AssetClass.JpStock, CostCurrency = Currency.Jpy } },
+            // 買付なし → qty=0 → 除外
+            CurrentPrices = { ["h"] = 200m },
+        };
+        Assert.Null(PortfolioMath.BuildSnapshot(data, "2026-01-01 10:00"));
+    }
+
+    [Fact]
+    public void BuildSnapshot_BuildsValues_JpStock()
+    {
+        var data = new PortfolioData
+        {
+            Holdings = { new Holding { Id = "h", Class = AssetClass.JpStock, CostCurrency = Currency.Jpy } },
+            Buys = { new BuyLot { HoldingId = "h", Quantity = 10, UnitPrice = 100 } },
+            CurrentPrices = { ["h"] = 200m },
+        };
+        var snap = PortfolioMath.BuildSnapshot(data, "2026-01-15 09:30");
+
+        Assert.NotNull(snap);
+        Assert.Equal("2026-01-15 09:30", snap!.At);
+        Assert.Single(snap.Values);
+        Assert.Equal("h", snap.Values[0].HoldingId);
+        Assert.Equal(200m, snap.Values[0].PriceNative);
+        Assert.Equal(2_000m, snap.Values[0].ValuationJpy);  // 10株 × ¥200
+    }
+
+    [Fact]
+    public void BuildSnapshot_BuildsValues_UsStock_ConvertsToJpy()
+    {
+        var data = new PortfolioData
+        {
+            UsdJpyRate = 150m,
+            Holdings = { new Holding { Id = "u", Class = AssetClass.UsStock, CostCurrency = Currency.Usd } },
+            Buys = { new BuyLot { HoldingId = "u", Quantity = 5, UnitPrice = 100 } },
+            CurrentPrices = { ["u"] = 100m },
+        };
+        var snap = PortfolioMath.BuildSnapshot(data, "2026-01-15 09:30");
+
+        Assert.NotNull(snap);
+        Assert.Equal(150m, snap!.UsdJpyRate);
+        Assert.Single(snap.Values);
+        Assert.Equal(100m, snap.Values[0].PriceNative);
+        Assert.Equal(75_000m, snap.Values[0].ValuationJpy);  // 5株 × $100 × 150
+    }
+
+    [Fact]
+    public void BuildSnapshot_MultipleHoldings_AllPresent()
+    {
+        var jp = new Holding { Id = "j", Class = AssetClass.JpStock, CostCurrency = Currency.Jpy };
+        var us = new Holding { Id = "u", Class = AssetClass.UsStock, CostCurrency = Currency.Usd };
+        var data = new PortfolioData
+        {
+            UsdJpyRate = 150m,
+            Holdings = { jp, us },
+            Buys =
+            {
+                new BuyLot { HoldingId = "j", Quantity = 10, UnitPrice = 100 },
+                new BuyLot { HoldingId = "u", Quantity = 5, UnitPrice = 100 },
+            },
+            CurrentPrices = { ["j"] = 200m, ["u"] = 100m },
+        };
+        var snap = PortfolioMath.BuildSnapshot(data, "2026-01-15 09:30");
+
+        Assert.NotNull(snap);
+        Assert.Equal(2, snap!.Values.Count);
+        Assert.Equal(2_000m, snap.Values.Single(v => v.HoldingId == "j").ValuationJpy);
+        Assert.Equal(75_000m, snap.Values.Single(v => v.HoldingId == "u").ValuationJpy);
+    }
 }
