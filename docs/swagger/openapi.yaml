@@ -10,7 +10,7 @@ info:
     |---|---|
     | `/data`, `/portfolio`, `/quote`, `/extract-card`, `/access` | Firebase Auth JWT（`Authorization: Bearer <token>`） |
     | `/access` | オーナーのみ（JWT + OwnerEmail 一致） |
-    | `/market-summary` | 共有シークレット（`X-Internal-Secret` ヘッダー） |
+    | `/market-summary`, `/portfolio-snapshot-current` | 共有シークレット（`X-Internal-Secret` ヘッダー） |
 
     ローカル開発では `AuthBypass=true` 環境変数でJWT検証をスキップできます。
 
@@ -233,6 +233,38 @@ paths:
           description: 共有シークレット不一致または未指定
         "502":
           description: 上流（Yahoo Finance）の取得失敗
+
+  /portfolio-snapshot-current:
+    get:
+      operationId: getPortfolioSnapshotCurrent
+      summary: ポートフォリオ現況を取得（日報用）
+      description: |
+        オーナーのポートフォリオ現況（保有銘柄・評価額・含み損益）と過去の資産推移を返す。
+
+        **処理フロー:**
+        1. オーナーのポートフォリオドキュメントを Cosmos から読み出す
+        2. 全保有銘柄の現在価格を並行取得（Yahoo Finance v8 / 投信協会 CSV）
+        3. 当日スナップショットを記録（同日上書き）して Cosmos に保存
+        4. 現況・推移・評価損益を返す
+
+        **認証: Firebase JWT ではなく共有シークレット（`X-Internal-Secret` ヘッダー）。**
+        日報スキル等のサーバー間連携専用。オーナーの userId は `OwnerUserId` 環境変数で指定。
+      tags: [portfolio]
+      security:
+        - internalSecret: []
+      responses:
+        "200":
+          description: ポートフォリオ現況・推移
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PortfolioCurrentResponse"
+        "401":
+          description: 共有シークレット不一致または未指定
+        "503":
+          description: OwnerUserId 環境変数が未設定
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /extract-card:
     post:
@@ -963,6 +995,72 @@ components:
           type: number
           nullable: true
           description: 前日終値（取得できた場合のみ）
+
+    PortfolioCurrentResponse:
+      type: object
+      description: GET /portfolio-snapshot-current のレスポンス（日報スキル等の内部 API 専用）
+      properties:
+        pricedAt:
+          type: string
+          description: 価格取得日時（UTC）"yyyy-MM-dd HH:mm"
+        usdJpyRate:
+          type: number
+          description: 評価額算出に使った USD/JPY レート
+        totalValuationJpy:
+          type: number
+          description: 総資産（評価額合計・円）
+        costBasisJpy:
+          type: number
+          description: 取得原価合計（円）
+        unrealizedPnlJpy:
+          type: number
+          description: 含み損益合計（円）
+        holdings:
+          type: array
+          items:
+            $ref: "#/components/schemas/HoldingCurrentInfo"
+        history:
+          type: array
+          description: スナップショット時系列（古い順）
+          items:
+            $ref: "#/components/schemas/SnapshotPnlPoint"
+
+    HoldingCurrentInfo:
+      type: object
+      description: 保有銘柄の現況（1件）
+      properties:
+        name:
+          type: string
+        quantity:
+          type: number
+        priceNative:
+          type: number
+          description: 現在価格（建て通貨）
+        valuationJpy:
+          type: number
+          description: 評価額（円）
+        costBasisJpy:
+          type: number
+          description: 取得原価（円）
+        unrealizedPnlJpy:
+          type: number
+          description: 含み損益（円）
+
+    SnapshotPnlPoint:
+      type: object
+      description: スナップショット時系列の1点（評価損益付き）
+      properties:
+        at:
+          type: string
+          description: 記録日時 "yyyy-MM-dd HH:mm"
+        usdJpyRate:
+          type: number
+        totalValuationJpy:
+          type: number
+        costBasisJpy:
+          type: number
+        pnlJpy:
+          type: number
 
     # ── アクセス承認 ────────────────────────────────────────────────────────────
 

@@ -124,6 +124,164 @@ public partial class DataApi
             return new StatusCodeResult(500);
         }
     }
+
+    // GET /api/portfolio-snapshot-current → 最新価格を取得・当日スナップショットを記録し、
+    // 現況（保有銘柄・評価額・含み損益）と推移履歴を返す（日報スキル等の内部 API 専用）。
+    // 認証は共有シークレット（X-Internal-Secret）。OwnerUserId 環境変数でオーナーの userId を特定。
+    [Function("GetPortfolioSnapshotCurrent")]
+    public async Task<IActionResult> GetPortfolioSnapshotCurrent(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "portfolio-snapshot-current")] HttpRequest req)
+    {
+        if (!IsAuthorizedSharedSecret(Environment.GetEnvironmentVariable("InternalApi__SharedSecret"), req.Headers["X-Internal-Secret"]))
+            return new UnauthorizedResult();
+
+        var ownerUserId = Environment.GetEnvironmentVariable("OwnerUserId");
+        if (string.IsNullOrEmpty(ownerUserId))
+        {
+            logger.LogError("GetPortfolioSnapshotCurrent: OwnerUserId not configured");
+            return new StatusCodeResult(StatusCodes.Status503ServiceUnavailable);
+        }
+
+        try
+        {
+            var container = GetContainer();
+            var pk = new PartitionKey(ownerUserId);
+
+            // ポートフォリオドキュメントを読む（存在しなければ空のデータで続行）。
+            PortfolioData data = new();
+            string? etag = null;
+            try
+            {
+                var r = await container.ReadItemAsync<PortfolioDoc>(PortfolioId, pk);
+                etag = r.ETag;
+                data = new PortfolioData
+                {
+                    SchemaVersion = r.Resource.SchemaVersion,
+                    Holdings = r.Resource.Holdings,
+                    Buys = r.Resource.Buys,
+                    Sells = r.Resource.Sells,
+                    Dividends = r.Resource.Dividends,
+                    Snapshots = r.Resource.Snapshots,
+                    CurrentPrices = r.Resource.CurrentPrices,
+                    UsdJpyRate = r.Resource.UsdJpyRate,
+                    PricedAt = r.Resource.PricedAt
+                };
+            }
+            catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound) { }
+
+            // 株・投信・USD/JPY を並行取得。
+            var active = data.Holdings.Where(h => !h.IsDeleted).ToList();
+            var stockTasks = active
+                .Where(h => h.Class != AssetClass.Fund && !string.IsNullOrEmpty(h.Symbol))
+                .Select(async h => (h, P: await FetchPriceAsync(PortfolioMath.YahooSymbol(h))))
+                .ToList();
+            var fundTasks = active
+                .Where(h => h.Class == AssetClass.Fund && !string.IsNullOrEmpty(h.AssocFundCd))
+                .Select(async h => (h, P: await FetchFundPriceAsync(h.Isin, h.AssocFundCd)))
+                .ToList();
+            var rateTask = FetchPriceAsync(RateSymbol);
+            await Task.WhenAll(stockTasks.Cast<Task>().Concat(fundTasks.Cast<Task>()).Append(rateTask));
+
+            foreach (var t in stockTasks)
+            {
+                var (h, p) = t.Result;
+                if (p.Price is > 0) data.CurrentPrices[h.Id] = p.Price.Value;
+            }
+            foreach (var t in fundTasks)
+            {
+                var (h, p) = t.Result;
+                if (p.Latest is > 0) data.CurrentPrices[h.Id] = p.Latest.Value;
+            }
+            if (rateTask.Result.Price is > 0) data.UsdJpyRate = rateTask.Result.Price.Value;
+
+            var at = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm");
+            data.PricedAt = at;
+
+            // 当日スナップショット記録（同日上書き）。
+            var snap = PortfolioMath.BuildSnapshot(data, at);
+            if (snap != null)
+            {
+                var today = at[..10];
+                var idx = data.Snapshots.FindIndex(s => s.At.Length >= 10 && s.At[..10] == today);
+                if (idx >= 0) data.Snapshots[idx] = snap;
+                else data.Snapshots.Add(snap);
+            }
+
+            // Cosmos に保存。ETag 競合（フロントと同時操作）はスキップ。
+            var saveDoc = new PortfolioDoc
+            {
+                Id = PortfolioId, UserId = ownerUserId, Type = "portfolio",
+                SchemaVersion = data.SchemaVersion,
+                Holdings = data.Holdings, Buys = data.Buys, Sells = data.Sells,
+                Dividends = data.Dividends, Snapshots = data.Snapshots,
+                CurrentPrices = data.CurrentPrices, UsdJpyRate = data.UsdJpyRate, PricedAt = data.PricedAt
+            };
+            var saveOpt = new ItemRequestOptions { EnableContentResponseOnWrite = false };
+            if (!string.IsNullOrEmpty(etag)) saveOpt.IfMatchEtag = etag;
+            try { await container.UpsertItemAsync(saveDoc, pk, saveOpt); }
+            catch (CosmosException e) when (e.StatusCode == HttpStatusCode.PreconditionFailed)
+            { logger.LogWarning("GetPortfolioSnapshotCurrent: etag conflict on save, skipping"); }
+
+            // レスポンス構築。
+            var today2 = at[..10];
+            decimal totalValuation = 0m;
+            decimal totalCost = PortfolioMath.CostBasisJpyAsOf(data, today2, data.UsdJpyRate);
+            var holdingInfos = new List<HoldingCurrentInfo>();
+            foreach (var h in active)
+            {
+                var sum = PortfolioMath.Summarize(h, data.Buys, data.Sells, data.Dividends);
+                if (sum.Quantity == 0) continue;
+                var price = data.CurrentPrices.GetValueOrDefault(h.Id);
+                var vJpy = PortfolioMath.ValuationJpy(h, sum.Quantity, price, data.UsdJpyRate);
+                if (!vJpy.HasValue) continue;
+                var costJpy = PortfolioMath.HoldingCostBasisJpyAsOf(data, h, today2, data.UsdJpyRate);
+                totalValuation += vJpy.Value;
+                holdingInfos.Add(new HoldingCurrentInfo
+                {
+                    Name = h.Name,
+                    Quantity = sum.Quantity,
+                    PriceNative = price,
+                    ValuationJpy = vJpy.Value,
+                    CostBasisJpy = costJpy,
+                    UnrealizedPnlJpy = vJpy.Value - costJpy
+                });
+            }
+
+            var history = data.Snapshots
+                .OrderBy(s => s.At)
+                .Select(s =>
+                {
+                    var sDate = s.At.Length >= 10 ? s.At[..10] : s.At;
+                    var totalJpy = s.Values.Sum(v => v.ValuationJpy);
+                    var costJpy = PortfolioMath.CostBasisJpyAsOf(data, sDate, s.UsdJpyRate);
+                    return new SnapshotPnlPoint
+                    {
+                        At = s.At,
+                        UsdJpyRate = s.UsdJpyRate,
+                        TotalValuationJpy = totalJpy,
+                        CostBasisJpy = costJpy,
+                        PnlJpy = totalJpy - costJpy
+                    };
+                })
+                .ToList();
+
+            return new OkObjectResult(new PortfolioCurrentResponse
+            {
+                PricedAt = at,
+                UsdJpyRate = data.UsdJpyRate,
+                TotalValuationJpy = totalValuation,
+                CostBasisJpy = totalCost,
+                UnrealizedPnlJpy = totalValuation - totalCost,
+                Holdings = holdingInfos,
+                History = history
+            });
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "GetPortfolioSnapshotCurrent failed");
+            return new StatusCodeResult(500);
+        }
+    }
 }
 
 // Cosmos ドキュメント（同一パーティション /userId 内で type="portfolio"）。
@@ -141,4 +299,37 @@ public class PortfolioDoc
     public Dictionary<string, decimal> CurrentPrices { get; set; } = new();
     public decimal UsdJpyRate { get; set; }
     public string PricedAt { get; set; } = "";
+}
+
+/// <summary>GET /api/portfolio-snapshot-current のレスポンス（日報スキル等の内部 API 専用）。</summary>
+public class PortfolioCurrentResponse
+{
+    public string PricedAt { get; set; } = "";          // 価格取得日時（UTC・"yyyy-MM-dd HH:mm"）
+    public decimal UsdJpyRate { get; set; }              // 評価額算出に使った USD/JPY レート
+    public decimal TotalValuationJpy { get; set; }       // 総資産（評価額合計・円）
+    public decimal CostBasisJpy { get; set; }            // 取得原価合計（円）
+    public decimal UnrealizedPnlJpy { get; set; }        // 含み損益合計（円）
+    public List<HoldingCurrentInfo> Holdings { get; set; } = new();
+    public List<SnapshotPnlPoint> History { get; set; } = new();
+}
+
+/// <summary>保有銘柄の現況（1件）。</summary>
+public class HoldingCurrentInfo
+{
+    public string Name { get; set; } = "";
+    public decimal Quantity { get; set; }
+    public decimal PriceNative { get; set; }       // 現在価格（建て通貨）
+    public decimal ValuationJpy { get; set; }       // 評価額（円）
+    public decimal CostBasisJpy { get; set; }       // 取得原価（円）
+    public decimal UnrealizedPnlJpy { get; set; }  // 含み損益（円）
+}
+
+/// <summary>スナップショット時系列の1点（評価損益付き）。</summary>
+public class SnapshotPnlPoint
+{
+    public string At { get; set; } = "";           // "yyyy-MM-dd HH:mm"
+    public decimal UsdJpyRate { get; set; }
+    public decimal TotalValuationJpy { get; set; }
+    public decimal CostBasisJpy { get; set; }
+    public decimal PnlJpy { get; set; }
 }
