@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Edit(**)",
+      "Write(**)",
+      "PowerShell(cd c:\\\\Development\\\\moneyboard; dotnet build MoneyBoard/MoneyBoard.csproj --nologo 2>&1 | Where-Object { $_ -match 'error|warning|Build succeeded|エラー|警告' } | Select-Object -Last 10)",
+      "Bash(python -c \"import sys,json; issues=json.load\\(sys.stdin\\); print\\(f'Total open issues: {len\\(issues\\)}'\\)\")",
+      "Bash(python -c ' *)",
+      "Bash(xargs grep -n \"ActiveAccounts\")",
+      "Edit(~/.claude/skills/release/**)",
+      "PowerShell(\\(Get-Content MoneyBoard/Pages/Portfolio.razor.cs | Measure-Object -Line\\).Lines)",
+      "PowerShell(dotnet test MoneyBoardShared.Tests/MoneyBoardShared.Tests.csproj --no-restore -v q 2>&1)",
+      "PowerShell(tail -20)",
+      "PowerShell(dotnet build MoneyBoard/MoneyBoard.csproj --no-restore -v q 2>&1)",
+      "PowerShell(tail -15)",
+      "PowerShell(\\(Get-Content MoneyBoard/Pages/Portfolio.razor.cs | Measure-Object -Line\\).Lines; \\(Get-Content MoneyBoard/Pages/Portfolio.Disp.cs | Measure-Object -Line\\).Lines)",
+      "PowerShell(\\(Get-Item \"C:\\\\Users\\\\tsugi\\\\.claude\\\\skills\\\\release\"\\).LinkType; \\(Get-Item \"C:\\\\Users\\\\tsugi\\\\.claude\\\\skills\\\\release\"\\).Target)",
+      "Bash(grep -q \"Host lock lease acquired\\\\|Now listening on\\\\|Functions:\" \"C:\\\\Users\\\\tsugi\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Development-moneyboard\\\\80ac5b31-546a-46b4-a734-9972b3bebfcb\\\\tasks\\\\bmfpuub8n.output\")",
+      "Bash(break)",
+      "Bash(func start *)",
+      "Bash(python -c \"import json,sys; data=json.load\\(sys.stdin\\); [print\\(f'#{d[\\\\\"number\\\\\"]} [{d[\\\\\"milestone\\\\\"][\\\\\"title\\\\\"] if d[\\\\\"milestone\\\\\"] else \\\\\"no milestone\\\\\"}] {d[\\\\\"title\\\\\"]}'\\) for d in data]\")",
+      "PowerShell(cd \"c:\\\\Development\\\\moneyboard\\\\docs\\\\swagger\"; Start-Process python -ArgumentList \"-m\", \"http.server\", \"8099\" -WindowStyle Hidden; Start-Sleep -Seconds 2; try { $r = Invoke-WebRequest http://localhost:8099/ -UseBasicParsing -TimeoutSec 3; \"HTTP $\\($r.StatusCode\\) OK\" } catch { \"Error: $_\" })",
+      "PowerShell(python -c \"import yaml; yaml.safe_load\\(open\\('c:/Development/moneyboard/docs/swagger/openapi.yaml', encoding='utf-8'\\)\\); print\\('YAML parse: OK'\\)\")",
+      "Bash(node -e \"const fs=require\\('fs'\\);const yaml=require\\('js-yaml'\\);try{yaml.load\\(fs.readFileSync\\('c:/Development/moneyboard/docs/swagger/openapi.yaml','utf8'\\)\\);console.log\\('OK'\\)}catch\\(e\\){console.log\\('ERROR:',e.message\\)}\")",
+      "Bash(npm init *)",
+      "Bash(npm install *)",
+      "Bash(node -e \"const fs=require\\('fs'\\);const yaml=require\\('js-yaml'\\);try{const doc=yaml.load\\(fs.readFileSync\\('c:/Development/moneyboard/docs/swagger/openapi.yaml','utf8'\\)\\);const paths=Object.keys\\(doc.paths||{}\\).length;const ops=['get','post','put','delete','patch','head','options','trace'];const opCount=Object.values\\(doc.paths||{}\\).reduce\\(\\(a,p\\)=>a+ops.filter\\(m=>p[m]\\).length,0\\);console.log\\('OK / paths:',paths,'/ operations:',opCount\\)}catch\\(e\\){console.log\\('ERROR:',e.message\\)}\")",
+      "PowerShell(Stop-Process -Name python -ErrorAction SilentlyContinue)",
+      "Bash(ConvertFrom-Json)",
+      "Bash(Select-Object title,state)",
+      "PowerShell(gh issue view 37 --json title,state)",
+      "Bash(grep -v \"//\\\\|GetToken\\\\|BearerToken\\\\|idToken\\\\|firebaseToken\\\\|FcmToken\\\\|accessToken\\\\|refreshToken\\\\|authToken\\\\|jwtToken\")"
+    ]
+  }
+}
