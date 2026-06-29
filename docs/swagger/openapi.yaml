@@ -656,7 +656,7 @@ components:
           description: 取込先のカード ID
         image:
           type: string
-          description: Base64エンコードした画像データ（data: プレフィックスなし）
+          description: "Base64エンコードした画像データ（data: プレフィックスなし）"
         mediaType:
           type: string
           description: 画像の MIME タイプ（未指定は image/png 扱い）
