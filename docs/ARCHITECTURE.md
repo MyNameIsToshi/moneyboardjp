@@ -496,7 +496,7 @@ Transfer
 
 ### 残タスク（→ GitHub Issues）
 - AI 機能（C案 #27 / 自然言語入力 #28 / 月次コメント #29 / FABチャット #30）は **Phase 4 の土台を再利用**。Milestone「Phase 5: AI機能拡張」。
-- 市場指標バー（`/portfolio` 上部）＝ **#26**（設計詳細は issue 本文）。
+- 市場指標バー（`/portfolio` 上部）＝ **✅ v1.5.0 で完了**（#26 closed）。
 
 ---
 
