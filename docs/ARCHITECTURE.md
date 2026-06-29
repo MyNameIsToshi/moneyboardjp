@@ -11,6 +11,7 @@
 
 - GitHub: https://github.com/MyNameIsToshi/moneyboardjp
 - 本番URL: https://purple-stone-08eacab00.7.azurestaticapps.net
+- API ドキュメント（Swagger UI）: https://mynameistoshi.github.io/moneyboardjp/swagger/
 - ローカルパス: `C:\Development\moneyboard\`
 - **現行バージョン: `2.2.0`**（2026-06-27 本番リリース・PR #62。金額マスク機能＝アプリ全体トグル・リロード後も反映・入力欄/ダイアログ/ドーナツにも適用）。`2.1.0`（2026-06-27 本番リリース・PR #60。マイページ口座並べ替え▲▼/D&D・設定行アイコン統一・起点月より過去へ戻れる不具合修正・追加時空データ出現不具合修正）。`2.0.0`（2026-06-26・PR #58。全画面リデザイン＆PCサイドバーナビ＝ヒーロー集約＋線アイコン統一、月次/カード/統計/資産/マイページ全画面刷新、PC左サイドバー、ポートフォリオ市場指数3列グリッド。メジャー番号＝UIの大節目・API非互換なし）。`1.5.0`（2026-06-21・PR #35。市場指標バー=NYダウ/ナスダック/S&P500/日経/KOSPI 5本・AI読取エラー可視化）。`1.4.0`（2026-06-21・PR #22。**Phase 4 土台＝Claude Vision でカード明細スクショをAI読み取り→当月へ取込**。詳細は「Phase 4」節）。`1.3.4`（2026-06-20・PR #21。CIカバレッジをPRコメント＋Job Summaryに出力）／`1.3.3`（PR #20。Step4前クリーンアップ＝テスト基盤整備・純粋ロジック抽出・巨大razor code-behind分離）／`1.3.2`=証券ポートフォリオ表示改善＋深いURL404修正／`1.3.1`=スマホ実機修正／`1.3.0`=スマホUI全面最適化／`1.2.0`=Phase 3 証券ポートフォリオ。
 - 次の AI 機能（C案カテゴリ推定・月次コメント・FABチャット 等）は Phase 4 の土台を再利用して順次追加。
@@ -421,6 +422,7 @@ Transfer
   - **スマホへの適用方針**：マークアップを二重化せず共有し、**PC 設計を入れると mobile.css の調整なしでスマホにも反映される**（`IsMobile` ＋ CSS で差分のみ出し分け）。当初 #43/spec は「PCのみ」想定だったが、別ツリー化を避ける本方針を採用＝**以後 PC 設計の提供だけでスマホ版にも反映**（Design 依頼の手間・トークン削減）。口座カードの既定折りたたみだけは `IsMobile` で出し分け。
 - **PC ナビは左サイドバーで統一（#41）** … PC は「Home 上部タブ＋月次タブ内の入口ボタン＋各ページの戻る」で遷移方法が混在していた。スマホの下部バー（5系統一貫）に倣い、**PC は左サイドナビ（`SideNav`）に統一**。`MainLayout` が PC=サイドナビ／スマホ=下部バーを出し分け、行き先・ハイライト規則は両者で同形。ブランドはサイドナビ上部に集約し、各ページ頭のヘッダー・「← 戻る」・📊💹 入口ボタンは撤去。代替案（トップバー／各ページにタブ複製）より、本文幅を確保しつつ全画面で一貫した導線になるため採用。**統計/資産の URL 一貫性（`/graph`・`/portfolio` を他と揃える）は別 issue で継続検討**。
 - **日報のアプリ化は見送り（#32・closed）** … 投資SNSの日次日報を MoneyBoard で生成/編集/X投稿/記録簿化する構想は見送り。価値の大半が当日ニュースの web 検索＋分析＝既存 Claude 会話との差分が薄く、X自動投稿も外部・有料・OAuth でリスク過大なため。代替として **市場指標バー（#26）** のみ実装。詳細は issue #32。
+- **OpenAPI 仕様を手書き YAML + Swagger UI（GitHub Pages）で公開（#66）** … Azure Functions Isolated は ASP.NET Core と異なり Swashbuckle が直接使えない（Isolated は HTTP middleware を持たずビルド時のリフレクションが複雑）。NSwag や Microsoft.Azure.Functions.Worker.Extensions.OpenApi も追加パッケージ・スタートアップ変更を要し、ポートフォリオ用途（実際にトライアウトするわけではない）に対してコストが大きい。そのため **`docs/swagger/openapi.yaml` を手書き**してリポジトリに置き、GitHub Pages（`docs/` フォルダ）で Swagger UI（CDN）を介して公開する方式を採用。openapi.yaml はコードとともにメンテ・CI やパッケージの追加なし。GitHub Pages は repo 設定で `main` ブランチの `docs/` フォルダを Source に設定する（一度限りの手作業）。公開 URL: https://mynameistoshi.github.io/moneyboardjp/swagger/
 
 > **Claude API 連携（土台）／カード画像（スクショ）読み取り** は **v1.4.0 で本番リリース済み**（下記「実装済み機能」表・「Phase 4」節を参照）。
 

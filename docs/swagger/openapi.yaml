@@ -1,0 +1,1030 @@
+openapi: 3.0.3
+info:
+  title: MoneyBoard API
+  description: |
+    家計・資産管理 Web アプリ MoneyBoard のバックエンド API（Azure Functions v4 Isolated / .NET 8）。
+
+    ## 認証
+
+    | エンドポイント | 認証方式 |
+    |---|---|
+    | `/data`, `/portfolio`, `/quote`, `/extract-card`, `/access` | Firebase Auth JWT（`Authorization: Bearer <token>`） |
+    | `/access` | オーナーのみ（JWT + OwnerEmail 一致） |
+    | `/market-summary` | 共有シークレット（`X-Internal-Secret` ヘッダー） |
+
+    ローカル開発では `AuthBypass=true` 環境変数でJWT検証をスキップできます。
+
+    ## ソースコード
+
+    [github.com/MyNameIsToshi/moneyboardjp](https://github.com/MyNameIsToshi/moneyboardjp)
+  version: "2.2.0"
+  contact:
+    url: https://github.com/MyNameIsToshi/moneyboardjp
+  license:
+    name: MIT
+    url: https://github.com/MyNameIsToshi/moneyboardjp/blob/main/LICENSE
+
+servers:
+  - url: https://purple-stone-08eacab00.7.azurestaticapps.net/api
+    description: Production (Azure Static Web Apps)
+  - url: http://localhost:7071/api
+    description: Local (Azure Functions Core Tools)
+
+tags:
+  - name: home-account
+    description: 家計簿データ（口座・月次収支・カード明細）
+  - name: portfolio
+    description: 証券ポートフォリオ
+  - name: market
+    description: 市場データ（株価・為替・投信基準価額）
+  - name: access
+    description: アクセス承認管理（オーナー専用）
+  - name: ai
+    description: AI 連携（Claude Haiku 4.5 Vision によるカード明細読み取り）
+
+paths:
+  /data:
+    get:
+      operationId: getData
+      summary: 家計簿データ全体を取得
+      description: |
+        設定ドキュメント（口座・固定費・カテゴリ・カード）と全月次データを集約して返す。
+        データ未作成の新規ユーザーは空の SettingsPart を返す。
+      tags: [home-account]
+      security:
+        - firebaseJwt: []
+      responses:
+        "200":
+          description: 家計簿データ全体
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      operationId: saveData
+      summary: 家計簿データを保存
+      description: |
+        変更があった設定・月次のみを差分で送信する。
+        Cosmos DB の TransactionalBatch で原子的に保存。
+        楽観的並行制御: `etag` を含む場合は If-Match で検証し、競合時は 412 を返す。
+        リクエスト本文の上限: 1.9 MB。
+      tags: [home-account]
+      security:
+        - firebaseJwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DataEnvelope"
+      responses:
+        "200":
+          description: 保存成功。保存後の新しい etag を返す。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SaveResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "412":
+          description: 楽観的並行制御の競合（別タブ・別端末で先に保存された場合）
+        "413":
+          description: リクエスト本文が 1.9 MB を超えた
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /portfolio:
+    get:
+      operationId: getPortfolio
+      summary: 証券ポートフォリオを取得
+      description: |
+        保有銘柄・買付・売却・配当・価格スナップショット等を全て返す。
+        データ未作成の新規ユーザーは空の PortfolioData を返す。
+        レスポンスの `isTsmcEmployee` はリクエスト本人の状態のみ（他人の状態は返さない）。
+      tags: [portfolio]
+      security:
+        - firebaseJwt: []
+      responses:
+        "200":
+          description: ポートフォリオデータ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PortfolioEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      operationId: savePortfolio
+      summary: 証券ポートフォリオを保存
+      description: |
+        ポートフォリオ全体を上書き保存。
+        楽観的並行制御: `etag` を含む場合は If-Match で検証し、競合時は 412 を返す。
+      tags: [portfolio]
+      security:
+        - firebaseJwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PortfolioEnvelope"
+      responses:
+        "200":
+          description: 保存成功。保存後の新しい etag を返す。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PortfolioSaveResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "412":
+          description: 楽観的並行制御の競合
+        "413":
+          description: リクエスト本文が 1.9 MB を超えた
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /quote:
+    post:
+      operationId: getQuote
+      summary: 株価・投信基準価額を取得
+      description: |
+        Yahoo Finance / 投信協会 のプロキシ。銘柄一覧の現在値・前日終値と USD/JPY レートを返す。
+        クライアントから直接叩くと CORS でブロックされるため、サーバー側でプロキシする。
+
+        - 株式・ETF: Yahoo Finance シンボル（日本株 `7203.T` / 米国株 `AAPL`）
+        - 投資信託: 投信協会の協会コード（基準価額は1万口あたり・円建て）
+
+        取得失敗した銘柄はレスポンスから欠落する（全銘柄失敗でも 200 を返す）。
+      tags: [market]
+      security:
+        - firebaseJwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuoteRequest"
+            examples:
+              stocks_and_fund:
+                summary: 株式＋投信の混合
+                value:
+                  symbols: ["7203.T", "AAPL"]
+                  funds:
+                    - assocFundCd: "0331418A"
+                      isin: "JP90C000H1T1"
+      responses:
+        "200":
+          description: 価格データ（取得失敗分は欠落する）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuoteResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          description: リクエスト本文が上限を超えた
+        "502":
+          description: 上流（Yahoo Finance / 投信協会）の取得失敗
+
+  /market-summary:
+    get:
+      operationId: getMarketSummary
+      summary: 市場指標サマリーを取得
+      description: |
+        公的な市場データのみを返す（個人ポートフォリオは含まない）。
+
+        取得指標: NYダウ・ナスダック・S&P500・日経平均・KOSPI の5本と USD/JPY レート。
+        ⚠ TOPIX は Yahoo Finance v8 が配信していないため除外。
+
+        **認証: Firebase JWT ではなく共有シークレット（`X-Internal-Secret` ヘッダー）。**
+        日報スキル等のサーバー間連携（外部連携）専用エンドポイント。
+      tags: [market]
+      security:
+        - internalSecret: []
+      responses:
+        "200":
+          description: 市場指標サマリー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketSummaryResponse"
+        "401":
+          description: 共有シークレット不一致または未指定
+        "502":
+          description: 上流（Yahoo Finance）の取得失敗
+
+  /extract-card:
+    post:
+      operationId: extractCard
+      summary: カード明細をAIで読み取る
+      description: |
+        クレジットカード利用明細のスクリーンショット（Base64画像）を
+        Claude Haiku 4.5（Vision + 構造化出力）で解析し、利用明細の一覧を返す。
+
+        - 対応フォーマット: PNG / JPEG / WebP / GIF
+        - 合計・ポイント残高等の「明細でない行」は除外される
+        - Anthropic API キーが未設定の環境では 503 を返す
+        - 上流エラー（401/403/429/5xx 等）は 502 に統一して返す（フロントが403と混同しないよう）
+      tags: [ai]
+      security:
+        - firebaseJwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExtractCardRequest"
+      responses:
+        "200":
+          description: 読み取った明細一覧（抽出失敗・不正行は除外される）
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CardDetail"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          description: リクエスト本文が 1.9 MB を超えた
+        "502":
+          description: Anthropic API 上流エラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExtractCardError"
+        "503":
+          description: Anthropic API キー未設定（この環境では利用不可）
+
+  /access:
+    get:
+      operationId: getAccess
+      summary: アクセス承認データを取得（オーナー専用）
+      description: 承認済みユーザー・承認待ちユーザー・TSMC社員フラグ付きユーザーの一覧を返す。
+      tags: [access]
+      security:
+        - firebaseJwt: []
+      responses:
+        "200":
+          description: アクセス管理データ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessData"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: オーナー以外のユーザー（または承認待ち）
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      operationId: postAccess
+      summary: ユーザーを承認／拒否／解除（オーナー専用）
+      description: |
+        承認待ちユーザーを承認・拒否するか、承認済みユーザーのアクセスを解除する。
+        TSMC 社員フラグ（ESPP UI 表示可否）の設定も兼ねる。
+
+        | action | 説明 |
+        |---|---|
+        | `approve` | 承認待ち → 承認済みに移動 |
+        | `reject` | 承認待ちから削除 |
+        | `revoke` | 承認済みを解除（社員フラグも除去） |
+        | `tsmc` | TSMC 社員フラグを `value` で ON/OFF |
+      tags: [access]
+      security:
+        - firebaseJwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccessAction"
+            examples:
+              approve:
+                summary: ユーザーを承認
+                value:
+                  action: approve
+                  uid: firebase-uid-here
+                  value: false
+              tsmc_on:
+                summary: TSMC社員フラグを付与
+                value:
+                  action: tsmc
+                  uid: firebase-uid-here
+                  value: true
+      responses:
+        "200":
+          description: 操作後のアクセス管理データ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessData"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: オーナー以外のユーザー
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+components:
+  securitySchemes:
+    firebaseJwt:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Firebase Authentication (Google) が発行する ID トークン
+    internalSecret:
+      type: apiKey
+      in: header
+      name: X-Internal-Secret
+      description: |
+        サーバー間連携用の共有シークレット。
+        サーバー側の `InternalApi__SharedSecret` 環境変数と一致する値を指定する。
+
+  responses:
+    Unauthorized:
+      description: Firebase JWT が無効または未指定
+    Forbidden:
+      description: 承認待ち（`{"status":"pending"}`）またはオーナー権限が必要
+    BadRequest:
+      description: リクエスト本文が不正または必須項目が欠落
+    InternalError:
+      description: サーバー内部エラー
+
+  schemas:
+    # ── 家計簿 ──────────────────────────────────────────────────────────────────
+
+    DataEnvelope:
+      type: object
+      description: |
+        GET /data のレスポンス兼 POST /data のリクエスト。
+        POST 時は変更がある部分のみ送る（settings=null なら設定変更なし、months は変更月のみ）。
+      properties:
+        settings:
+          $ref: "#/components/schemas/SettingsPart"
+        months:
+          type: object
+          description: キーは "yyyyMM" 形式の年月（例 "202601"）
+          additionalProperties:
+            $ref: "#/components/schemas/MonthPart"
+        isOwner:
+          type: boolean
+          description: GET レスポンスのみ。現ユーザーがオーナーか（承認管理 UI の出し分け用）
+          readOnly: true
+
+    SettingsPart:
+      type: object
+      description: 設定ドキュメント（口座・固定費・カテゴリ・カード）に対応するパート
+      properties:
+        etag:
+          type: string
+          nullable: true
+          description: Cosmos DB の ETag（楽観的並行制御用・POST 時に If-Match として使用）
+        schemaVersion:
+          type: integer
+          example: 1
+        accounts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Account"
+        fixedCosts:
+          type: array
+          items:
+            $ref: "#/components/schemas/FixedCost"
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/Category"
+        cards:
+          type: array
+          items:
+            $ref: "#/components/schemas/Card"
+        categoryRules:
+          type: object
+          description: 利用先（店名）→ カテゴリID のマッピング（自動分類ルール）
+          additionalProperties:
+            type: string
+
+    MonthPart:
+      type: object
+      description: 月次ドキュメントに対応するパート
+      properties:
+        etag:
+          type: string
+          nullable: true
+        ledgers:
+          type: object
+          description: キーは口座 ID
+          additionalProperties:
+            $ref: "#/components/schemas/Ledger"
+        transfers:
+          type: array
+          items:
+            $ref: "#/components/schemas/Transfer"
+        cardDetails:
+          type: array
+          description: この月に計上するカード利用明細
+          items:
+            $ref: "#/components/schemas/CardDetail"
+        cardBilled:
+          type: object
+          description: |
+            キーはカード ID・値はその月の実請求額（口座引き落とし額）。
+            未設定のカードは明細合計（一括払い）を引き落とし額とみなす。
+          additionalProperties:
+            type: number
+
+    SaveResponse:
+      type: object
+      description: POST /data の成功レスポンス（保存後の新しい etag）
+      properties:
+        settingsEtag:
+          type: string
+          nullable: true
+        monthEtags:
+          type: object
+          description: キーは年月 "yyyyMM"
+          additionalProperties:
+            type: string
+
+    Account:
+      type: object
+      description: 口座マスタ
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        accountNumber:
+          type: string
+        sortOrder:
+          type: integer
+        isDeleted:
+          type: boolean
+          description: ソフト削除（過去データの名前引きのため残す）
+        isBonusAccount:
+          type: boolean
+          description: ボーナス口座フラグ
+
+    FixedCost:
+      type: object
+      description: 固定費マスタ
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        accountId:
+          type: string
+        amount:
+          type: number
+        startYm:
+          type: string
+          nullable: true
+          description: "有効期間の開始。null / 年のみ \"yyyy\" / 年月 \"yyyyMM\""
+        endYm:
+          type: string
+          nullable: true
+          description: "有効期間の終了。null / 年のみ \"yyyy\" / 年月 \"yyyyMM\""
+        sortOrder:
+          type: integer
+
+    Category:
+      type: object
+      description: カテゴリマスタ
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        color:
+          type: string
+          description: 16進カラーコード
+          example: "#FF6B6B"
+        sortOrder:
+          type: integer
+
+    Card:
+      type: object
+      description: クレジットカードマスタ
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        accountId:
+          type: string
+          description: 引き落とし口座 ID
+        sortOrder:
+          type: integer
+        isDeleted:
+          type: boolean
+          description: ソフト削除（過去明細の名前引きのため残す）
+
+    Ledger:
+      type: object
+      description: 口座別の月次台帳
+      properties:
+        confirmed:
+          type: number
+          description: 月初残高の起点（開始残高）。起点月のみ使用し、他の月は前月末残高から自動計算。
+        salary:
+          type: number
+        bonus:
+          type: number
+        debits:
+          type: array
+          items:
+            $ref: "#/components/schemas/Debit"
+        incomes:
+          type: array
+          description: 臨時収入（給料・ボーナス以外）
+          items:
+            $ref: "#/components/schemas/IncomeItem"
+        atmDeposit:
+          type: number
+          description: ATM入金（口座増・資産移動のため統計には含めない）
+        atmWithdraw:
+          type: number
+          description: ATM出金（口座減・資産移動のため統計には含めない）
+
+    Debit:
+      type: object
+      description: 支出明細
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        amount:
+          type: number
+        isFixed:
+          type: boolean
+          description: 固定費から展開された明細
+        fixedCostId:
+          type: string
+          nullable: true
+        cardId:
+          type: string
+          nullable: true
+          description: カード由来の Debit（明細合計から反映・読み取り専用）
+
+    IncomeItem:
+      type: object
+      description: 臨時収入の明細
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        amount:
+          type: number
+
+    Transfer:
+      type: object
+      description: 口座間振替
+      properties:
+        id:
+          type: string
+        from:
+          type: string
+          description: 送金元口座 ID
+        to:
+          type: string
+          description: 送金先口座 ID
+        amount:
+          type: number
+
+    CardDetail:
+      type: object
+      description: カード利用明細
+      properties:
+        id:
+          type: string
+        cardId:
+          type: string
+        date:
+          type: string
+          format: date
+          description: 利用日 "yyyy-MM-dd"
+          example: "2026-01-15"
+        name:
+          type: string
+          description: 利用先・摘要
+        amount:
+          type: number
+          description: 金額（返金・割引は負数）
+        categoryId:
+          type: string
+          nullable: true
+          description: カテゴリID（未設定=未分類）
+
+    ExtractCardRequest:
+      type: object
+      required: [cardId, image]
+      description: POST /extract-card のリクエスト
+      properties:
+        cardId:
+          type: string
+          description: 取込先のカード ID
+        image:
+          type: string
+          description: Base64エンコードした画像データ（data: プレフィックスなし）
+        mediaType:
+          type: string
+          description: 画像の MIME タイプ（未指定は image/png 扱い）
+          enum: [image/png, image/jpeg, image/gif, image/webp]
+          default: image/png
+
+    ExtractCardError:
+      type: object
+      description: AI 読み取りの上流エラーレスポンス
+      properties:
+        error:
+          type: string
+          example: extract_card_error
+        upstreamStatus:
+          type: integer
+          nullable: true
+          description: Anthropic API の HTTP ステータスコード（取得できた場合）
+        message:
+          type: string
+          description: ユーザー向けのエラーメッセージ
+
+    # ── ポートフォリオ ──────────────────────────────────────────────────────────
+
+    PortfolioEnvelope:
+      type: object
+      description: GET /portfolio のレスポンス兼 POST /portfolio のリクエスト
+      properties:
+        etag:
+          type: string
+          nullable: true
+        data:
+          $ref: "#/components/schemas/PortfolioData"
+        isTsmcEmployee:
+          type: boolean
+          description: GET 時のみサーバーが設定。リクエスト本人が TSMC 社員か（ESPP UI の表示可否）。
+          readOnly: true
+
+    PortfolioData:
+      type: object
+      description: ポートフォリオ全体のデータ
+      properties:
+        schemaVersion:
+          type: integer
+          example: 1
+        holdings:
+          type: array
+          items:
+            $ref: "#/components/schemas/Holding"
+        buys:
+          type: array
+          items:
+            $ref: "#/components/schemas/BuyLot"
+        sells:
+          type: array
+          items:
+            $ref: "#/components/schemas/SellLot"
+        dividends:
+          type: array
+          items:
+            $ref: "#/components/schemas/Dividend"
+        snapshots:
+          type: array
+          description: 時系列の価格スナップショット（推移グラフ用）
+          items:
+            $ref: "#/components/schemas/PriceSnapshot"
+        currentPrices:
+          type: object
+          description: holdingId → 現在単価（ネイティブ通貨・投信は基準価額）
+          additionalProperties:
+            type: number
+        prevPrices:
+          type: object
+          description: holdingId → 前日終値（ネイティブ通貨）
+          additionalProperties:
+            type: number
+        usdJpyRate:
+          type: number
+          description: 直近の USD/JPY レート（ドル建て評価の円換算に使用）
+        pricedAt:
+          type: string
+          description: 価格更新日時 "yyyy-MM-dd HH:mm"
+
+    PortfolioSaveResponse:
+      type: object
+      description: POST /portfolio の成功レスポンス
+      properties:
+        etag:
+          type: string
+          nullable: true
+
+    Holding:
+      type: object
+      description: 保有銘柄マスタ
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+          description: 表示名
+        symbol:
+          type: string
+          description: "株のみ。日本株: 証券コード4桁 \"7203\"（取得時 .T 付与）/ 米国株: ティッカー \"AAPL\"。投信は空。"
+        isin:
+          type: string
+          description: 投信のみ・任意。ISINコード（例 JP90C000H1T1）
+        assocFundCd:
+          type: string
+          description: 投信のみ。協会コード（例 0331418A）。基準価額取得の主キー。
+        class:
+          type: string
+          enum: [Fund, JpStock, UsStock]
+          description: "Fund=投資信託 / JpStock=日本株 / UsStock=米国株"
+        account:
+          type: string
+          enum: [Nisa, Tokutei, General, NisaGrowth, NisaTsumitate]
+          description: 口座区分（税区分）
+        costCurrency:
+          type: string
+          enum: [Jpy, Usd]
+          description: 建て通貨（取得原価の通貨）。日本株・投信は常に Jpy。
+        sortOrder:
+          type: integer
+        isDeleted:
+          type: boolean
+
+    BuyLot:
+      type: object
+      description: 買付履歴（平均取得単価の算出に使う）
+      properties:
+        id:
+          type: string
+        holdingId:
+          type: string
+        date:
+          type: string
+          format: date
+        quantity:
+          type: number
+          description: 株数 / 口数
+        unitPrice:
+          type: number
+          description: 取得単価（CostCurrency 建て・投信は基準価額）
+        fxRate:
+          type: number
+          description: 約定時 USD/JPY（ドル建てのみ・任意。0=未設定=現在レートで代用）
+        isEspp:
+          type: boolean
+          description: ESPP（従業員株式購入制度）の買付。取得原価を割引率ぶん減額する。
+        amount:
+          type: number
+          description: 取得金額=実際の受渡金額（CostCurrency 建て・任意。0=未設定=数量×単価で算出）
+
+    SellLot:
+      type: object
+      description: 売却（解約）履歴
+      properties:
+        id:
+          type: string
+        holdingId:
+          type: string
+        date:
+          type: string
+          format: date
+        quantity:
+          type: number
+        unitPrice:
+          type: number
+
+    Dividend:
+      type: object
+      description: 配当・分配金の受取記録
+      properties:
+        id:
+          type: string
+        holdingId:
+          type: string
+        date:
+          type: string
+          format: date
+        amount:
+          type: number
+        currency:
+          type: string
+          enum: [Jpy, Usd]
+        quantity:
+          type: number
+          description: 配当再投資で取得した株数/口数。通常配当は 0。
+
+    PriceSnapshot:
+      type: object
+      description: 価格更新ボタンで記録する時系列の1点（総資産・評価損益の推移用）
+      properties:
+        at:
+          type: string
+          description: 記録日時 "yyyy-MM-dd HH:mm"
+        usdJpyRate:
+          type: number
+        values:
+          type: array
+          items:
+            $ref: "#/components/schemas/HoldingValue"
+
+    HoldingValue:
+      type: object
+      description: スナップショット内の銘柄別評価
+      properties:
+        holdingId:
+          type: string
+        priceNative:
+          type: number
+          description: 単価（ネイティブ通貨・投信は基準価額）
+        valuationJpy:
+          type: number
+          description: 円換算評価額
+
+    # ── 市場データ ──────────────────────────────────────────────────────────────
+
+    QuoteRequest:
+      type: object
+      description: POST /quote のリクエスト
+      properties:
+        symbols:
+          type: array
+          description: Yahoo Finance シンボル（日本株 "7203.T" / 米国株 "AAPL"）
+          items:
+            type: string
+        funds:
+          type: array
+          description: 基準価額を取得する投資信託の一覧
+          items:
+            $ref: "#/components/schemas/FundRef"
+
+    FundRef:
+      type: object
+      description: 投信の識別子。協会コードが主キー（価格を一意に決める）。
+      properties:
+        isin:
+          type: string
+          description: ISINコード（任意・未指定はサーバーが既知の有効ISINで代替）
+        assocFundCd:
+          type: string
+          description: 協会コード（必須）
+
+    QuoteResponse:
+      type: object
+      description: POST /quote のレスポンス（取得失敗した銘柄は欠落する）
+      properties:
+        usdJpyRate:
+          type: number
+          description: USD/JPY レート
+        prices:
+          type: object
+          description: 株シンボル(大文字) → 現在値（ネイティブ通貨）
+          additionalProperties:
+            type: number
+        fundPrices:
+          type: object
+          description: 協会コード(大文字) → 基準価額（円・1万口あたり）
+          additionalProperties:
+            type: number
+        prevClose:
+          type: object
+          description: 株シンボル(大文字) → 前日終値（ネイティブ通貨）
+          additionalProperties:
+            type: number
+        fundPrevClose:
+          type: object
+          description: 協会コード(大文字) → 前営業日の基準価額（円・1万口あたり）
+          additionalProperties:
+            type: number
+        at:
+          type: string
+          description: 取得時刻（UTC）"yyyy-MM-dd HH:mm"
+
+    MarketSummaryResponse:
+      type: object
+      description: GET /market-summary のレスポンス（公的データのみ・個人ポートフォリオは含まない）
+      properties:
+        at:
+          type: string
+          description: 取得時刻（UTC）"yyyy-MM-dd HH:mm"
+        usdJpyRate:
+          type: number
+        indices:
+          type: array
+          description: 取得に成功した指標のみ含まれる（失敗分は欠落）
+          items:
+            $ref: "#/components/schemas/MarketIndexInfo"
+
+    MarketIndexInfo:
+      type: object
+      description: 市場指数1本の現況
+      properties:
+        symbol:
+          type: string
+          example: "^DJI"
+        label:
+          type: string
+          example: "NYダウ"
+        value:
+          type: number
+          description: 現在値
+        prevClose:
+          type: number
+          nullable: true
+          description: 前日終値（取得できた場合のみ）
+
+    # ── アクセス承認 ────────────────────────────────────────────────────────────
+
+    AccessData:
+      type: object
+      description: アクセス承認の管理データ
+      properties:
+        approved:
+          type: array
+          items:
+            $ref: "#/components/schemas/AccessUser"
+        pending:
+          type: array
+          items:
+            $ref: "#/components/schemas/PendingUser"
+        tsmcEmployees:
+          type: array
+          description: TSMC社員フラグ付きのユーザーUID一覧
+          items:
+            type: string
+
+    AccessUser:
+      type: object
+      description: 承認済みユーザー
+      properties:
+        uid:
+          type: string
+          description: Firebase UID
+        email:
+          type: string
+          nullable: true
+        name:
+          type: string
+          nullable: true
+
+    PendingUser:
+      type: object
+      description: 承認待ちユーザー
+      properties:
+        uid:
+          type: string
+        email:
+          type: string
+          nullable: true
+        name:
+          type: string
+          nullable: true
+        requestedAt:
+          type: string
+          description: アクセスリクエスト日時（ISO 8601）
+
+    AccessAction:
+      type: object
+      required: [action, uid]
+      description: POST /access のリクエスト
+      properties:
+        action:
+          type: string
+          enum: [approve, reject, revoke, tsmc]
+        uid:
+          type: string
+          description: 対象の Firebase UID
+        value:
+          type: boolean
+          description: tsmc アクションのみ使用。true で社員フラグを付与、false で解除。
