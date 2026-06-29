@@ -28,6 +28,60 @@ public partial class DataApi
         return c;
     }
 
+    // 市場指標バー（#26）の確定5本に準拠（表示用の定義は Portfolio.razor.cs の MarketIndices）。
+    // ⚠️ TOPIX は対象外：Yahoo v8 が TOPIX 指数を配信していないため（詳細は同箇所のコメント参照）。
+    private static readonly (string Symbol, string Label)[] MarketIndices =
+    {
+        ("^DJI", "NYダウ"),
+        ("^IXIC", "ナスダック"),
+        ("^GSPC", "S&P500"),
+        ("^N225", "日経平均"),
+        ("^KS11", "KOSPI"),
+    };
+
+    // GET /api/market-summary → 公的な市場データ（指数＋USD/JPY）のみを返す（個人ポートフォリオは含まない＝#48 で分離）。
+    // 認証はユーザー JWT ゲートとは別の共有シークレット（ヘッダー X-Internal-Secret）。日報スキル等の外部連携専用。
+    [Function("GetMarketSummary")]
+    public async Task<IActionResult> GetMarketSummary(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "market-summary")] HttpRequest req)
+    {
+        if (!IsAuthorizedSharedSecret(Environment.GetEnvironmentVariable("InternalApi__SharedSecret"), req.Headers["X-Internal-Secret"]))
+            return new UnauthorizedResult();
+
+        try
+        {
+            var indexTasks = MarketIndices.Select(async ix => (ix, Q: await FetchPriceAsync(ix.Symbol))).ToList();
+            var rateTask = FetchPriceAsync(RateSymbol);
+            await Task.WhenAll(indexTasks.Cast<Task>().Append(rateTask));
+
+            var result = new MarketSummaryResponse { At = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm") };
+            foreach (var t in indexTasks)
+            {
+                var (ix, q) = t.Result;
+                if (q.Price is not > 0) continue;
+                result.Indices.Add(new MarketIndexInfo { Symbol = ix.Symbol, Label = ix.Label, Value = q.Price.Value, PrevClose = q.Prev });
+            }
+            if (rateTask.Result.Price is > 0) result.UsdJpyRate = rateTask.Result.Price.Value;
+
+            return new OkObjectResult(result);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "GetMarketSummary failed");
+            return new StatusCodeResult(StatusCodes.Status502BadGateway);
+        }
+    }
+
+    // 共有シークレットの比較（定数時間比較でタイミング攻撃を避ける）。internal=テストから検証。
+    // #37/#48 も同じ仕組み（環境変数 InternalApi__SharedSecret・ヘッダー X-Internal-Secret）を再利用する想定。
+    internal static bool IsAuthorizedSharedSecret(string? expected, string? provided)
+    {
+        if (string.IsNullOrEmpty(expected) || string.IsNullOrEmpty(provided)) return false;
+        var a = System.Text.Encoding.UTF8.GetBytes(expected);
+        var b = System.Text.Encoding.UTF8.GetBytes(provided);
+        return a.Length == b.Length && System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(a, b);
+    }
+
     // POST /api/quote → シンボル一覧の現在値（ネイティブ通貨）＋USD/JPYレートを返す。
     // シンボルは Yahoo 形式（日本株 "7203.T" / 米国株 "AAPL" / 為替 "JPY=X"）。
     [Function("GetQuote")]
@@ -176,4 +230,21 @@ public partial class DataApi
         }
         return (latest, prev);
     }
+}
+
+/// <summary>GET /api/market-summary のレスポンス。公的データのみ（個人ポートフォリオは含まない）。</summary>
+public class MarketSummaryResponse
+{
+    public string At { get; set; } = "";   // 取得時刻（UTC・"yyyy-MM-dd HH:mm"）
+    public decimal UsdJpyRate { get; set; }
+    public List<MarketIndexInfo> Indices { get; set; } = new();
+}
+
+/// <summary>市場指数1本の現況。取得失敗分は Indices に含まれない。</summary>
+public class MarketIndexInfo
+{
+    public string Symbol { get; set; } = "";
+    public string Label { get; set; } = "";
+    public decimal Value { get; set; }
+    public decimal? PrevClose { get; set; }
 }

@@ -197,7 +197,7 @@ C:\Development\moneyboard\
 - **対象＝自動テスト可能な純粋ロジック**。**API の CRUD/認証は Cosmos オーケストレーションのため対象外**（結合テスト領域・ROI低）。Blazor UI も自動化困難で対象外。
 - **テストプロジェクトは2つ**（いずれも xUnit・net8.0）：
   - `MoneyBoardShared.Tests`：`LedgerMath` / `LedgerEngine`（残高連鎖・ExpandCards・重複除外・固定費）/ `PortfolioMath`（集計・Valuation・CostBasisJpyAsOf・YahooSymbol・PnlPct・DayChangePct・GroupValuationJpy・BuildSnapshot）/ `StatsMath`（期間選択）/ `FixedCostPeriod`（年月の解析・整形）/ `CardCsvParser` / `Ym` / `SchemaMigration` / `FixedCost`（計**125**・v1.3.3 で 63→102・v2.1.0 で 102→118・issue #36 で 118→125）。
-  - `MoneyBoardApi.Tests`：API の**純粋ロジックのみ**（計20）。`DataApi.IsStructurallyValid`（保存前データ健全性ガード）／価格パーサ `ParseYahooQuote`・`ParseFundCsv`（取得=HTTPと分離した解析部）／`ParseCardImageResponse`（スクショAI応答JSON→CardDetail[]・日付正規化/金額/不正行スキップ）。テストのため対象は `internal static`＋`InternalsVisibleTo("MoneyBoardApi.Tests")`。
+  - `MoneyBoardApi.Tests`：API の**純粋ロジックのみ**（計26・#54 で 20→26）。`DataApi.IsStructurallyValid`（保存前データ健全性ガード）／価格パーサ `ParseYahooQuote`・`ParseFundCsv`（取得=HTTPと分離した解析部）／`ParseCardImageResponse`（スクショAI応答JSON→CardDetail[]・日付正規化/金額/不正行スキップ）／`IsAuthorizedSharedSecret`（共有シークレット照合・定数時間比較）。テストのため対象は `internal static`＋`InternalsVisibleTo("MoneyBoardApi.Tests")`。
 - **カバレッジ**：`--collect:"XPlat Code Coverage"`（coverlet）。ロジック層は行/分岐とも高水準（LedgerMath/SchemaMigration=100% など）。DTO/モデルやCRUD/HTTP部は対象外のため class 全体の数値は薄く出る点に注意（=想定どおり）。**カバレッジ100%でもバグ不在の証明ではない**点は前提として共有。
 - **CI**：`.github/workflows/dotnet-test.yml` が dev push / main への PR で**両テストプロジェクト**を `dotnet test`（カバレッジ収集）。main への PR で「必須チェック」に設定すればマージゲートになる（要：Settings→Branches の保護ルール）。
 
@@ -458,6 +458,13 @@ Transfer
 - 旧 Stooq は JS ボット検証で死亡 → Yahoo へ移行。
 - **市場指標バー（#26）**：固定5本（`^DJI`/`^IXIC`/`^GSPC`/`^N225`/`^KS11`）を保有銘柄の価格取得に相乗りで取得し `/portfolio` 上部にチップ表示（非永続・前日比%）。先頭 `^` は `Uri.EscapeDataString` で URL エンコード済み。⚠️ **TOPIX は対象外**：Yahoo v8 は TOPIX 指数を配信していない（`^TOPX`・`998405.T` は空、`^TPX` は別物＝米国 OPRA オプション指数/USD・105pt 台）。ETF（`1306.T` 等）は前日比%は連動するが絶対値が指数値と桁違いになり日報スクショで誤解を招くため除外。日本株は日経平均で代表。
 - ⚠️ **リスク**：投信を協会コードのみで取得しているため、投信協会が将来 ISIN↔協会コードの相互検証を入れると全投信が落ちる（その時は `FundMaster`／`Holding.Isin` に実 ISIN を持たせて復旧）。
+
+### 市場サマリ API `GET /api/market-summary`（#54）
+- **目的**：公的な市場データ（指数＋USD/JPY）のみを返す読み出し専用エンドポイント。個人ポートフォリオは含まない（=**#48 で分離**）。日報スキル・市場指標バーなど複数の外部連携から再利用できる共通部品。
+- **認証**：ユーザー JWT ゲートとは別の**共有シークレット**（環境変数 `InternalApi__SharedSecret`・リクエストヘッダー `X-Internal-Secret`）。定数時間比較（`CryptographicOperations.FixedTimeEquals`）でタイミング攻撃を回避。シークレット値はコードに書かず GitHub Secrets ＋ SWA アプリ設定のみ。
+- **固定シンボルセット**（市場指標バー #26 の確定5本に準拠。⚠️ TOPIX は Yahoo v8 非配信のため除外）：`^DJI`（NYダウ）/ `^IXIC`（ナスダック）/ `^GSPC`（S&P500）/ `^N225`（日経平均）/ `^KS11`（KOSPI）＋`JPY=X`（USD/JPY）
+- **取得ロジック**：既存の `FetchPriceAsync`（Yahoo v8 chart API）を再利用し並行取得。1銘柄失敗しても残りを返す（落とさない既存方針を踏襲）。全銘柄失敗時は 502。
+- **レスポンス**（`MarketSummaryResponse`）：`At`（取得時刻 UTC・`yyyy-MM-dd HH:mm`）/ `UsdJpyRate`（小数値 0 なら未取得）/ `Indices`（取得できた指数のみ）。各 `MarketIndexInfo` は `Symbol`・`Label`・`Value`・`PrevClose`（null 可）。
 
 ### 入力簡略化
 - 日本株＝証券コード4桁のみ（取得時 `.T` 自動付与）／米国株＝ティッカー／投信＝標準 `<select>`「投信を選択」（`FundMaster` の銘柄名→協会コード自動入力、無ければ「その他」で協会コード直接入力）。
