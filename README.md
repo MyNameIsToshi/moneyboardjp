@@ -74,6 +74,15 @@
 
 ---
 
+## 📖 API ドキュメント
+
+**Swagger UI（GitHub Pages）**: https://mynameistoshi.github.io/moneyboardjp/swagger/
+
+バックエンド API の全エンドポイント（認証方式・リクエスト/レスポンスのスキーマ）を OpenAPI 3.0 で公開しています。
+ソース: [`docs/swagger/openapi.yaml`](docs/swagger/openapi.yaml)
+
+---
+
 ## 🛠️ 技術スタック
 
 **フロントエンド**

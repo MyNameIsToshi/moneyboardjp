@@ -11,8 +11,9 @@
 
 - GitHub: https://github.com/MyNameIsToshi/moneyboardjp
 - 本番URL: https://purple-stone-08eacab00.7.azurestaticapps.net
+- API ドキュメント（Swagger UI）: https://mynameistoshi.github.io/moneyboardjp/swagger/
 - ローカルパス: `C:\Development\moneyboard\`
-- **現行バージョン: `2.2.0`**（2026-06-27 本番リリース・PR #62。金額マスク機能＝アプリ全体トグル・リロード後も反映・入力欄/ダイアログ/ドーナツにも適用）。`2.1.0`（2026-06-27 本番リリース・PR #60。マイページ口座並べ替え▲▼/D&D・設定行アイコン統一・起点月より過去へ戻れる不具合修正・追加時空データ出現不具合修正）。`2.0.0`（2026-06-26・PR #58。全画面リデザイン＆PCサイドバーナビ＝ヒーロー集約＋線アイコン統一、月次/カード/統計/資産/マイページ全画面刷新、PC左サイドバー、ポートフォリオ市場指数3列グリッド。メジャー番号＝UIの大節目・API非互換なし）。`1.5.0`（2026-06-21・PR #35。市場指標バー=NYダウ/ナスダック/S&P500/日経/KOSPI 5本・AI読取エラー可視化）。`1.4.0`（2026-06-21・PR #22。**Phase 4 土台＝Claude Vision でカード明細スクショをAI読み取り→当月へ取込**。詳細は「Phase 4」節）。`1.3.4`（2026-06-20・PR #21。CIカバレッジをPRコメント＋Job Summaryに出力）／`1.3.3`（PR #20。Step4前クリーンアップ＝テスト基盤整備・純粋ロジック抽出・巨大razor code-behind分離）／`1.3.2`=証券ポートフォリオ表示改善＋深いURL404修正／`1.3.1`=スマホ実機修正／`1.3.0`=スマホUI全面最適化／`1.2.0`=Phase 3 証券ポートフォリオ。
+- **現行バージョン: `2.3.0`**（2026-06-30 本番リリース。市場サマリ API #54・ポートフォリオ現況 API #48・Swagger UI 公開 #66）。`2.2.0`（2026-06-27 本番リリース・PR #62。金額マスク機能＝アプリ全体トグル・リロード後も反映・入力欄/ダイアログ/ドーナツにも適用）。`2.1.0`（2026-06-27 本番リリース・PR #60。マイページ口座並べ替え▲▼/D&D・設定行アイコン統一・起点月より過去へ戻れる不具合修正・追加時空データ出現不具合修正）。`2.0.0`（2026-06-26・PR #58。全画面リデザイン＆PCサイドバーナビ＝ヒーロー集約＋線アイコン統一、月次/カード/統計/資産/マイページ全画面刷新、PC左サイドバー、ポートフォリオ市場指数3列グリッド。メジャー番号＝UIの大節目・API非互換なし）。`1.5.0`（2026-06-21・PR #35。市場指標バー=NYダウ/ナスダック/S&P500/日経/KOSPI 5本・AI読取エラー可視化）。`1.4.0`（2026-06-21・PR #22。**Phase 4 土台＝Claude Vision でカード明細スクショをAI読み取り→当月へ取込**。詳細は「Phase 4」節）。`1.3.4`（2026-06-20・PR #21。CIカバレッジをPRコメント＋Job Summaryに出力）／`1.3.3`（PR #20。Step4前クリーンアップ＝テスト基盤整備・純粋ロジック抽出・巨大razor code-behind分離）／`1.3.2`=証券ポートフォリオ表示改善＋深いURL404修正／`1.3.1`=スマホ実機修正／`1.3.0`=スマホUI全面最適化／`1.2.0`=Phase 3 証券ポートフォリオ。
 - 次の AI 機能（C案カテゴリ推定・月次コメント・FABチャット 等）は Phase 4 の土台を再利用して順次追加。
 
 ---
@@ -101,6 +102,8 @@ C:\Development\moneyboard\launch.bat をダブルクリック
 - `APPLICATIONINSIGHTS_CONNECTION_STRING` (prod用)
 - `Firebase__ProjectId` = `money-board-jp`（IDトークン検証用・**必須**）
 - `OwnerEmail` = （オーナーの Google アカウント・**実値は SWA アプリ設定で管理**。承認なしで使えるオーナー）
+- `OwnerUserId` = （オーナーの Firebase uid・**実値は SWA アプリ設定で管理**。`/api/portfolio-snapshot-current` がオーナーのポートフォリオを特定するために使用 #48）
+- `InternalApi__SharedSecret` = （内部 API 用共有シークレット・`/api/market-summary` / `/api/portfolio-snapshot-current` 共用。**実値は SWA アプリ設定 ＋ GitHub Secrets で管理** #48/#54）
 - ⚠️ `AuthBypass` は**本番では設定しない**（＝JWT検証必須）。ローカルのみ `true`。未設定でデプロイすると projectId 不一致で全員ログイン不可になるので注意
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` … 旧SWA-Google認証用で**現在は未使用**（残置可）
 
@@ -197,7 +200,7 @@ C:\Development\moneyboard\
 - **対象＝自動テスト可能な純粋ロジック**。**API の CRUD/認証は Cosmos オーケストレーションのため対象外**（結合テスト領域・ROI低）。Blazor UI も自動化困難で対象外。
 - **テストプロジェクトは2つ**（いずれも xUnit・net8.0）：
   - `MoneyBoardShared.Tests`：`LedgerMath` / `LedgerEngine`（残高連鎖・ExpandCards・重複除外・固定費）/ `PortfolioMath`（集計・Valuation・CostBasisJpyAsOf・YahooSymbol・PnlPct・DayChangePct・GroupValuationJpy・BuildSnapshot）/ `StatsMath`（期間選択）/ `FixedCostPeriod`（年月の解析・整形）/ `CardCsvParser` / `Ym` / `SchemaMigration` / `FixedCost`（計**125**・v1.3.3 で 63→102・v2.1.0 で 102→118・issue #36 で 118→125）。
-  - `MoneyBoardApi.Tests`：API の**純粋ロジックのみ**（計20）。`DataApi.IsStructurallyValid`（保存前データ健全性ガード）／価格パーサ `ParseYahooQuote`・`ParseFundCsv`（取得=HTTPと分離した解析部）／`ParseCardImageResponse`（スクショAI応答JSON→CardDetail[]・日付正規化/金額/不正行スキップ）。テストのため対象は `internal static`＋`InternalsVisibleTo("MoneyBoardApi.Tests")`。
+  - `MoneyBoardApi.Tests`：API の**純粋ロジックのみ**（計26・#54 で 20→26）。`DataApi.IsStructurallyValid`（保存前データ健全性ガード）／価格パーサ `ParseYahooQuote`・`ParseFundCsv`（取得=HTTPと分離した解析部）／`ParseCardImageResponse`（スクショAI応答JSON→CardDetail[]・日付正規化/金額/不正行スキップ）／`IsAuthorizedSharedSecret`（共有シークレット照合・定数時間比較）。テストのため対象は `internal static`＋`InternalsVisibleTo("MoneyBoardApi.Tests")`。
 - **カバレッジ**：`--collect:"XPlat Code Coverage"`（coverlet）。ロジック層は行/分岐とも高水準（LedgerMath/SchemaMigration=100% など）。DTO/モデルやCRUD/HTTP部は対象外のため class 全体の数値は薄く出る点に注意（=想定どおり）。**カバレッジ100%でもバグ不在の証明ではない**点は前提として共有。
 - **CI**：`.github/workflows/dotnet-test.yml` が dev push / main への PR で**両テストプロジェクト**を `dotnet test`（カバレッジ収集）。main への PR で「必須チェック」に設定すればマージゲートになる（要：Settings→Branches の保護ルール）。
 
@@ -320,7 +323,7 @@ Transfer
 | ポートフォリオ表示改善（米国株の円/ドル評価切替・円拠出の元本=取得金額・前日比列・現在価格列・口座をバッジ化）＋深いURLの404修正（staticwebapp.config.json）＋認証永続化明示 | ✅ 完了（本番反映済み・v1.3.2） |
 | Step4 前クリーンアップ（テスト基盤63→102・CI自動実行・純粋ロジック抽出 StatsMath/FixedCostPeriod/PortfolioMath・巨大razor4枚を code-behind 分離・楽天カード対応・表記統一） | ✅ 完了（本番反映済み・v1.3.3） |
 | Phase 4 土台＝カード明細スクショの AI 読み取り（Claude Vision/Haiku 4.5・🤖AIで読取・複数枚＋PC Ctrl+V貼付・X風ステージング・当月へ増分追加） | ✅ 完了（本番反映済み・v1.4.0） |
-| 市場指標バー（/portfolio 上部・固定5本のチップ列・前日比%・既存 `/api/quote` 再利用・AI不要） | ✅ 完了（dev・#26） |
+| 市場指標バー（/portfolio 上部・固定5本のチップ列・前日比%・既存 `/api/quote` 再利用・AI不要） | ✅ 完了（本番反映済み・v1.5.0・#26） |
 
 ---
 
@@ -421,6 +424,9 @@ Transfer
   - **スマホへの適用方針**：マークアップを二重化せず共有し、**PC 設計を入れると mobile.css の調整なしでスマホにも反映される**（`IsMobile` ＋ CSS で差分のみ出し分け）。当初 #43/spec は「PCのみ」想定だったが、別ツリー化を避ける本方針を採用＝**以後 PC 設計の提供だけでスマホ版にも反映**（Design 依頼の手間・トークン削減）。口座カードの既定折りたたみだけは `IsMobile` で出し分け。
 - **PC ナビは左サイドバーで統一（#41）** … PC は「Home 上部タブ＋月次タブ内の入口ボタン＋各ページの戻る」で遷移方法が混在していた。スマホの下部バー（5系統一貫）に倣い、**PC は左サイドナビ（`SideNav`）に統一**。`MainLayout` が PC=サイドナビ／スマホ=下部バーを出し分け、行き先・ハイライト規則は両者で同形。ブランドはサイドナビ上部に集約し、各ページ頭のヘッダー・「← 戻る」・📊💹 入口ボタンは撤去。代替案（トップバー／各ページにタブ複製）より、本文幅を確保しつつ全画面で一貫した導線になるため採用。**統計/資産の URL 一貫性（`/graph`・`/portfolio` を他と揃える）は別 issue で継続検討**。
 - **日報のアプリ化は見送り（#32・closed）** … 投資SNSの日次日報を MoneyBoard で生成/編集/X投稿/記録簿化する構想は見送り。価値の大半が当日ニュースの web 検索＋分析＝既存 Claude 会話との差分が薄く、X自動投稿も外部・有料・OAuth でリスク過大なため。代替として **市場指標バー（#26）** のみ実装。詳細は issue #32。
+- **ポートフォリオ現況 API はオーナー固定・共有シークレット認証（#48）** … 日報生成向けの `/api/portfolio-snapshot-current` は日報対象がオーナー1名に固定のため、ユーザー JWT ではなく共有シークレット（`InternalApi__SharedSecret` / `X-Internal-Secret`）を採用。オーナーの userId は `OwnerUserId` 環境変数で直接指定（`OwnerEmail` からの検索は Cosmos クロスパーティションクエリが必要になり不要な複雑性を招くため採らない）。`/api/market-summary` と同じ認証パターンを踏襲しシークレットを共有。
+  - **#37 を待たずに #48 を実装**：issue #48 は「#37 の記録処理を呼ぶ」と記述していたが、#37 は全ユーザーバッチ処理 × GitHub Actions cron の文脈。#48 は単一ユーザー × 日報スキル呼び出しであり、共通の内部ロジック（`FetchPriceAsync` + `BuildSnapshot`）を直接呼べば #37 の HTTP エンドポイントは不要と判断。issue にコメント済み。
+- **OpenAPI 仕様を手書き YAML + Swagger UI（GitHub Pages）で公開（#66）** … Azure Functions Isolated は ASP.NET Core と異なり Swashbuckle が直接使えない（Isolated は HTTP middleware を持たずビルド時のリフレクションが複雑）。NSwag や Microsoft.Azure.Functions.Worker.Extensions.OpenApi も追加パッケージ・スタートアップ変更を要し、ポートフォリオ用途（実際にトライアウトするわけではない）に対してコストが大きい。そのため **`docs/swagger/openapi.yaml` を手書き**してリポジトリに置き、GitHub Pages（`docs/` フォルダ）で Swagger UI（CDN）を介して公開する方式を採用。openapi.yaml はコードとともにメンテ・CI やパッケージの追加なし。GitHub Pages は repo 設定で `main` ブランチの `docs/` フォルダを Source に設定する（一度限りの手作業）。公開 URL: https://mynameistoshi.github.io/moneyboardjp/swagger/
 
 > **Claude API 連携（土台）／カード画像（スクショ）読み取り** は **v1.4.0 で本番リリース済み**（下記「実装済み機能」表・「Phase 4」節を参照）。
 
@@ -459,6 +465,22 @@ Transfer
 - **市場指標バー（#26）**：固定5本（`^DJI`/`^IXIC`/`^GSPC`/`^N225`/`^KS11`）を保有銘柄の価格取得に相乗りで取得し `/portfolio` 上部にチップ表示（非永続・前日比%）。先頭 `^` は `Uri.EscapeDataString` で URL エンコード済み。⚠️ **TOPIX は対象外**：Yahoo v8 は TOPIX 指数を配信していない（`^TOPX`・`998405.T` は空、`^TPX` は別物＝米国 OPRA オプション指数/USD・105pt 台）。ETF（`1306.T` 等）は前日比%は連動するが絶対値が指数値と桁違いになり日報スクショで誤解を招くため除外。日本株は日経平均で代表。
 - ⚠️ **リスク**：投信を協会コードのみで取得しているため、投信協会が将来 ISIN↔協会コードの相互検証を入れると全投信が落ちる（その時は `FundMaster`／`Holding.Isin` に実 ISIN を持たせて復旧）。
 
+### 市場サマリ API `GET /api/market-summary`（#54）
+- **目的**：公的な市場データ（指数＋USD/JPY）のみを返す読み出し専用エンドポイント。個人ポートフォリオは含まない（=**#48 で分離**）。日報スキル・市場指標バーなど複数の外部連携から再利用できる共通部品。
+- **認証**：ユーザー JWT ゲートとは別の**共有シークレット**（環境変数 `InternalApi__SharedSecret`・リクエストヘッダー `X-Internal-Secret`）。定数時間比較（`CryptographicOperations.FixedTimeEquals`）でタイミング攻撃を回避。シークレット値はコードに書かず GitHub Secrets ＋ SWA アプリ設定のみ。
+- **固定シンボルセット**（市場指標バー #26 の確定5本に準拠。⚠️ TOPIX は Yahoo v8 非配信のため除外）：`^DJI`（NYダウ）/ `^IXIC`（ナスダック）/ `^GSPC`（S&P500）/ `^N225`（日経平均）/ `^KS11`（KOSPI）＋`JPY=X`（USD/JPY）
+- **取得ロジック**：既存の `FetchPriceAsync`（Yahoo v8 chart API）を再利用し並行取得。1銘柄失敗しても残りを返す（落とさない既存方針を踏襲）。全銘柄失敗時は 502。
+- **レスポンス**（`MarketSummaryResponse`）：`At`（取得時刻 UTC・`yyyy-MM-dd HH:mm`）/ `UsdJpyRate`（小数値 0 なら未取得）/ `Indices`（取得できた指数のみ）。各 `MarketIndexInfo` は `Symbol`・`Label`・`Value`・`PrevClose`（null 可）。
+
+### ポートフォリオ現況 API `GET /api/portfolio-snapshot-current`（#48）
+- **目的**：オーナーのポートフォリオ現況（保有銘柄・評価額・含み損益）と過去の資産推移（スナップショット時系列＋各時点の評価損益）を返す読み出し専用エンドポイント。日報スキルがスクショ手貼りなしでポートフォリオデータを取得するために使用。
+- **認証**：ユーザー JWT ゲートとは別の**共有シークレット**（環境変数 `InternalApi__SharedSecret`・リクエストヘッダー `X-Internal-Secret`）。`/api/market-summary` と同じ仕組みを再利用。
+- **オーナー特定**：環境変数 `OwnerUserId`（Firebase uid）でオーナーの Cosmos パーティションを直接読む。マルチユーザーでも日報対象はオーナー1名で固定。
+- **処理フロー**：ポートフォリオドキュメントを読む → 全保有銘柄の価格を並行取得（Yahoo v8 / 投信協会 CSV）→ USD/JPY レート取得 → 当日スナップショットを記録（同日上書き・`PortfolioMath.BuildSnapshot` を再利用）→ Cosmos に保存 → レスポンス構築
+- **レスポンス**（`PortfolioCurrentResponse`）：`PricedAt`・`UsdJpyRate`・`TotalValuationJpy`・`CostBasisJpy`・`UnrealizedPnlJpy` / `Holdings`（銘柄ごと：名前・数量・現在価格・評価額・取得原価・含み損益）/ `History`（スナップショット時系列：日時・UsdJpyRate・総資産・取得原価・評価損益）
+- **取得原価の算出**：`PortfolioMath.CostBasisJpyAsOf`（指定日元本・円換算）を再利用。現況・各スナップショット点ともに同方式。
+- **ETag 競合の扱い**：フロント（Portfolio 画面）と同時操作で 412 が発生した場合はスキップして記録なしでも応答は返す（読み取った価格データは正しいため）。
+
 ### 入力簡略化
 - 日本株＝証券コード4桁のみ（取得時 `.T` 自動付与）／米国株＝ティッカー／投信＝標準 `<select>`「投信を選択」（`FundMaster` の銘柄名→協会コード自動入力、無ければ「その他」で協会コード直接入力）。
 - 「新規銘柄登録」ダイアログ（外側クリックで閉じない）。
@@ -487,7 +509,7 @@ Transfer
 
 ### 残タスク（→ GitHub Issues）
 - AI 機能（C案 #27 / 自然言語入力 #28 / 月次コメント #29 / FABチャット #30）は **Phase 4 の土台を再利用**。Milestone「Phase 5: AI機能拡張」。
-- 市場指標バー（`/portfolio` 上部）＝ **#26**（設計詳細は issue 本文）。
+- 市場指標バー（`/portfolio` 上部）＝ **✅ v1.5.0 で完了**（#26 closed）。
 
 ---
 

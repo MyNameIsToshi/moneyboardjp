@@ -83,4 +83,27 @@ public class QuoteParserTests
     {
         Assert.Equal((null, null), DataApi.ParseFundCsv("年月日,基準価額"));
     }
+
+    // ── 共有シークレット（market-summary 等の外部連携認証） ─────────────────
+    [Fact]
+    public void IsAuthorizedSharedSecret_MatchingValues_ReturnsTrue()
+    {
+        Assert.True(DataApi.IsAuthorizedSharedSecret("s3cret", "s3cret"));
+    }
+
+    [Fact]
+    public void IsAuthorizedSharedSecret_MismatchedValues_ReturnsFalse()
+    {
+        Assert.False(DataApi.IsAuthorizedSharedSecret("s3cret", "wrong"));
+    }
+
+    [Theory]
+    [InlineData(null, "s3cret")]
+    [InlineData("s3cret", null)]
+    [InlineData("", "")]
+    [InlineData(null, null)]
+    public void IsAuthorizedSharedSecret_MissingEither_ReturnsFalse(string? expected, string? provided)
+    {
+        Assert.False(DataApi.IsAuthorizedSharedSecret(expected, provided));
+    }
 }

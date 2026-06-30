@@ -9,3 +9,6 @@
 
 # VS Code
 .vs/
+
+# Claude Code (machine-specific local settings)
+.claude/settings.local.json
