@@ -46,7 +46,7 @@ public class LedgerService(AppStateStore store)
     }
 
     public static bool IsCurrentOrFutureCycle(string ym)
-        => string.Compare(ym, CurrentCycleStartYm()) >= 0;
+        => string.CompareOrdinal(ym, CurrentCycleStartYm()) >= 0;
 
     // ── 月次展開 ─────────────────────────────────────
     public MonthData EnsureMonth(string ym)
@@ -210,7 +210,7 @@ public class LedgerService(AppStateStore store)
     {
         var cycleStart = CurrentCycleStartYm();
         return State.Months
-            .Where(kvp => string.Compare(kvp.Key, cycleStart) >= 0)
+            .Where(kvp => string.CompareOrdinal(kvp.Key, cycleStart) >= 0)
             .Where(kvp =>
             {
                 var mo = kvp.Value;

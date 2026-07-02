@@ -49,9 +49,9 @@ public partial class GraphPage
     private int _maskRev;
     private bool _prevMasked;
 
-    // Y軸・ツールチップのフォーマッタ（マスク時は ¥****）。
-    private string YAxis => IsMasked ? "function(v){return '¥****'}" : MoneyFormat.ChartYenMan;
-    private string YTip  => IsMasked ? "function(v){return '¥****'}" : MoneyFormat.ChartYenFull;
+    // Y軸・ツールチップのフォーマッタ（マスク時は ¥****）。YFmt＝ApexCharts の型名 YAxis との衝突回避。
+    private string YFmt => IsMasked ? "function(v){return '¥****'}" : MoneyFormat.ChartYenMan;
+    private string YTip => IsMasked ? "function(v){return '¥****'}" : MoneyFormat.ChartYenFull;
 
     // ApexChartOptions はチャート固有の状態を書き込むため、1インスタンスを複数の
     // <ApexChart> で共有すると最初の1つしか描画されない。チャートごとに専用インスタンスを持つ。
@@ -67,7 +67,7 @@ public partial class GraphPage
         Stroke = new Stroke { Curve = Curve.Smooth },
         Grid = SoftGrid(),
         Tooltip = new Tooltip { Y = new TooltipY { Formatter = YTip } },
-        Yaxis = new List<YAxis> { new() { Labels = new YAxisLabels { Formatter = YAxis } } }
+        Yaxis = new List<YAxis> { new() { Labels = new YAxisLabels { Formatter = YFmt } } }
     };
 
     private ApexChartOptions<ChartPoint> NewBarOptions(bool stacked = false) => new()
@@ -75,7 +75,7 @@ public partial class GraphPage
         Chart = new Chart { Height = 240, Stacked = stacked, Toolbar = new Toolbar { Show = false } },
         Grid = SoftGrid(),
         Tooltip = new Tooltip { Y = new TooltipY { Formatter = YTip } },
-        Yaxis = new List<YAxis> { new() { Labels = new YAxisLabels { Formatter = YAxis } } }
+        Yaxis = new List<YAxis> { new() { Labels = new YAxisLabels { Formatter = YFmt } } }
     };
 
     // メイン：収入(棒)・支出(棒)＋収支(折れ線)のコンボ。色は既存トークン（収入=緑/支出=赤/収支線=navy）。
@@ -86,7 +86,7 @@ public partial class GraphPage
         Stroke = new Stroke { Width = new List<int> { 0, 0, 3 }, Curve = Curve.Smooth },
         Grid = SoftGrid(),
         Tooltip = new Tooltip { Y = new TooltipY { Formatter = YTip } },
-        Yaxis = new List<YAxis> { new() { Labels = new YAxisLabels { Formatter = YAxis } } }
+        Yaxis = new List<YAxis> { new() { Labels = new YAxisLabels { Formatter = YFmt } } }
     };
 
     private void RebuildChartOptions()

@@ -64,7 +64,7 @@ public static class LedgerEngine
         var earlier = new HashSet<string>();
         foreach (var (m, mo) in state.Months)
         {
-            if (string.Compare(m, ym) >= 0) continue;   // ym 以降は対象外（初出を残すため過去のみ照合）
+            if (string.CompareOrdinal(m, ym) >= 0) continue;   // ym 以降は対象外（初出を残すため過去のみ照合）
             foreach (var d in mo.CardDetails.Where(d => d.CardId == cardId))
                 earlier.Add(DetailKey(d));
         }

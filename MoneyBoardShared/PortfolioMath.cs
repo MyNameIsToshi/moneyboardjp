@@ -100,7 +100,7 @@ public static class PortfolioMath
     public static decimal HoldingCostBasisJpyAsOf(PortfolioData data, Holding h, string date, decimal snapRate)
     {
         decimal fallback = snapRate > 0 ? snapRate : data.UsdJpyRate;   // 約定レート未設定ロットの代用
-        int divsor = Divisor(h.Class);
+        int divisor = Divisor(h.Class);
         var buys = data.Buys.Where(b => b.HoldingId == h.Id && string.CompareOrdinal(b.Date, date) <= 0).ToList();
         // 配当再投資株（取得コスト$0）も as-of で取得数量に含める（Summarize と整合）
         decimal reinvest = data.Dividends.Where(d => d.HoldingId == h.Id && string.CompareOrdinal(d.Date, date) <= 0).Sum(d => d.Quantity);
@@ -112,8 +112,8 @@ public static class PortfolioMath
 
         // 取得総額（円）。ドル建ては各ロットを約定レート(無ければ fallback)で円換算。
         decimal boughtJpy = h.CostCurrency == Currency.Usd
-            ? buys.Sum(b => LotNativeCost(b, divsor) * (b.FxRate > 0 ? b.FxRate : fallback))
-            : buys.Sum(b => LotNativeCost(b, divsor));
+            ? buys.Sum(b => LotNativeCost(b, divisor) * (b.FxRate > 0 ? b.FxRate : fallback))
+            : buys.Sum(b => LotNativeCost(b, divisor));
         // 現在保有分の元本＝取得総額 ×(現在数量 / 取得数量)。再投資株は$0で取得総額に寄与しないので平均が薄まる。
         return boughtJpy * (qty / bq);
     }
