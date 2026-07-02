@@ -19,6 +19,25 @@ public partial class DataApi
     private const int MaxHoldings = 1000;
     private const int MaxLots = 100_000;
 
+    // PortfolioDoc ⇔ PortfolioData の詰め替え（GET/保存/スナップショットAPI で共有し、フィールド追加時のドリフトを防ぐ）。
+    // PrevPrices は意図的に非永続（前日終値は価格更新のたびに取り直す）のためどちらにも含めない。
+    private static PortfolioData ToData(PortfolioDoc doc) => new()
+    {
+        SchemaVersion = doc.SchemaVersion,
+        Holdings = doc.Holdings, Buys = doc.Buys, Sells = doc.Sells,
+        Dividends = doc.Dividends, Snapshots = doc.Snapshots,
+        CurrentPrices = doc.CurrentPrices, UsdJpyRate = doc.UsdJpyRate, PricedAt = doc.PricedAt
+    };
+
+    private static PortfolioDoc ToDoc(PortfolioData d, string userId) => new()
+    {
+        Id = PortfolioId, UserId = userId, Type = "portfolio",
+        SchemaVersion = d.SchemaVersion,
+        Holdings = d.Holdings, Buys = d.Buys, Sells = d.Sells,
+        Dividends = d.Dividends, Snapshots = d.Snapshots,
+        CurrentPrices = d.CurrentPrices, UsdJpyRate = d.UsdJpyRate, PricedAt = d.PricedAt
+    };
+
     // GET /api/portfolio → ポートフォリオ全体を返す（無ければ空）。
     [Function("GetPortfolio")]
     public async Task<IActionResult> GetPortfolio(
@@ -44,18 +63,7 @@ public partial class DataApi
             {
                 var r = await container.ReadItemAsync<PortfolioDoc>(PortfolioId, pk);
                 env.Etag = r.ETag;
-                env.Data = new PortfolioData
-                {
-                    SchemaVersion = r.Resource.SchemaVersion,
-                    Holdings = r.Resource.Holdings,
-                    Buys = r.Resource.Buys,
-                    Sells = r.Resource.Sells,
-                    Dividends = r.Resource.Dividends,
-                    Snapshots = r.Resource.Snapshots,
-                    CurrentPrices = r.Resource.CurrentPrices,
-                    UsdJpyRate = r.Resource.UsdJpyRate,
-                    PricedAt = r.Resource.PricedAt
-                };
+                env.Data = ToData(r.Resource);
             }
             catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)
             {
@@ -97,14 +105,7 @@ public partial class DataApi
             if (authError is not null) return authError;
             var pk = new PartitionKey(userId!);
 
-            var doc = new PortfolioDoc
-            {
-                Id = PortfolioId, UserId = userId!, Type = "portfolio",
-                SchemaVersion = d.SchemaVersion,
-                Holdings = d.Holdings, Buys = d.Buys, Sells = d.Sells,
-                Dividends = d.Dividends, Snapshots = d.Snapshots,
-                CurrentPrices = d.CurrentPrices, UsdJpyRate = d.UsdJpyRate, PricedAt = d.PricedAt
-            };
+            var doc = ToDoc(d, userId!);
             var opt = new ItemRequestOptions { EnableContentResponseOnWrite = false };
             if (!string.IsNullOrEmpty(env.Etag)) opt.IfMatchEtag = env.Etag;
 
@@ -154,18 +155,7 @@ public partial class DataApi
             {
                 var r = await container.ReadItemAsync<PortfolioDoc>(PortfolioId, pk);
                 etag = r.ETag;
-                data = new PortfolioData
-                {
-                    SchemaVersion = r.Resource.SchemaVersion,
-                    Holdings = r.Resource.Holdings,
-                    Buys = r.Resource.Buys,
-                    Sells = r.Resource.Sells,
-                    Dividends = r.Resource.Dividends,
-                    Snapshots = r.Resource.Snapshots,
-                    CurrentPrices = r.Resource.CurrentPrices,
-                    UsdJpyRate = r.Resource.UsdJpyRate,
-                    PricedAt = r.Resource.PricedAt
-                };
+                data = ToData(r.Resource);
             }
             catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound) { }
 
@@ -197,25 +187,12 @@ public partial class DataApi
             var at = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm");
             data.PricedAt = at;
 
-            // 当日スナップショット記録（同日上書き）。
+            // 当日スナップショット記録（同日上書き＝フロントの価格更新と同じ規則）。
             var snap = PortfolioMath.BuildSnapshot(data, at);
-            if (snap != null)
-            {
-                var today = at[..10];
-                var idx = data.Snapshots.FindIndex(s => s.At.Length >= 10 && s.At[..10] == today);
-                if (idx >= 0) data.Snapshots[idx] = snap;
-                else data.Snapshots.Add(snap);
-            }
+            if (snap != null) PortfolioMath.UpsertSnapshot(data, snap);
 
             // Cosmos に保存。ETag 競合（フロントと同時操作）はスキップ。
-            var saveDoc = new PortfolioDoc
-            {
-                Id = PortfolioId, UserId = ownerUserId, Type = "portfolio",
-                SchemaVersion = data.SchemaVersion,
-                Holdings = data.Holdings, Buys = data.Buys, Sells = data.Sells,
-                Dividends = data.Dividends, Snapshots = data.Snapshots,
-                CurrentPrices = data.CurrentPrices, UsdJpyRate = data.UsdJpyRate, PricedAt = data.PricedAt
-            };
+            var saveDoc = ToDoc(data, ownerUserId);
             var saveOpt = new ItemRequestOptions { EnableContentResponseOnWrite = false };
             if (!string.IsNullOrEmpty(etag)) saveOpt.IfMatchEtag = etag;
             try { await container.UpsertItemAsync(saveDoc, pk, saveOpt); }

@@ -85,17 +85,8 @@ public partial class Portfolio
     private static string YahooSymbol(Holding h) => PortfolioMath.YahooSymbol(h);
 
     // ── 市場指標バー（固定5本・/portfolio 上部。日報用スクショに総資産と同じ帯で収める。AI不要・既存 /api/quote 再利用）──
+    // 対象5本の定義は MarketIndexCatalog（API の /api/market-summary と共有・TOPIX 除外の経緯もそちら）。
     // 値はポートフォリオ価格取得に相乗りで更新（非永続＝当日の表示専用）。先頭 ^ は API 側で URL エンコードされる。
-    // ⚠️ TOPIX は対象外：Yahoo v8 は TOPIX 指数を配信しておらず（^TOPX/998405.T は空・^TPX は別物=米国OPRA指数/USD）、
-    //    ETF(1306.T 等)は絶対値が指数値と桁違いになるため、誤表示を避けて除外。日本株は日経平均で代表させる（issue #26）。
-    private static readonly (string Symbol, string Label, int Decimals)[] MarketIndices =
-    {
-        ("^DJI", "NYダウ", 0),
-        ("^IXIC", "ナスダック", 0),
-        ("^GSPC", "S&P500", 2),
-        ("^N225", "日経平均", 0),
-        ("^KS11", "KOSPI", 0),
-    };
     private readonly Dictionary<string, decimal> _indexCur = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, decimal> _indexPrev = new(StringComparer.OrdinalIgnoreCase);
 
@@ -114,8 +105,8 @@ public partial class Portfolio
                 .ToList();
 
             var symbols = stocks.Select(YahooSymbol).Distinct().ToList();
-            // 市場指標（固定6本）を相乗りで取得。保有銘柄の取得件数カウントには含めない。
-            foreach (var ix in MarketIndices)
+            // 市場指標（固定5本）を相乗りで取得。保有銘柄の取得件数カウントには含めない。
+            foreach (var ix in MarketIndexCatalog.Items)
                 if (!symbols.Contains(ix.Symbol)) symbols.Add(ix.Symbol);
             var funds = fundHoldings
                 .Select(h => new FundRef { Isin = h.Isin.Trim(), AssocFundCd = h.AssocFundCd.Trim() })
@@ -149,7 +140,7 @@ public partial class Portfolio
                     Store.Data.PrevPrices[h.Id] = pv;
             }
             // 市場指標（保有とは独立。取得件数のメッセージには関与しない）。
-            foreach (var ix in MarketIndices)
+            foreach (var ix in MarketIndexCatalog.Items)
             {
                 var key = ix.Symbol.ToUpperInvariant();
                 if (res.Prices.TryGetValue(key, out var p) && p > 0) _indexCur[ix.Symbol] = p;
@@ -174,16 +165,11 @@ public partial class Portfolio
     }
 
     // 価格更新のたびに、その時点の銘柄別評価額（円）と USD/JPY を時系列の1点として記録する。
-    // 評価額が1件も取れなければ記録しない。同じ日付の点は最新で上書き（1日1点・自動更新でも履歴が育つ）。
+    // 評価額が1件も取れなければ記録しない。同日上書き（1日1点）は PortfolioMath.UpsertSnapshot（純粋ロジック・テスト対象）。
     private void RecordSnapshot()
     {
-        var now = DateTime.Now;
-        var snap = PortfolioMath.BuildSnapshot(Store.Data, now.ToString("yyyy-MM-dd HH:mm"));
-        if (snap == null) return;
-        var today = now.ToString("yyyy-MM-dd");
-        Store.Data.Snapshots.RemoveAll(s => s.At.StartsWith(today));   // 同日は上書き
-        Store.Data.Snapshots.Add(snap);
-        Store.Data.Snapshots.Sort((a, b) => string.CompareOrdinal(a.At, b.At));
+        var snap = PortfolioMath.BuildSnapshot(Store.Data, DateTime.Now.ToString("yyyy-MM-dd HH:mm"));
+        if (snap != null) PortfolioMath.UpsertSnapshot(Store.Data, snap);
     }
 
     // ── 資産構成（クラス別・銘柄別のドーナツ。PC＝両方を横並び／スマホ＝トグルで1つ）──

@@ -28,17 +28,6 @@ public partial class DataApi
         return c;
     }
 
-    // 市場指標バー（#26）の確定5本に準拠（表示用の定義は Portfolio.razor.cs の MarketIndices）。
-    // ⚠️ TOPIX は対象外：Yahoo v8 が TOPIX 指数を配信していないため（詳細は同箇所のコメント参照）。
-    private static readonly (string Symbol, string Label)[] MarketIndices =
-    {
-        ("^DJI", "NYダウ"),
-        ("^IXIC", "ナスダック"),
-        ("^GSPC", "S&P500"),
-        ("^N225", "日経平均"),
-        ("^KS11", "KOSPI"),
-    };
-
     // GET /api/market-summary → 公的な市場データ（指数＋USD/JPY）のみを返す（個人ポートフォリオは含まない＝#48 で分離）。
     // 認証はユーザー JWT ゲートとは別の共有シークレット（ヘッダー X-Internal-Secret）。日報スキル等の外部連携専用。
     [Function("GetMarketSummary")]
@@ -50,7 +39,8 @@ public partial class DataApi
 
         try
         {
-            var indexTasks = MarketIndices.Select(async ix => (ix, Q: await FetchPriceAsync(ix.Symbol))).ToList();
+            // 対象5本の定義は MarketIndexCatalog（フロントの表示バーと共有・TOPIX 除外の経緯もそちら）。
+            var indexTasks = MarketIndexCatalog.Items.Select(async ix => (ix, Q: await FetchPriceAsync(ix.Symbol))).ToList();
             var rateTask = FetchPriceAsync(RateSymbol);
             await Task.WhenAll(indexTasks.Cast<Task>().Append(rateTask));
 

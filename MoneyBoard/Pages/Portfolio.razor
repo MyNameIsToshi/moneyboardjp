@@ -65,7 +65,7 @@
                             <span class="pf-tick-val">@Store.Data.UsdJpyRate.ToString("#,0.##")</span>
                         </div>
                     }
-                    @foreach (var ix in MarketIndices)
+                    @foreach (var ix in MarketIndexCatalog.Items)
                     {
                         var pct = IndexPct(ix.Symbol);
                         <div class="pf-tick">
