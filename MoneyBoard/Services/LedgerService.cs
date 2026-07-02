@@ -160,10 +160,12 @@ public class LedgerService(AppStateStore store)
     }
 
     // 店名→カテゴリの記憶ルールを明細に適用する（取込時の自動分類）。
+    // CategoryRules は NormalizeStore（全角半角/空白正規化）済みキーで保存されている（#27）ため、
+    // 照合側も同じ正規化をかけて突き合わせる。表記ゆれ（OCR・CSV発行元差）で別ルールに分裂しない。
     public void ApplyCategoryRules(IEnumerable<CardDetail> details)
     {
         foreach (var d in details)
-            if (State.CategoryRules.TryGetValue(d.Name, out var catId))
+            if (State.CategoryRules.TryGetValue(LedgerEngine.NormalizeStore(d.Name), out var catId))
                 d.CategoryId = catId;
     }
 

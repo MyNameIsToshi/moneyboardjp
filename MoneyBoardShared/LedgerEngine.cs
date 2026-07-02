@@ -83,7 +83,8 @@ public static class LedgerEngine
 
     // 請求先の表記ゆれ吸収：全角ASCII・全角空白を半角化し、前後/連続空白を正規化する。
     // String.Normalize は WASM(browser) 非対応のため、globalization API を使わず手動変換する。
-    internal static string NormalizeStore(string? s)
+    // public：カテゴリ分類 API が AI 応答の店名を元の要求店名へ突き合わせる際にも再利用する（#27）。
+    public static string NormalizeStore(string? s)
     {
         if (string.IsNullOrEmpty(s)) return "";
         var sb = new StringBuilder(s.Length);

@@ -209,6 +209,8 @@ public partial class CardTab
             ImportMessage = excluded > 0
                 ? $"「{name}」に {spec.Label} の明細 {kept.Count} 件を取り込みました（{label}・全置換／過去月と重複の {excluded} 件を除外）"
                 : $"「{name}」に {spec.Label} の明細 {kept.Count} 件を取り込みました（{label}・全置換）";
+
+            await OpenBulkWithAutoClassifyIfNeeded();
         }
         catch (Exception ex)
         {
@@ -358,6 +360,8 @@ public partial class CardTab
         _shotBusy = false; _shotCardId = null; _shotStaged.Clear();
         if (!IsMobile) await JS.InvokeVoidAsync("cardImage.detachPaste");
         StateHasChanged();
+
+        await OpenBulkWithAutoClassifyIfNeeded();
     }
 
     public void Dispose() => _shotRef?.Dispose();
@@ -438,6 +442,7 @@ public partial class CardTab
         _bulkCatFilter = AllFilter;
         _bulkDirty = false;
         _bulkConfirmCancel = false;
+        _bulkAiMessage = null;
         BulkSelection = new();
         foreach (var g in BulkGroups)
         {
@@ -476,6 +481,52 @@ public partial class CardTab
     private MarkupString BulkHead(string key, string label) =>
         new(label + (_bulkSort == key ? (_bulkAsc ? " ▲" : " ▼") : ""));
 
+    // 取込（CSV・AIスクショ読取）後、未分類の明細が残っていれば一括カテゴリ画面を自動オープンし、
+    // そのままAI分類まで自動実行する（適用はユーザーが確認して押す＝レビュー必須は維持。#27）。
+    private async Task OpenBulkWithAutoClassifyIfNeeded()
+    {
+        if (!Mo.CardDetails.Any(d => string.IsNullOrEmpty(d.CategoryId))) return;
+        OpenBulk();
+        await ClassifyWithAi();
+    }
+
+    // ── AIで分類（カテゴリ自動推定・C案・#27）── 未分類の利用先だけを Claude に一括分類させ、
+    // 一括カテゴリの選択欄へ提案として反映する（確定はユーザーが「適用」を押した時のみ＝レビュー必須）。
+    private bool _classifyBusy;
+    private string? _bulkAiMessage;
+
+    private async Task ClassifyWithAi()
+    {
+        if (_classifyBusy) return;
+        var targets = BulkGroups.Where(g => BulkSelection.GetValueOrDefault(g.Store) == "")
+            .Select(g => g.Store).ToList();
+        if (targets.Count == 0)
+        {
+            _bulkAiMessage = "未分類の利用先はありません。";
+            return;
+        }
+
+        _classifyBusy = true; _bulkAiMessage = null; StateHasChanged();
+        try
+        {
+            var result = await Store.ClassifyCategoriesAsync(targets, Svc.State.Categories);
+            int applied = 0;
+            foreach (var (store, catId) in result)
+            {
+                if (!BulkSelection.ContainsKey(store)) continue;   // 対象外の店名は無視
+                BulkSelection[store] = catId;
+                applied++;
+            }
+            if (applied > 0) { _bulkDirty = true; SortBulk(); }
+            _bulkAiMessage = applied > 0
+                ? $"{applied} / {targets.Count} 件の利用先を分類しました（内容を確認して「適用」を押してください）"
+                : "分類できる利用先がありませんでした（確信が持てない店名はそのまま残しています）";
+        }
+        catch (AccessPendingException) { _bulkAiMessage = "アクセス承認待ちのため利用できません。"; }
+        catch (Exception ex) { _bulkAiMessage = $"AIでの分類に失敗しました: {ex.Message}"; }
+        finally { _classifyBusy = false; StateHasChanged(); }
+    }
+
     private void ApplyBulk()
     {
         foreach (var g in BulkGroups)
@@ -486,9 +537,11 @@ public partial class CardTab
             foreach (var d in Mo.CardDetails.Where(d => d.Name == g.Store))
                 d.CategoryId = string.IsNullOrEmpty(sel) ? null : sel;
 
-            // 店名→カテゴリのルールを記憶（未分類選択時は削除）
-            if (string.IsNullOrEmpty(sel)) Svc.State.CategoryRules.Remove(g.Store);
-            else Svc.State.CategoryRules[g.Store] = sel;
+            // 店名→カテゴリのルールを記憶（未分類選択時は削除）。
+            // キーは NormalizeStore（全角半角/空白正規化）済みで保存し、表記ゆれ違いのルール分裂を防ぐ（#27）。
+            var key = LedgerEngine.NormalizeStore(g.Store);
+            if (string.IsNullOrEmpty(sel)) Svc.State.CategoryRules.Remove(key);
+            else Svc.State.CategoryRules[key] = sel;
         }
         _bulkDirty = false;
         ShowBulk = false;

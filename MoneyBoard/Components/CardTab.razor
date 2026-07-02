@@ -324,30 +324,41 @@
             else
             {
                 <div class="bulk-batch">
-                    <span>選択した利用先に一括設定</span>
-                    <div class="bulk-cat-cell bulk-batch-cat">
-                        <span class="color-dot" style="background:@DotColor(_batchCat)"></span>
-                        <select @bind="_batchCat">
-                            <option value="">未分類</option>
-                            @foreach (var c in Svc.CategoriesOrdered)
-                            {
-                                <option value="@c.Id">@c.Name</option>
-                            }
-                        </select>
+                    <div class="bulk-batch-head">
+                        <span>選択した利用先に一括設定</span>
+                        <button class="btn" disabled="@_classifyBusy" @onclick="ClassifyWithAi">
+                            <span class="msym">auto_awesome</span>@(_classifyBusy ? "AIで分類中…" : "AIで分類")
+                        </button>
                     </div>
-                    <button class="btn" disabled="@(_bulkChecked.Count == 0)" @onclick="ApplyBatchToChecked">
-                        選択（@_bulkChecked.Count）に設定
-                    </button>
-                    <label class="bulk-filter">カテゴリ絞り込み
-                        <select @bind="_bulkCatFilter">
-                            <option value="@AllFilter">すべて</option>
-                            <option value="">未分類</option>
-                            @foreach (var c in Svc.CategoriesOrdered)
-                            {
-                                <option value="@c.Id">@c.Name</option>
-                            }
-                        </select>
-                    </label>
+                    <div class="bulk-batch-row">
+                        <div class="bulk-cat-cell bulk-batch-cat">
+                            <span class="color-dot" style="background:@DotColor(_batchCat)"></span>
+                            <select @bind="_batchCat">
+                                <option value="">未分類</option>
+                                @foreach (var c in Svc.CategoriesOrdered)
+                                {
+                                    <option value="@c.Id">@c.Name</option>
+                                }
+                            </select>
+                        </div>
+                        <button class="btn" disabled="@(_bulkChecked.Count == 0)" @onclick="ApplyBatchToChecked">
+                            選択（@_bulkChecked.Count）に設定
+                        </button>
+                        <label class="bulk-filter">カテゴリ絞り込み
+                            <select @bind="_bulkCatFilter">
+                                <option value="@AllFilter">すべて</option>
+                                <option value="">未分類</option>
+                                @foreach (var c in Svc.CategoriesOrdered)
+                                {
+                                    <option value="@c.Id">@c.Name</option>
+                                }
+                            </select>
+                        </label>
+                    </div>
+                    @if (_bulkAiMessage != null)
+                    {
+                        <div class="bulk-ai-msg">@_bulkAiMessage</div>
+                    }
                 </div>
 
                 <div class="bulk-list">
@@ -393,6 +404,14 @@
                 <button class="btn primary" @onclick="ApplyBulk">適用</button>
             </div>
         </div>
+    </div>
+}
+
+@if (_classifyBusy)
+{
+    <div class="busy-overlay">
+        <div class="spinner"></div>
+        <div>AIで分類中…</div>
     </div>
 }
 

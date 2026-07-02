@@ -29,7 +29,42 @@
       "Bash(ConvertFrom-Json)",
       "Bash(Select-Object title,state)",
       "PowerShell(gh issue view 37 --json title,state)",
-      "Bash(grep -v \"//\\\\|GetToken\\\\|BearerToken\\\\|idToken\\\\|firebaseToken\\\\|FcmToken\\\\|accessToken\\\\|refreshToken\\\\|authToken\\\\|jwtToken\")"
+      "Bash(grep -v \"//\\\\|GetToken\\\\|BearerToken\\\\|idToken\\\\|firebaseToken\\\\|FcmToken\\\\|accessToken\\\\|refreshToken\\\\|authToken\\\\|jwtToken\")",
+      "Edit(~/.claude/skills/daily-report/**)",
+      "Bash(fsutil reparsepoint *)",
+      "Bash(findstr /i \"print target substitute\")",
+      "PowerShell(\\(Get-Item \"C:\\\\Users\\\\tsugi\\\\.claude\\\\skills\"\\).Target)",
+      "PowerShell(dotnet test MoneyBoardShared.Tests/MoneyBoardShared.Tests.csproj --nologo -v q)",
+      "PowerShell(dotnet test MoneyBoardApi.Tests/MoneyBoardApi.Tests.csproj --nologo -v q)",
+      "Read(//c/Development/moneyboard/MoneyBoard/wwwroot/js/**)",
+      "PowerShell(dotnet build MoneyBoard\\\\MoneyBoard.csproj --nologo -v q)",
+      "PowerShell(dotnet test MoneyBoardShared.Tests\\\\MoneyBoardShared.Tests.csproj --nologo -v q)",
+      "PowerShell(dotnet test MoneyBoardApi.Tests\\\\MoneyBoardApi.Tests.csproj --nologo -v q)",
+      "PowerShell(git add MoneyBoardShared/LedgerMath.cs MoneyBoardShared/LedgerEngine.cs MoneyBoard/Pages/Portfolio.razor.cs MoneyBoard/Pages/GraphPage.razor.cs MoneyBoard/Components/CardTab.razor.cs MoneyBoard/Components/FixedCostTab.razor.cs)",
+      "PowerShell(git push origin dev)",
+      "PowerShell(git add MoneyBoardShared/PortfolioMath.cs MoneyBoardShared/LedgerEngine.cs MoneyBoardShared/StatsMath.cs MoneyBoard/Services/LedgerService.cs MoneyBoard/Pages/GraphPage.razor.cs)",
+      "PowerShell(git -c core.quotepath=false diff HEAD --stat)",
+      "Read(//c//**)",
+      "Bash(xargs grep -l \"^name: code-review\")",
+      "Bash(jobs -l)",
+      "Edit(~/.claude/skills/develop/**)",
+      "Bash(xargs grep -l \"^name: code-review$\")",
+      "Bash(find /tmp/claude/bundled-skills -maxdepth 3 -iname \"*code-review*\" -o -iname \"*code_review*\" 2>/dev/null)",
+      "Read(//tmp/claude/**)",
+      "Bash(find /tmp/claude/bundled-skills -maxdepth 2 -type d 2>/dev/null | sort | head -80)",
+      "Bash(find / -path /proc -prune -o -iname \"*.asar*\" -print 2>/dev/null | head -5 *)",
+      "Bash(python3 -c \"import yaml,sys; yaml.safe_load\\(open\\('docs/swagger/openapi.yaml', encoding='utf-8'\\)\\); print\\('OK'\\)\")",
+      "Bash(python -c \"import yaml,sys; yaml.safe_load\\(open\\('docs/swagger/openapi.yaml', encoding='utf-8'\\)\\); print\\('OK'\\)\")",
+      "Bash(node -e ' *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:7071/api/extract-card -X POST -H \"Content-Type: application/json\" -d '{}')",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:7071/api/classify-categories -X POST -H \"Content-Type: application/json\" -d '{}')",
+      "Bash(tasklist //FI \"IMAGENAME eq dotnet.exe\" //FI \"STATUS eq running\")",
+      "Bash(tasklist //FI \"IMAGENAME eq func.exe\")",
+      "Bash(netstat -ano)",
+      "Bash(taskkill //F //PID 88692)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\tsugi\\iCloudDrive\\02_Financial"
     ]
   }
 }

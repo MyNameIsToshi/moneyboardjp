@@ -171,6 +171,7 @@ C:\Development\moneyboard\
     DataApi.cs                GET/POST /api/data（設定＋月次の集約取得 / 差分の原子的保存）
     DataApi.Access.cs         認証＋アクセス承認（partial・AuthorizeAsync・GET/POST /api/access・承認DTO）
     DataApi.CardImage.cs      POST /api/extract-card（partial・Claude Vision でカード明細スクショ→CardDetail[]。Anthropic SDK・解析部 ParseCardImageResponse は internal でテスト可）
+    DataApi.CategoryClassify.cs POST /api/classify-categories（partial・Claude Haiku(テキストのみ)で利用先一覧→カテゴリID一括分類。解析部 ParseCategoryClassifyResponse は internal でテスト可。カテゴリ一覧はリクエストボディで受け取りCosmosは叩かない）
     FirebaseAuth.cs           Firebase IDトークン(JWT/RS256)検証→uid抽出（OIDC構成キャッシュ・AuthBypass対応）
     Program.cs                DI登録 (CosmosClient・AppInsights・FirebaseAuth)
     host.json
@@ -186,7 +187,7 @@ C:\Development\moneyboard\
     StatsMath.cs              統計（グラフ）の純粋ロジック（SelectPeriodYms=期間選択。GraphPage が委譲・v1.3.3）
     FixedCostPeriod.cs        固定費の有効期間 StartYm/EndYm の解析・組み立て・表示整形（YearPart/MonthPart/ComposeYm/FmtBound/Summary。FixedCostTab が委譲・v1.3.3）
     Portfolio.cs / PortfolioMath.cs  証券ポートフォリオのモデルと集計計算（Phase 3）。PortfolioMath に CostBasisJpyAsOf（指定日元本・円換算）/ YahooSymbol（日本株 .T 付与）を v1.3.3 で抽出。v2.1.0（issue #57）で PnlPct・DayChangePct・GroupValuationJpy を追加（テスト 118件）。issue #36 で BuildSnapshot（スナップショット構築）を追加（テスト 125件）
-  MoneyBoardShared.Tests\     ※ xUnit(net8.0)。LedgerMath / LedgerEngine / PortfolioMath / StatsMath / FixedCostPeriod / CardCsvParser / Ym / SchemaMigration / FixedCost のユニットテスト（計125・`dotnet test`／カバレッジは `--collect:"XPlat Code Coverage"`）
+  MoneyBoardShared.Tests\     ※ xUnit(net8.0)。LedgerMath / LedgerEngine / PortfolioMath / StatsMath / FixedCostPeriod / CardCsvParser / Ym / SchemaMigration / FixedCost のユニットテスト（計130・`dotnet test`／カバレッジは `--collect:"XPlat Code Coverage"`）
 ```
 
 ### MoneyBoardShared の憲章（役割定義）
@@ -199,8 +200,8 @@ C:\Development\moneyboard\
 ### テスト方針
 - **対象＝自動テスト可能な純粋ロジック**。**API の CRUD/認証は Cosmos オーケストレーションのため対象外**（結合テスト領域・ROI低）。Blazor UI も自動化困難で対象外。
 - **テストプロジェクトは2つ**（いずれも xUnit・net8.0）：
-  - `MoneyBoardShared.Tests`：`LedgerMath` / `LedgerEngine`（残高連鎖・ExpandCards・重複除外・固定費）/ `PortfolioMath`（集計・Valuation・CostBasisJpyAsOf・YahooSymbol・PnlPct・DayChangePct・GroupValuationJpy・BuildSnapshot）/ `StatsMath`（期間選択）/ `FixedCostPeriod`（年月の解析・整形）/ `CardCsvParser` / `Ym` / `SchemaMigration` / `FixedCost`（計**125**・v1.3.3 で 63→102・v2.1.0 で 102→118・issue #36 で 118→125）。
-  - `MoneyBoardApi.Tests`：API の**純粋ロジックのみ**（計26・#54 で 20→26）。`DataApi.IsStructurallyValid`（保存前データ健全性ガード）／価格パーサ `ParseYahooQuote`・`ParseFundCsv`（取得=HTTPと分離した解析部）／`ParseCardImageResponse`（スクショAI応答JSON→CardDetail[]・日付正規化/金額/不正行スキップ）／`IsAuthorizedSharedSecret`（共有シークレット照合・定数時間比較）。テストのため対象は `internal static`＋`InternalsVisibleTo("MoneyBoardApi.Tests")`。
+  - `MoneyBoardShared.Tests`：`LedgerMath` / `LedgerEngine`（残高連鎖・ExpandCards・重複除外・固定費）/ `PortfolioMath`（集計・Valuation・CostBasisJpyAsOf・YahooSymbol・PnlPct・DayChangePct・GroupValuationJpy・BuildSnapshot）/ `StatsMath`（期間選択）/ `FixedCostPeriod`（年月の解析・整形）/ `CardCsvParser` / `Ym` / `SchemaMigration`（v4＝CategoryRules正規化統合含む） / `FixedCost`（計**130**・v1.3.3 で 63→102・v2.1.0 で 102→118・issue #36 で 118→125・#27 で 125→130）。
+  - `MoneyBoardApi.Tests`：API の**純粋ロジックのみ**（計35・#54 で 20→26・#27 で 26→35）。`DataApi.IsStructurallyValid`（保存前データ健全性ガード）／価格パーサ `ParseYahooQuote`・`ParseFundCsv`（取得=HTTPと分離した解析部）／`ParseCardImageResponse`（スクショAI応答JSON→CardDetail[]・日付正規化/金額/不正行スキップ）／`ParseCategoryClassifyResponse`（利用先一括分類AI応答JSON→Dictionary<store,categoryId>・null/存在しないID/でっち上げ店名除外・要求店名へ NormalizeStore で突き合わせ表記ゆれ吸収）／`IsAuthorizedSharedSecret`（共有シークレット照合・定数時間比較）。テストのため対象は `internal static`＋`InternalsVisibleTo("MoneyBoardApi.Tests")`。
 - **カバレッジ**：`--collect:"XPlat Code Coverage"`（coverlet）。ロジック層は行/分岐とも高水準（LedgerMath/SchemaMigration=100% など）。DTO/モデルやCRUD/HTTP部は対象外のため class 全体の数値は薄く出る点に注意（=想定どおり）。**カバレッジ100%でもバグ不在の証明ではない**点は前提として共有。
 - **CI**：`.github/workflows/dotnet-test.yml` が dev push / main への PR で**両テストプロジェクト**を `dotnet test`（カバレッジ収集）。main への PR で「必須チェック」に設定すればマージゲートになる（要：Settings→Branches の保護ルール）。
 
@@ -210,7 +211,7 @@ C:\Development\moneyboard\
 
 ```csharp
 AppState
-  ├─ SchemaVersion              // スキーマ版数（移行判定用・現状 3）
+  ├─ SchemaVersion              // スキーマ版数（移行判定用・現状 4）
   ├─ List<Account> Accounts
   ├─ List<FixedCost> FixedCosts
   ├─ List<Category> Categories
@@ -324,6 +325,7 @@ Transfer
 | Step4 前クリーンアップ（テスト基盤63→102・CI自動実行・純粋ロジック抽出 StatsMath/FixedCostPeriod/PortfolioMath・巨大razor4枚を code-behind 分離・楽天カード対応・表記統一） | ✅ 完了（本番反映済み・v1.3.3） |
 | Phase 4 土台＝カード明細スクショの AI 読み取り（Claude Vision/Haiku 4.5・🤖AIで読取・複数枚＋PC Ctrl+V貼付・X風ステージング・当月へ増分追加） | ✅ 完了（本番反映済み・v1.4.0） |
 | 市場指標バー（/portfolio 上部・固定5本のチップ列・前日比%・既存 `/api/quote` 再利用・AI不要） | ✅ 完了（本番反映済み・v1.5.0・#26） |
+| カテゴリ自動推定（C案・`POST /api/classify-categories`。未分類の利用先を Claude Haiku 4.5 で一括分類→一括カテゴリ画面でレビュー→適用時に `CategoryRules` へキャッシュ。CSV取込・AIスクショ読取後に未分類が残っていれば一括カテゴリ画面を自動オープン＋AI分類まで自動実行、適用はユーザー操作。CategoryRules は `NormalizeStore` 正規化キーで統合し表記ゆれによる分裂を解消、SchemaMigration v3→v4 で既存データも統合） | ✅ 完了（dev・リリース待ち・#27） |
 
 ---
 
@@ -386,7 +388,6 @@ Transfer
 
 | 機能 | issue | 備考 |
 |------|------|------|
-| カテゴリ自動推定（C案） | #27 | Phase 4 土台再利用（Milestone: Phase 5） |
 | 自然言語入力解析 | #28 | Phase 5 |
 | 月次コメント生成 | #29 | Phase 5 |
 | FABチャット（月次データ更新） | #30 | Phase 5・設計メモは「チャット設計」節 |
@@ -531,8 +532,12 @@ Transfer
 - **テスト**：`MoneyBoardApi.Tests/CardImageParserTests.cs`（6件）＝行抽出/返金マイナス保持/不正行スキップ/items欠落→空/不正JSON→空/スキーマがvalid JSON。
 - **検証状況**：ローカルで合成スクショ→実 API 呼び出しの end-to-end OK（合計行除外・日付/金額正規化を確認）。実カード明細でも日付・金額は全件一致、店名は OCR の表記ゆれが軽微に出る（家計簿用途では実用十分・要確認運用）。本番（v1.4.0）でも `Anthropic__ApiKey` 経由で稼働。
 
+### カテゴリ自動推定（C案・issue #27・dev・リリース待ち）
+- **バックエンド**：`DataApi.CategoryClassify.cs`（partial）。`POST /api/classify-categories`（`AuthorizeAsync` ゲート内）。本文 `{stores(string[]), categories([{id,name}])}` を受け、`ClassifyCategoriesAsync` が店名一覧＋カテゴリ一覧をテキストで Haiku に渡し（Vision 不要）、`ParseCategoryClassifyResponse` が応答 JSON を `Dictionary<store, categoryId>` へ。カテゴリ一覧はユーザーごとに異なりサーバー側で保持していないため、**リクエストボディで受け取る**（Cosmos を叩かず完結）。存在しない categoryId・確信が持てない（null）行は結果から除外。AI が返す店名は `LedgerEngine.NormalizeStore`（全角半角/空白）で**要求した原文の店名へ突き合わせ**て表記ゆれを吸収し、キーは必ず原文に揃える（フロントの完全一致採用のため）／要求していない店名（でっち上げ）は捨てる。stores は最大200件（超過は400）。`MaxTokens=32000`（200件でも構造化出力が途中で切れて JSON 不正→全件失敗にならないよう余裕。Haiku 4.5 出力上限 64K 内）。**このAPI自体は何も永続化しない**（キャッシュ書き込みはフロントの「適用」時のみ）。
+- **フロント**：`CardTab` の一括カテゴリダイアログに「AIで分類（未分類のみ）」ボタンを追加。現在「未分類」の利用先だけを対象に呼び出し、返ってきた提案を一括カテゴリの選択欄（`BulkSelection`）へプリセットするだけで、**確定は既存の「適用」操作のまま**（レビュー必須はここで担保）。適用時の `CategoryRules` キャッシュ・カテゴリ反映ロジックは既存のまま変更なし。
+- **テスト**：`MoneyBoardApi.Tests/CategoryClassifyParserTests.cs`（7件）＝店名→カテゴリ変換/null除外/存在しないID除外/店名空行除外/items欠落→空/不正JSON→空/スキーマがvalid JSON。
+
 ### 今後（この土台を再利用）
-- **カテゴリ自動推定（C案）**：カード明細の利用先を一括分類→レビュー後に適用し `CategoryRules` にキャッシュ。
 - **月次コメント生成 / 自然言語入力解析 / FABチャット** も同じプロキシ土台（サーバー側キー・取得と解析の分離）の上に追加する。
 - 改善余地：店名 OCR の表記ゆれをプロンプトで詰める（ハイフン/長音・英数字を原文どおり等）。トークン増と効果のトレードオフ。
 
@@ -670,11 +675,15 @@ Functions Isolated では `IConfiguration` ではなく
 - 本文サイズ上限（約1.9MB）＋構造バリデーション（コレクション数の健全性チェック）。
 
 ### スキーマ移行
-- `AppState.SchemaVersion` と `SchemaMigration.Apply()` が将来の段階移行の足場。**現状 CurrentVersion=3**。
+- `AppState.SchemaVersion` と `SchemaMigration.Apply()` が将来の段階移行の足場。**現状 CurrentVersion=4**。
 - Phase 2 のカテゴリ/カード/明細、`Ledger.Incomes`/`AtmDeposit`/`AtmWithdraw`・`Card.IsDeleted`・
   `MonthData.CardBilled` はすべて**加算的追加**（旧データはデフォルト値で読める）。
 - **v3**: 月初残高を「作成時スナップショット」から「前月末からの自動連鎖」へ変更。非起点月の `Confirmed` が
   参照されなくなるだけで構造的な移行処理は不要（旧 `Ledger.OpeningPinned` 案は採用せず撤去）。
+- **v4**（#27）: `CategoryRules` のキーを `LedgerEngine.NormalizeStore`（全角半角/空白正規化）済みに統一。
+  OCR・CSV発行元差の表記ゆれ（例：全角/半角の「Amazon Downloads」）で同一店名が別キーに分裂していた
+  既存データを正規化キーへ統合（衝突時は後勝ち）。以降の書き込み（一括カテゴリ「適用」）・読み取り
+  （`LedgerService.ApplyCategoryRules`）も正規化キーで統一し、再分裂を防ぐ。
 
 ### 月初残高の自動連鎖（OpeningOf）
 - `OpeningOf(ym, acct)` ＝ 前月の同口座台帳があれば `CloseOf(前月)`、無ければ（起点月）`Confirmed`。
