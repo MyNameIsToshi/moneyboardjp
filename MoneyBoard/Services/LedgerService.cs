@@ -160,13 +160,15 @@ public class LedgerService(AppStateStore store)
     }
 
     // 店名→カテゴリの記憶ルールを明細に適用する（取込時の自動分類）。
-    // CategoryRules は NormalizeStore（全角半角/空白正規化）済みキーで保存されている（#27）ため、
-    // 照合側も同じ正規化をかけて突き合わせる。表記ゆれ（OCR・CSV発行元差）で別ルールに分裂しない。
+    // 完全一致（CategoryRules）を優先し、該当しなければ前方一致（CategoryPrefixRules・#70）を
+    // 最長プレフィックス優先で判定する。判定本体は LedgerEngine.ResolveCategory（純粋ロジック）へ委譲する。
     public void ApplyCategoryRules(IEnumerable<CardDetail> details)
     {
         foreach (var d in details)
-            if (State.CategoryRules.TryGetValue(LedgerEngine.NormalizeStore(d.Name), out var catId))
-                d.CategoryId = catId;
+        {
+            var catId = LedgerEngine.ResolveCategory(State.CategoryRules, State.CategoryPrefixRules, d.Name);
+            if (catId != null) d.CategoryId = catId;
+        }
     }
 
     // 取込明細のうち、同一カードでより早い月に既出（利用日・請求先(正規化)・金額が一致）の行を除外する。

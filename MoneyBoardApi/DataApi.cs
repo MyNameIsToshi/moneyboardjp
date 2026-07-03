@@ -55,7 +55,8 @@ public partial class DataApi(ILogger<DataApi> logger, CosmosClient cosmos, Fireb
                     FixedCosts = r.Resource.FixedCosts,
                     Categories = r.Resource.Categories,
                     Cards = r.Resource.Cards,
-                    CategoryRules = r.Resource.CategoryRules
+                    CategoryRules = r.Resource.CategoryRules,
+                    CategoryPrefixRules = r.Resource.CategoryPrefixRules
                 };
             }
             catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)
@@ -128,7 +129,8 @@ public partial class DataApi(ILogger<DataApi> logger, CosmosClient cosmos, Fireb
                     FixedCosts = env.Settings.FixedCosts,
                     Categories = env.Settings.Categories,
                     Cards = env.Settings.Cards,
-                    CategoryRules = env.Settings.CategoryRules
+                    CategoryRules = env.Settings.CategoryRules,
+                    CategoryPrefixRules = env.Settings.CategoryPrefixRules
                 };
                 batch.UpsertItem(doc, BatchOptions(env.Settings.Etag));
                 ops.Add(("settings", ""));
@@ -250,6 +252,7 @@ public class SettingsDoc
     public List<Category> Categories { get; set; } = new();
     public List<Card> Cards { get; set; } = new();
     public Dictionary<string, string> CategoryRules { get; set; } = new();
+    public Dictionary<string, string> CategoryPrefixRules { get; set; } = new();
 }
 
 public class MonthDoc

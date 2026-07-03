@@ -45,7 +45,8 @@ public class StorageService(HttpClient http, AuthService auth)
             FixedCosts = env.Settings?.FixedCosts ?? new(),
             Categories = env.Settings?.Categories ?? new(),
             Cards = env.Settings?.Cards ?? new(),
-            CategoryRules = env.Settings?.CategoryRules ?? new()
+            CategoryRules = env.Settings?.CategoryRules ?? new(),
+            CategoryPrefixRules = env.Settings?.CategoryPrefixRules ?? new()
         };
         foreach (var (ym, m) in env.Months)
         {

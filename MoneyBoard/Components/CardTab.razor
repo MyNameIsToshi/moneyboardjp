@@ -395,8 +395,49 @@
                         </div>
                     }
                 </div>
+                <div class="prefix-rules">
+                    <div class="prefix-rules-head">前方一致ルール（利用先の先頭文字列でまとめて分類。例: 「etc」→交通）</div>
+                    @if (PrefixRulesOrdered.Count > 0)
+                    {
+                        <div class="prefix-rules-list">
+                            @foreach (var kv in PrefixRulesOrdered)
+                            {
+                                <div class="prefix-rule-row">
+                                    <span class="prefix-rule-key" title="@kv.Key">@kv.Key</span>
+                                    <span class="prefix-rule-count">@(PrefixPreviewCount(kv.Key)) 件該当</span>
+                                    <div class="bulk-cat-cell">
+                                        <span class="color-dot" style="background:@DotColor(kv.Value)"></span>
+                                        <select value="@kv.Value" @onchange="e => EditPrefixRuleCategory(kv.Key, e.Value?.ToString())">
+                                            @foreach (var c in Svc.CategoriesOrdered)
+                                            {
+                                                <option value="@c.Id">@c.Name</option>
+                                            }
+                                        </select>
+                                    </div>
+                                    <button class="btn" title="削除" @onclick="() => RemovePrefixRule(kv.Key)">
+                                        <span class="msym">delete</span>
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    }
+                    <div class="prefix-rule-add">
+                        <input type="text" placeholder="前方一致文字列（2文字以上・例: etc）" value="@_newPrefixText" @oninput="OnPrefixTextChanged" />
+                        <select @bind="_newPrefixCat">
+                            <option value="">カテゴリを選択</option>
+                            @foreach (var c in Svc.CategoriesOrdered)
+                            {
+                                <option value="@c.Id">@c.Name</option>
+                            }
+                        </select>
+                        <button class="btn" @onclick="AddPrefixRule">追加</button>
+                    </div>
+                    <div class="prefix-status @(_prefixMessageIsError ? "is-error" : "")">@PrefixStatusText</div>
+                </div>
+
                 <div class="dialog-message">
                     選んだ利用先のカテゴリを当月の明細にまとめて適用し、以降の取込でも自動分類します。「変更しない」はそのまま。
+                    前方一致ルールは追加/削除した時点で即座に保存されます。
                 </div>
             }
             <div class="dialog-btns">

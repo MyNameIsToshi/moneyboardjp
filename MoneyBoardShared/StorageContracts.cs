@@ -21,6 +21,7 @@ public class SettingsPart
     public List<Category> Categories { get; set; } = new();
     public List<Card> Cards { get; set; } = new();
     public Dictionary<string, string> CategoryRules { get; set; } = new();
+    public Dictionary<string, string> CategoryPrefixRules { get; set; } = new();
 }
 
 /// <summary>月次ドキュメントに対応するパート。</summary>

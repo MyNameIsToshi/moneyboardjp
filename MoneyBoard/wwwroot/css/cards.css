@@ -907,6 +907,102 @@
   min-width: 0;
 }
 
+/* 前方一致ルール（プレフィックス・#70）：一括カテゴリダイアログ内の独立セクション */
+.prefix-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  background: #f8f6f2;
+  border: 1px solid #efece6;
+  border-radius: 12px;
+  font-size: 13px;
+  color: #3a3733;
+}
+
+.prefix-rules-head {
+  font-weight: 600;
+  color: #6b6558;
+  font-size: 12.5px;
+}
+
+.prefix-rules-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.prefix-rule-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px 160px 36px;
+  gap: 10px;
+  align-items: center;
+}
+
+.prefix-rule-key {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.prefix-rule-count {
+  font-size: 12px;
+  color: #8f8b84;
+  white-space: nowrap;
+}
+
+.prefix-rule-row select {
+  border: 1px solid #ddd9d2;
+  border-radius: 9px;
+  padding: 7px 10px;
+  font: inherit;
+  font-size: 13.5px;
+  background: #fcfbf9;
+  width: 100%;
+}
+
+.prefix-rule-add {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.prefix-rule-add input {
+  flex: 1 1 200px;
+  min-width: 160px;
+  border: 1px solid #ddd9d2;
+  border-radius: 9px;
+  padding: 7px 10px;
+  font: inherit;
+  font-size: 13.5px;
+}
+
+.prefix-rule-add select {
+  border: 1px solid #ddd9d2;
+  border-radius: 9px;
+  padding: 7px 10px;
+  font: inherit;
+  font-size: 13.5px;
+  width: 180px;
+}
+
+/* 追加フォーム下の固定スロット：プレビュー件数とエラー/完了メッセージを同じ位置に出す。
+   常に高さを確保しておくことで、表示内容が変わっても入力欄やボタンの位置が動かない。 */
+.prefix-status {
+  min-height: 1.4em;
+  font-size: 12px;
+  color: #8f8b84;
+}
+
+.prefix-status.is-error {
+  color: var(--bad);
+}
+
 /* =====================================================
    スマホ：一括カテゴリボタンを2行に折り、明細テーブルは出さない
    （明細はタップカード＝.cd-mlist で表示。月切替バーは monthly.css 共通）

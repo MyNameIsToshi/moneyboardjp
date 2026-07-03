@@ -211,12 +211,13 @@ C:\Development\moneyboard\
 
 ```csharp
 AppState
-  ├─ SchemaVersion              // スキーマ版数（移行判定用・現状 4）
+  ├─ SchemaVersion              // スキーマ版数（移行判定用・現状 5）
   ├─ List<Account> Accounts
   ├─ List<FixedCost> FixedCosts
   ├─ List<Category> Categories
   ├─ List<Card> Cards
-  ├─ Dictionary<string,string> CategoryRules  // 店名 → categoryId（自動分類ルール）
+  ├─ Dictionary<string,string> CategoryRules        // 店名 → categoryId（完全一致の自動分類ルール）
+  ├─ Dictionary<string,string> CategoryPrefixRules  // 店名の前方一致(prefix) → categoryId（#70）
   └─ Dictionary<string, MonthData> Months  // key: "yyyyMM"
 
 Account
@@ -277,7 +278,7 @@ Transfer
 - **リボ/分割対応**: `CardBilled[cardId]`（実請求額）が設定された月は、引き落とし額にそれを使う（未設定は利用額＝一括払い）。**利用額＝統計用**は CardDetails に残し、**請求額＝口座引落**だけを補正。利息/手数料は請求額に含めるか手数料明細で。翌月以降のリボ継続分は明細なしでも請求額を入力可。
 - **CSV取込の重複除外**: リボ/分割は完済まで毎月CSVに同じ明細が再掲されるため、取込時に同一カードで**より早い月に既出**（利用日・請求先(正規化:全角ASCII/空白を半角化)・金額が一致）の行を除外（`DedupAgainstEarlierMonths`）。除外件数を取込メッセージに表示。時系列順の取込が前提。
 - 月次管理タブでは 💳 付きの読み取り専用行として表示し、クリックでカードタブの該当カードへ展開＋スクロール遷移。
-- 取込/手入力時は `CategoryRules`（店名→カテゴリ）で未分類を自動分類（完全一致）。
+- 取込/手入力時は `CategoryRules`（店名→カテゴリ・完全一致）で未分類を自動分類し、該当しなければ `CategoryPrefixRules`（前方一致・最長優先・大小無視）で分類する（`LedgerEngine.ResolveCategory`・#70）。
 - **カード削除はソフト削除**（`IsDeleted`）。当月以降の明細・Debit・CardBilled のみ除去し過去は凍結。レコードは残すため統計で削除済みカード名を保持。
 
 ---
@@ -326,6 +327,7 @@ Transfer
 | Phase 4 土台＝カード明細スクショの AI 読み取り（Claude Vision/Haiku 4.5・🤖AIで読取・複数枚＋PC Ctrl+V貼付・X風ステージング・当月へ増分追加） | ✅ 完了（本番反映済み・v1.4.0） |
 | 市場指標バー（/portfolio 上部・固定5本のチップ列・前日比%・既存 `/api/quote` 再利用・AI不要） | ✅ 完了（本番反映済み・v1.5.0・#26） |
 | カテゴリ自動推定（C案・`POST /api/classify-categories`。未分類の利用先を Claude Haiku 4.5 で一括分類→一括カテゴリ画面でレビュー→適用時に `CategoryRules` へキャッシュ。CSV取込・AIスクショ読取後に未分類が残っていれば一括カテゴリ画面を自動オープン＋AI分類まで自動実行、適用はユーザー操作。CategoryRules は `NormalizeStore` 正規化キーで統合し表記ゆれによる分裂を解消、SchemaMigration v3→v4 で既存データも統合） | ✅ 完了（dev・リリース待ち・#27） |
+| カテゴリ前方一致ルール（`CategoryPrefixRules`。ETC通行料金など区間ごとに店名が変わる明細を共通の接頭辞でまとめて分類。完全一致優先→前方一致は最長プレフィックス優先・大小無視。一括カテゴリ画面で一覧編集＋プレビュー件数＋最低2文字。登録時に同カテゴリの完全一致ルールを整理／完全一致保存時は前方一致で解決済みなら重複保存しない。SchemaMigration v4→v5） | ✅ 完了（dev・リリース待ち・#70） |
 
 ---
 
@@ -537,6 +539,15 @@ Transfer
 - **フロント**：`CardTab` の一括カテゴリダイアログに「AIで分類（未分類のみ）」ボタンを追加。現在「未分類」の利用先だけを対象に呼び出し、返ってきた提案を一括カテゴリの選択欄（`BulkSelection`）へプリセットするだけで、**確定は既存の「適用」操作のまま**（レビュー必須はここで担保）。適用時の `CategoryRules` キャッシュ・カテゴリ反映ロジックは既存のまま変更なし。
 - **テスト**：`MoneyBoardApi.Tests/CategoryClassifyParserTests.cs`（7件）＝店名→カテゴリ変換/null除外/存在しないID除外/店名空行除外/items欠落→空/不正JSON→空/スキーマがvalid JSON。
 
+### カテゴリ前方一致ルール（issue #70・dev・リリース待ち）
+- **背景**：ETC通行料金のように利用先表記が区間ごとに毎回変わる明細（例:「ETC 一宮IC入-鳥見町出口 普通車」）は完全一致ルールだと1件ずつ登録する必要があり非現実的。共通の接頭辞（例:「etc」）でまとめて分類したいという要望から派生（issue #27 の会話）。
+- **データモデル**：`AppState.CategoryPrefixRules: Dictionary<string,string>`（prefix → categoryId）を `CategoryRules`（完全一致）と並列で加算的に追加。キーの正準形は `LedgerEngine.NormalizeStore` + `ToLowerInvariant`（大小文字を区別しない要件をキー側で構造的に満たす）。
+- **解決ロジック（`LedgerEngine.ResolveCategory`・純粋関数）**：①完全一致（`CategoryRules`）を最優先、②該当しなければ前方一致（`CategoryPrefixRules`）を `StartsWith(OrdinalIgnoreCase)` で判定し**最長プレフィックス優先**。完全一致が優先されるため、広い prefix に対する個別上書きが可能（例: prefix `kabu`→公共料金、完全一致 `KABU&【プラス／プレミアム】`→サブスクを個別に維持）。`LedgerService.ApplyCategoryRules`（取込時の自動分類）と `CardTab.OnNameChanged`（手入力確定時。従来 `NormalizeStore` を通さず素の店名で照合していた不整合を本対応で解消）を同じ resolver に統一。
+- **UI（`CardTab` の一括カテゴリダイアログ）**：利用先一覧の下に独立セクションとして前方一致ルールの一覧編集（prefix・該当件数プレビュー・カテゴリ select・削除）＋追加フォーム（前方一致文字列は最低2文字でバリデーション・入力中に現在月の該当件数をプレビュー）を追加。**追加/削除した時点で即座に保存**（完全一致側の「適用」ボタンとは独立）。
+- **クリーンアップ・増加抑止**：前方一致ルールを追加すると、その prefix に包含され**同一カテゴリ**を指す既存の完全一致ルールを件数提示のうえ削除（`LedgerEngine.ExactRulesCoveredByPrefix`。別カテゴリを指すものは個別上書きとして残す）。また `ApplyBulk`（完全一致ルールの保存）時、選んだカテゴリが前方一致ルールで既に解決される場合は完全一致ルールとして重複保存しない（`LedgerEngine.ResolveCategoryByPrefix` で判定）。実データで試算すると現行約139ルール→約95件相当に整理される見込み（ETC 20→1・セブン系 13→1等）。
+- **スキーマ**：SchemaVersion v4→v5（加算のみ・移行処理なし）。
+- **テスト**：`LedgerEngineTests`（完全一致優先/前方一致フォールバック/大小無視/最長プレフィックス優先/該当なし→null/クリーンアップ対象判定の6件）・`SchemaMigrationTests`（v4→v5 が加算のみで既存ルールを保持することの1件）。
+
 ### 今後（この土台を再利用）
 - **月次コメント生成 / 自然言語入力解析 / FABチャット** も同じプロキシ土台（サーバー側キー・取得と解析の分離）の上に追加する。
 - 改善余地：店名 OCR の表記ゆれをプロンプトで詰める（ハイフン/長音・英数字を原文どおり等）。トークン増と効果のトレードオフ。
@@ -675,7 +686,7 @@ Functions Isolated では `IConfiguration` ではなく
 - 本文サイズ上限（約1.9MB）＋構造バリデーション（コレクション数の健全性チェック）。
 
 ### スキーマ移行
-- `AppState.SchemaVersion` と `SchemaMigration.Apply()` が将来の段階移行の足場。**現状 CurrentVersion=4**。
+- `AppState.SchemaVersion` と `SchemaMigration.Apply()` が将来の段階移行の足場。**現状 CurrentVersion=5**。
 - Phase 2 のカテゴリ/カード/明細、`Ledger.Incomes`/`AtmDeposit`/`AtmWithdraw`・`Card.IsDeleted`・
   `MonthData.CardBilled` はすべて**加算的追加**（旧データはデフォルト値で読める）。
 - **v3**: 月初残高を「作成時スナップショット」から「前月末からの自動連鎖」へ変更。非起点月の `Confirmed` が
@@ -684,6 +695,8 @@ Functions Isolated では `IConfiguration` ではなく
   OCR・CSV発行元差の表記ゆれ（例：全角/半角の「Amazon Downloads」）で同一店名が別キーに分裂していた
   既存データを正規化キーへ統合（衝突時は後勝ち）。以降の書き込み（一括カテゴリ「適用」）・読み取り
   （`LedgerService.ApplyCategoryRules`）も正規化キーで統一し、再分裂を防ぐ。
+- **v5**（#70）: `CategoryPrefixRules`（前方一致カテゴリルール）を追加。加算的なフィールド追加のみで
+  移行処理は不要（旧データは空の辞書として読める）。
 
 ### 月初残高の自動連鎖（OpeningOf）
 - `OpeningOf(ym, acct)` ＝ 前月の同口座台帳があれば `CloseOf(前月)`、無ければ（起点月）`Confirmed`。
