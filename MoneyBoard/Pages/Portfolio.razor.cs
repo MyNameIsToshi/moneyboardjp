@@ -166,9 +166,11 @@ public partial class Portfolio
 
     // 価格更新のたびに、その時点の銘柄別評価額（円）と USD/JPY を時系列の1点として記録する。
     // 評価額が1件も取れなければ記録しない。同日上書き（1日1点）は PortfolioMath.UpsertSnapshot（純粋ロジック・テスト対象）。
+    // 日付キーはサーバー記録（/api/record-snapshots・/api/portfolio-snapshot-current）と同じ UTC 基準にする（#73）。
+    // ローカル時刻のままだと非JSTユーザーでサーバー記録と別日扱いになり、1日に2点残ってしまう。
     private void RecordSnapshot()
     {
-        var snap = PortfolioMath.BuildSnapshot(Store.Data, DateTime.Now.ToString("yyyy-MM-dd HH:mm"));
+        var snap = PortfolioMath.BuildSnapshot(Store.Data, DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm"));
         if (snap != null) PortfolioMath.UpsertSnapshot(Store.Data, snap);
     }
 

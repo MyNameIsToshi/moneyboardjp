@@ -495,7 +495,7 @@ Transfer
 - **認証**：`/api/market-summary` / `/api/portfolio-snapshot-current` と同じ共有シークレット（`InternalApi__SharedSecret` / `X-Internal-Secret`）。ユーザー JWT ゲートとは別系統。
 - **全ユーザー対応**（#48 のオーナー固定とは異なる）：`type = 'portfolio'` でクロスパーティションクエリし、全ユーザーの portfolio ドキュメントを列挙。価格は全ユーザー分の銘柄をまとめて重複排除してから取得し（Yahoo/投信協会への呼び出し回数を抑制）、ユーザーごとに `PortfolioMath.BuildSnapshot`→`UpsertSnapshot`→保存。
 - **記録しない条件**：評価額を1件も算出できないユーザー（保有0件・全銘柄価格未取得等）は `BuildSnapshot` が null を返し、そのユーザーはスキップ（既存 `GetPortfolioSnapshotCurrent` と同じ規則）。
-- **二重記録の防止**：`UpsertSnapshot` の同日上書きにより、手動で画面を開いた時の記録（既存の価格更新フロー）と cron 記録は同じ日なら1点に吸収される。
+- **二重記録の防止**：`UpsertSnapshot` の同日上書きにより、手動で画面を開いた時の記録（既存の価格更新フロー）と cron 記録は同じ日なら1点に吸収される。同日判定の基準はフロント・サーバーとも UTC に統一（フロントの記録時刻は `RecordSnapshot` 内でのみ `DateTime.UtcNow` を使用。画面表示用の `PricedAt`「価格更新 HH:mm」はユーザー向けの現地時刻表示なので `DateTime.Now` のまま・記録の同日判定には使わない）#73。
 - **ETag 競合の扱い**：フロントと同時操作で 412 が発生したユーザーはそのユーザーだけスキップし、他ユーザーの記録は継続する。
 - **呼び出し元**：GitHub Actions の `record-snapshots.yml`（`schedule: cron` 平日 12:00 UTC＝21:00 JST）が本番 URL に POST。SWA Free の managed Functions は HTTP トリガーのみ対応（Timer トリガーは SWA Standard=有料が必要）なため、Timer ではなく「cron→HTTP」で実現（下記 ADR）。
 - **必要な設定（手動）**：GitHub Actions が呼ぶための **GitHub Secrets `INTERNAL_API_SHARED_SECRET`**（SWA アプリ設定の `InternalApi__SharedSecret` と同じ値）を追加すること。
