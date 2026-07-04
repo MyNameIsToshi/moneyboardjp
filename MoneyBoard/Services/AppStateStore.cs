@@ -36,9 +36,10 @@ public class AppStateStore(StorageService storage)
         try
         {
             State = await storage.LoadAsync() ?? new AppState();
-            SchemaMigration.Apply(State);   // 将来のスキーマ移行用（現状 no-op）
-            SeedBaselines();
+            SeedBaselines();   // 移行前の内容を基準点にする（移行差分を後続の保存で検出するため）
+            var migrated = SchemaMigration.Apply(State);
             IsLoaded = true;
+            if (migrated) RequestSave();   // 移行結果をストレージへ書き戻す
             return true;
         }
         catch (AccessPendingException)
@@ -142,7 +143,8 @@ public class AppStateStore(StorageService storage)
         FixedCosts = State.FixedCosts,
         Categories = State.Categories,
         Cards = State.Cards,
-        CategoryRules = State.CategoryRules
+        CategoryRules = State.CategoryRules,
+        CategoryPrefixRules = State.CategoryPrefixRules
     };
 
     private static MonthPart BuildMonthPart(MonthData mo) => new()

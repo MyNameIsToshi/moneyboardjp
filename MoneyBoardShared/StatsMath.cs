@@ -15,8 +15,8 @@ public static class StatsMath
         if (period == "custom")
         {
             var (s, e) = (customStart, customEnd);
-            if (string.Compare(s, e) > 0) (s, e) = (e, s);   // 逆指定の保険
-            return allYmsAsc.Where(ym => string.Compare(ym, s) >= 0 && string.Compare(ym, e) <= 0).ToList();
+            if (string.CompareOrdinal(s, e) > 0) (s, e) = (e, s);   // 逆指定の保険
+            return allYmsAsc.Where(ym => string.CompareOrdinal(ym, s) >= 0 && string.CompareOrdinal(ym, e) <= 0).ToList();
         }
         int count = int.Parse(period);
         return allYmsAsc.TakeLast(count).ToList();

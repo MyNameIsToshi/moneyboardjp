@@ -1,4 +1,3 @@
-using System.Linq;
 using System.Text;
 
 namespace MoneyBoardShared;
@@ -65,7 +64,7 @@ public static class LedgerEngine
         var earlier = new HashSet<string>();
         foreach (var (m, mo) in state.Months)
         {
-            if (string.Compare(m, ym) >= 0) continue;   // ym 以降は対象外（初出を残すため過去のみ照合）
+            if (string.CompareOrdinal(m, ym) >= 0) continue;   // ym 以降は対象外（初出を残すため過去のみ照合）
             foreach (var d in mo.CardDetails.Where(d => d.CardId == cardId))
                 earlier.Add(DetailKey(d));
         }
@@ -82,9 +81,49 @@ public static class LedgerEngine
 
     internal static string DetailKey(CardDetail d) => $"{d.Date}|{NormalizeStore(d.Name)}|{d.Amount}";
 
+    // ── カテゴリルール解決（完全一致 → 前方一致・#70）──────
+    // 店名→カテゴリの解決：完全一致（exactRules）を最優先とし、該当しなければ前方一致
+    // （prefixRules）を最長プレフィックス優先で判定する。ETC通行料金のように区間ごとに
+    // 店名が変わる明細を、共通の接頭辞（例: "etc"）でまとめて分類するための仕組み。
+    // 完全一致が優先されるため、広い prefix に対する個別上書き（例: prefix "kabu&"→公共料金・
+    // 完全一致 "kabu&(プラス/プレミアム)"→サブスク）が可能。
+    public static string? ResolveCategory(
+        IReadOnlyDictionary<string, string> exactRules,
+        IReadOnlyDictionary<string, string> prefixRules,
+        string? name)
+    {
+        var norm = NormalizeStore(name);
+        if (norm.Length == 0) return null;
+        return exactRules.TryGetValue(norm, out var exact) ? exact : ResolveCategoryByPrefix(prefixRules, norm);
+    }
+
+    // 前方一致のみで解決する（完全一致は見ない）。最長プレフィックス優先・大文字小文字は区別しない。
+    // prefixRules のキーは NormalizeStore + ToLowerInvariant 済み（登録側で正準化）を前提とする。
+    public static string? ResolveCategoryByPrefix(IReadOnlyDictionary<string, string> prefixRules, string normalizedName)
+    {
+        string? bestPrefix = null, bestCategoryId = null;
+        foreach (var (prefix, categoryId) in prefixRules)
+        {
+            if (prefix.Length == 0 || !normalizedName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) continue;
+            if (bestPrefix == null || prefix.Length > bestPrefix.Length) { bestPrefix = prefix; bestCategoryId = categoryId; }
+        }
+        return bestCategoryId;
+    }
+
+    // 前方一致ルール登録時のクリーンアップ対象：その prefix に包含され、かつ「同一カテゴリ」を
+    // 指す完全一致ルールのキー一覧を返す（削除候補）。別カテゴリを指すものは個別上書きとして
+    // 残すため対象外（例: prefix "kabu&"→公共料金 とは別に "kabu&(プラス)"→サブスクを維持）。
+    public static List<string> ExactRulesCoveredByPrefix(
+        IReadOnlyDictionary<string, string> exactRules, string prefixKey, string categoryId)
+        => exactRules
+            .Where(kv => kv.Value == categoryId && kv.Key.StartsWith(prefixKey, StringComparison.OrdinalIgnoreCase))
+            .Select(kv => kv.Key)
+            .ToList();
+
     // 請求先の表記ゆれ吸収：全角ASCII・全角空白を半角化し、前後/連続空白を正規化する。
     // String.Normalize は WASM(browser) 非対応のため、globalization API を使わず手動変換する。
-    internal static string NormalizeStore(string? s)
+    // public：カテゴリ分類 API が AI 応答の店名を元の要求店名へ突き合わせる際にも再利用する（#27）。
+    public static string NormalizeStore(string? s)
     {
         if (string.IsNullOrEmpty(s)) return "";
         var sb = new StringBuilder(s.Length);

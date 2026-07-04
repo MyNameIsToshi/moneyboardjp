@@ -140,6 +140,69 @@ public class LedgerEngineTests
         Assert.Single(kept);
     }
 
+    // ── カテゴリルール解決（ResolveCategory・前方一致・#70）─────
+    [Fact]
+    public void ResolveCategory_ExactMatch_TakesPriorityOverPrefix()
+    {
+        // 完全一致キーは NormalizeStore 済み（大小文字はそのまま）で保存されるため、
+        // 一致させるには照合側も同じ表記で渡す（前方一致のみが大小無視・#70）。
+        var exact = new Dictionary<string, string> { ["ETC 一宮IC"] = "cat-specific" };
+        var prefix = new Dictionary<string, string> { ["etc"] = "cat-traffic" };
+
+        Assert.Equal("cat-specific", LedgerEngine.ResolveCategory(exact, prefix, "ETC 一宮IC"));
+    }
+
+    [Fact]
+    public void ResolveCategory_FallsBackToPrefix_WhenNoExactMatch()
+    {
+        var exact = new Dictionary<string, string>();
+        var prefix = new Dictionary<string, string> { ["etc"] = "cat-traffic" };
+
+        Assert.Equal("cat-traffic", LedgerEngine.ResolveCategory(exact, prefix, "ETC 音羽蒲郡 -東海合併 普通車"));
+    }
+
+    [Fact]
+    public void ResolveCategory_PrefixMatch_IsCaseInsensitive()
+    {
+        var prefix = new Dictionary<string, string> { ["etc"] = "cat-traffic" };
+
+        Assert.Equal("cat-traffic", LedgerEngine.ResolveCategory(new Dictionary<string, string>(), prefix, "etC特割 一宮IC"));
+    }
+
+    [Fact]
+    public void ResolveCategory_LongestPrefixWins()
+    {
+        var prefix = new Dictionary<string, string>
+        {
+            ["kabu"] = "cat-public",
+            ["kabu&プレミアム"] = "cat-subscription",
+        };
+
+        Assert.Equal("cat-subscription", LedgerEngine.ResolveCategory(new Dictionary<string, string>(), prefix, "kabu&プレミアム 月額"));
+        Assert.Equal("cat-public", LedgerEngine.ResolveCategory(new Dictionary<string, string>(), prefix, "kabu&その他"));
+    }
+
+    [Fact]
+    public void ResolveCategory_NoMatch_ReturnsNull()
+    {
+        var prefix = new Dictionary<string, string> { ["etc"] = "cat-traffic" };
+        Assert.Null(LedgerEngine.ResolveCategory(new Dictionary<string, string>(), prefix, "スーパー"));
+    }
+
+    [Fact]
+    public void ExactRulesCoveredByPrefix_ReturnsOnlySameCategory_KeepsDifferentCategoryOverrides()
+    {
+        var exact = new Dictionary<string, string>
+        {
+            ["etc 一宮ic入-鳥見町出口 普通車"] = "cat-traffic",   // 同カテゴリ→クリーンアップ対象
+            ["etc特割サービス"] = "cat-subscription",              // 別カテゴリ→個別上書きとして残す
+        };
+
+        var covered = LedgerEngine.ExactRulesCoveredByPrefix(exact, "etc", "cat-traffic");
+
+        Assert.Equal(new[] { "etc 一宮ic入-鳥見町出口 普通車" }, covered);
+    }
+
     // ── 固定費計算 ───────────────────────────────────
     [Theory]
     [InlineData("202603", false)]   // 開始前

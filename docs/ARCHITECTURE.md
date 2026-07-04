@@ -13,7 +13,7 @@
 - 本番URL: https://purple-stone-08eacab00.7.azurestaticapps.net
 - API ドキュメント（Swagger UI）: https://mynameistoshi.github.io/moneyboardjp/swagger/
 - ローカルパス: `C:\Development\moneyboard\`
-- **現行バージョン: `2.3.0`**（2026-06-30 本番リリース。市場サマリ API #54・ポートフォリオ現況 API #48・Swagger UI 公開 #66）。`2.2.0`（2026-06-27 本番リリース・PR #62。金額マスク機能＝アプリ全体トグル・リロード後も反映・入力欄/ダイアログ/ドーナツにも適用）。`2.1.0`（2026-06-27 本番リリース・PR #60。マイページ口座並べ替え▲▼/D&D・設定行アイコン統一・起点月より過去へ戻れる不具合修正・追加時空データ出現不具合修正）。`2.0.0`（2026-06-26・PR #58。全画面リデザイン＆PCサイドバーナビ＝ヒーロー集約＋線アイコン統一、月次/カード/統計/資産/マイページ全画面刷新、PC左サイドバー、ポートフォリオ市場指数3列グリッド。メジャー番号＝UIの大節目・API非互換なし）。`1.5.0`（2026-06-21・PR #35。市場指標バー=NYダウ/ナスダック/S&P500/日経/KOSPI 5本・AI読取エラー可視化）。`1.4.0`（2026-06-21・PR #22。**Phase 4 土台＝Claude Vision でカード明細スクショをAI読み取り→当月へ取込**。詳細は「Phase 4」節）。`1.3.4`（2026-06-20・PR #21。CIカバレッジをPRコメント＋Job Summaryに出力）／`1.3.3`（PR #20。Step4前クリーンアップ＝テスト基盤整備・純粋ロジック抽出・巨大razor code-behind分離）／`1.3.2`=証券ポートフォリオ表示改善＋深いURL404修正／`1.3.1`=スマホ実機修正／`1.3.0`=スマホUI全面最適化／`1.2.0`=Phase 3 証券ポートフォリオ。
+- **現行バージョン: `2.4.0`**（2026-07-04 本番リリース。カード明細カテゴリのAI一括推定#27・利用先前方一致による一括分類#70・一括カテゴリ設定ダイアログのタブ型リデザイン#71）。`2.3.0`（2026-06-30 本番リリース。市場サマリ API #54・ポートフォリオ現況 API #48・Swagger UI 公開 #66）。`2.2.0`（2026-06-27 本番リリース・PR #62。金額マスク機能＝アプリ全体トグル・リロード後も反映・入力欄/ダイアログ/ドーナツにも適用）。`2.1.0`（2026-06-27 本番リリース・PR #60。マイページ口座並べ替え▲▼/D&D・設定行アイコン統一・起点月より過去へ戻れる不具合修正・追加時空データ出現不具合修正）。`2.0.0`（2026-06-26・PR #58。全画面リデザイン＆PCサイドバーナビ＝ヒーロー集約＋線アイコン統一、月次/カード/統計/資産/マイページ全画面刷新、PC左サイドバー、ポートフォリオ市場指数3列グリッド。メジャー番号＝UIの大節目・API非互換なし）。`1.5.0`（2026-06-21・PR #35。市場指標バー=NYダウ/ナスダック/S&P500/日経/KOSPI 5本・AI読取エラー可視化）。`1.4.0`（2026-06-21・PR #22。**Phase 4 土台＝Claude Vision でカード明細スクショをAI読み取り→当月へ取込**。詳細は「Phase 4」節）。`1.3.4`（2026-06-20・PR #21。CIカバレッジをPRコメント＋Job Summaryに出力）／`1.3.3`（PR #20。Step4前クリーンアップ＝テスト基盤整備・純粋ロジック抽出・巨大razor code-behind分離）／`1.3.2`=証券ポートフォリオ表示改善＋深いURL404修正／`1.3.1`=スマホ実機修正／`1.3.0`=スマホUI全面最適化／`1.2.0`=Phase 3 証券ポートフォリオ。
 - 次の AI 機能（C案カテゴリ推定・月次コメント・FABチャット 等）は Phase 4 の土台を再利用して順次追加。
 
 ---
@@ -171,6 +171,7 @@ C:\Development\moneyboard\
     DataApi.cs                GET/POST /api/data（設定＋月次の集約取得 / 差分の原子的保存）
     DataApi.Access.cs         認証＋アクセス承認（partial・AuthorizeAsync・GET/POST /api/access・承認DTO）
     DataApi.CardImage.cs      POST /api/extract-card（partial・Claude Vision でカード明細スクショ→CardDetail[]。Anthropic SDK・解析部 ParseCardImageResponse は internal でテスト可）
+    DataApi.CategoryClassify.cs POST /api/classify-categories（partial・Claude Haiku(テキストのみ)で利用先一覧→カテゴリID一括分類。解析部 ParseCategoryClassifyResponse は internal でテスト可。カテゴリ一覧はリクエストボディで受け取りCosmosは叩かない）
     FirebaseAuth.cs           Firebase IDトークン(JWT/RS256)検証→uid抽出（OIDC構成キャッシュ・AuthBypass対応）
     Program.cs                DI登録 (CosmosClient・AppInsights・FirebaseAuth)
     host.json
@@ -186,7 +187,7 @@ C:\Development\moneyboard\
     StatsMath.cs              統計（グラフ）の純粋ロジック（SelectPeriodYms=期間選択。GraphPage が委譲・v1.3.3）
     FixedCostPeriod.cs        固定費の有効期間 StartYm/EndYm の解析・組み立て・表示整形（YearPart/MonthPart/ComposeYm/FmtBound/Summary。FixedCostTab が委譲・v1.3.3）
     Portfolio.cs / PortfolioMath.cs  証券ポートフォリオのモデルと集計計算（Phase 3）。PortfolioMath に CostBasisJpyAsOf（指定日元本・円換算）/ YahooSymbol（日本株 .T 付与）を v1.3.3 で抽出。v2.1.0（issue #57）で PnlPct・DayChangePct・GroupValuationJpy を追加（テスト 118件）。issue #36 で BuildSnapshot（スナップショット構築）を追加（テスト 125件）
-  MoneyBoardShared.Tests\     ※ xUnit(net8.0)。LedgerMath / LedgerEngine / PortfolioMath / StatsMath / FixedCostPeriod / CardCsvParser / Ym / SchemaMigration / FixedCost のユニットテスト（計125・`dotnet test`／カバレッジは `--collect:"XPlat Code Coverage"`）
+  MoneyBoardShared.Tests\     ※ xUnit(net8.0)。LedgerMath / LedgerEngine / PortfolioMath / StatsMath / FixedCostPeriod / CardCsvParser / Ym / SchemaMigration / FixedCost のユニットテスト（計130・`dotnet test`／カバレッジは `--collect:"XPlat Code Coverage"`）
 ```
 
 ### MoneyBoardShared の憲章（役割定義）
@@ -199,8 +200,8 @@ C:\Development\moneyboard\
 ### テスト方針
 - **対象＝自動テスト可能な純粋ロジック**。**API の CRUD/認証は Cosmos オーケストレーションのため対象外**（結合テスト領域・ROI低）。Blazor UI も自動化困難で対象外。
 - **テストプロジェクトは2つ**（いずれも xUnit・net8.0）：
-  - `MoneyBoardShared.Tests`：`LedgerMath` / `LedgerEngine`（残高連鎖・ExpandCards・重複除外・固定費）/ `PortfolioMath`（集計・Valuation・CostBasisJpyAsOf・YahooSymbol・PnlPct・DayChangePct・GroupValuationJpy・BuildSnapshot）/ `StatsMath`（期間選択）/ `FixedCostPeriod`（年月の解析・整形）/ `CardCsvParser` / `Ym` / `SchemaMigration` / `FixedCost`（計**125**・v1.3.3 で 63→102・v2.1.0 で 102→118・issue #36 で 118→125）。
-  - `MoneyBoardApi.Tests`：API の**純粋ロジックのみ**（計26・#54 で 20→26）。`DataApi.IsStructurallyValid`（保存前データ健全性ガード）／価格パーサ `ParseYahooQuote`・`ParseFundCsv`（取得=HTTPと分離した解析部）／`ParseCardImageResponse`（スクショAI応答JSON→CardDetail[]・日付正規化/金額/不正行スキップ）／`IsAuthorizedSharedSecret`（共有シークレット照合・定数時間比較）。テストのため対象は `internal static`＋`InternalsVisibleTo("MoneyBoardApi.Tests")`。
+  - `MoneyBoardShared.Tests`：`LedgerMath` / `LedgerEngine`（残高連鎖・ExpandCards・重複除外・固定費）/ `PortfolioMath`（集計・Valuation・CostBasisJpyAsOf・YahooSymbol・PnlPct・DayChangePct・GroupValuationJpy・BuildSnapshot）/ `StatsMath`（期間選択）/ `FixedCostPeriod`（年月の解析・整形）/ `CardCsvParser` / `Ym` / `SchemaMigration`（v4＝CategoryRules正規化統合含む） / `FixedCost`（計**130**・v1.3.3 で 63→102・v2.1.0 で 102→118・issue #36 で 118→125・#27 で 125→130）。
+  - `MoneyBoardApi.Tests`：API の**純粋ロジックのみ**（計35・#54 で 20→26・#27 で 26→35）。`DataApi.IsStructurallyValid`（保存前データ健全性ガード）／価格パーサ `ParseYahooQuote`・`ParseFundCsv`（取得=HTTPと分離した解析部）／`ParseCardImageResponse`（スクショAI応答JSON→CardDetail[]・日付正規化/金額/不正行スキップ）／`ParseCategoryClassifyResponse`（利用先一括分類AI応答JSON→Dictionary<store,categoryId>・null/存在しないID/でっち上げ店名除外・要求店名へ NormalizeStore で突き合わせ表記ゆれ吸収）／`IsAuthorizedSharedSecret`（共有シークレット照合・定数時間比較）。テストのため対象は `internal static`＋`InternalsVisibleTo("MoneyBoardApi.Tests")`。
 - **カバレッジ**：`--collect:"XPlat Code Coverage"`（coverlet）。ロジック層は行/分岐とも高水準（LedgerMath/SchemaMigration=100% など）。DTO/モデルやCRUD/HTTP部は対象外のため class 全体の数値は薄く出る点に注意（=想定どおり）。**カバレッジ100%でもバグ不在の証明ではない**点は前提として共有。
 - **CI**：`.github/workflows/dotnet-test.yml` が dev push / main への PR で**両テストプロジェクト**を `dotnet test`（カバレッジ収集）。main への PR で「必須チェック」に設定すればマージゲートになる（要：Settings→Branches の保護ルール）。
 
@@ -210,12 +211,13 @@ C:\Development\moneyboard\
 
 ```csharp
 AppState
-  ├─ SchemaVersion              // スキーマ版数（移行判定用・現状 3）
+  ├─ SchemaVersion              // スキーマ版数（移行判定用・現状 5）
   ├─ List<Account> Accounts
   ├─ List<FixedCost> FixedCosts
   ├─ List<Category> Categories
   ├─ List<Card> Cards
-  ├─ Dictionary<string,string> CategoryRules  // 店名 → categoryId（自動分類ルール）
+  ├─ Dictionary<string,string> CategoryRules        // 店名 → categoryId（完全一致の自動分類ルール）
+  ├─ Dictionary<string,string> CategoryPrefixRules  // 店名の前方一致(prefix) → categoryId（#70）
   └─ Dictionary<string, MonthData> Months  // key: "yyyyMM"
 
 Account
@@ -276,7 +278,7 @@ Transfer
 - **リボ/分割対応**: `CardBilled[cardId]`（実請求額）が設定された月は、引き落とし額にそれを使う（未設定は利用額＝一括払い）。**利用額＝統計用**は CardDetails に残し、**請求額＝口座引落**だけを補正。利息/手数料は請求額に含めるか手数料明細で。翌月以降のリボ継続分は明細なしでも請求額を入力可。
 - **CSV取込の重複除外**: リボ/分割は完済まで毎月CSVに同じ明細が再掲されるため、取込時に同一カードで**より早い月に既出**（利用日・請求先(正規化:全角ASCII/空白を半角化)・金額が一致）の行を除外（`DedupAgainstEarlierMonths`）。除外件数を取込メッセージに表示。時系列順の取込が前提。
 - 月次管理タブでは 💳 付きの読み取り専用行として表示し、クリックでカードタブの該当カードへ展開＋スクロール遷移。
-- 取込/手入力時は `CategoryRules`（店名→カテゴリ）で未分類を自動分類（完全一致）。
+- 取込/手入力時は `CategoryRules`（店名→カテゴリ・完全一致）で未分類を自動分類し、該当しなければ `CategoryPrefixRules`（前方一致・最長優先・大小無視）で分類する（`LedgerEngine.ResolveCategory`・#70）。
 - **カード削除はソフト削除**（`IsDeleted`）。当月以降の明細・Debit・CardBilled のみ除去し過去は凍結。レコードは残すため統計で削除済みカード名を保持。
 
 ---
@@ -324,6 +326,8 @@ Transfer
 | Step4 前クリーンアップ（テスト基盤63→102・CI自動実行・純粋ロジック抽出 StatsMath/FixedCostPeriod/PortfolioMath・巨大razor4枚を code-behind 分離・楽天カード対応・表記統一） | ✅ 完了（本番反映済み・v1.3.3） |
 | Phase 4 土台＝カード明細スクショの AI 読み取り（Claude Vision/Haiku 4.5・🤖AIで読取・複数枚＋PC Ctrl+V貼付・X風ステージング・当月へ増分追加） | ✅ 完了（本番反映済み・v1.4.0） |
 | 市場指標バー（/portfolio 上部・固定5本のチップ列・前日比%・既存 `/api/quote` 再利用・AI不要） | ✅ 完了（本番反映済み・v1.5.0・#26） |
+| カテゴリ自動推定（C案・`POST /api/classify-categories`。未分類の利用先を Claude Haiku 4.5 で一括分類→一括カテゴリ画面でレビュー→適用時に `CategoryRules` へキャッシュ。CSV取込・AIスクショ読取後に未分類が残っていれば一括カテゴリ画面を自動オープン＋AI分類まで自動実行、適用はユーザー操作。CategoryRules は `NormalizeStore` 正規化キーで統合し表記ゆれによる分裂を解消、SchemaMigration v3→v4 で既存データも統合） | ✅ 完了（dev・リリース待ち・#27） |
+| カテゴリ前方一致ルール（`CategoryPrefixRules`。ETC通行料金など区間ごとに店名が変わる明細を共通の接頭辞でまとめて分類。完全一致優先→前方一致は最長プレフィックス優先・大小無視。一括カテゴリ画面で一覧編集＋プレビュー件数＋最低2文字。登録時に同カテゴリの完全一致ルールを整理／完全一致保存時は前方一致で解決済みなら重複保存しない。SchemaMigration v4→v5） | ✅ 完了（dev・リリース待ち・#70） |
 
 ---
 
@@ -371,6 +375,10 @@ Transfer
 - 明細（PC）は枠＋薄背景で「編集可」と分かる質感（日付/利用先/カテゴリ/金額）。カテゴリは `appearance:none`＋自前 `expand_more`＋色ドット。削除は `close`。0件は `receipt_long` の空状態。スマホは明細をタップカード（`list-card`）化→`BottomSheet` 編集。
 - アクション（明細を追加 `add`／取込 `upload_file`／AIで読取 `auto_awesome`）と3ダイアログ（一括カテゴリ／CSV種別／AI読取）は絵文字廃止で Material Symbols ＋ navy プライマリ。
 - 一括カテゴリ：利用先グループにチェック→一括設定、カテゴリ絞り込み（未分類抽出）、未適用キャンセル時は破棄確認（**ロジック不変**）。
+- **一括カテゴリダイアログのタブ型リデザイン（#71）**：#70（前方一致ルール）追加で縦に間延びした課題を解消するため、外部 Claude Design（案A折りたたみ／案B2カラム／案C タブ型を比較・採用は案C）を踏まえ、「利用先で設定」「前方一致ルール」の2タブへ分離（既定＝利用先タブ・両タブに件数バッジ常時表示）。一括設定バー＝ベージュ＋「当月のみ」ピル（一時操作）、前方一致ルール＝navy淡バナー（恒久ルール）で地色を分け役割を視覚的に区別。前方一致ルールの状態メッセージは追加フォーム直下に**固定高さ(26px)のスロット**を確保し、プレビュー件数／バリデーションエラー／完了メッセージの切替でレイアウトが動かないようにした。未分類が残る場合は前方一致ルールタブ内に「利用先で設定へ」の戻り導線を表示。**集計・保存タイミング・バリデーション文言・API・利用先ごとに集約する一括適用方式は不変**（構造・質感・情報の優先度のみ変更）。
+- **#71 のスマホ追補修正**：#71 は当初「共有マークアップ＋CSSで自動反映」としたが、PC用グリッド（列固定幅・横並びの一括設定バー等）をスマホへそのまま流用すると崩れる（列見出し潰れ・入力欄圧迫・AIで分類ボタンの位置崩壊・前方一致ルールタブが `max-height` を持たずダイアログごと伸びて破綻）ことが判明。Claude Design から追加でスマホ専用モック（`2a`/`2b`）を受け、**方針を変更**して `mobile.css` 側に別レイアウトを追加（**設計判断としてissueの当初想定と乖離**）。ダイアログ自体は下からのボトムシート化（角丸上20px・グラバー・`:has()`でこのダイアログのみ overlay を下寄せ）。利用先一覧はスマホで列見出しを非表示にし、代わりに `IsMobile` 分岐で「全選択＋金額が大きい順」の1行（`CardTab.razor`）に置き換え。前方一致ルールタブは `.prefix-rules` を独立スクロール領域化し、ルール行・追加フォームをそれぞれ2段のカード/縦積みへ（grid-template-areas の再配置）。
+- **#71 の追加UX改善（レビュー指摘対応）**：①前方一致文字列を chip 見た目の `<input>` にして**その場で改名可能**に（`RenamePrefixRule`。`CategoryPrefixRules` は prefix文字列を他のどこからも参照しないキー→カテゴリIdの辞書のため、改名しても既に分類済みの明細には影響しない＝削除→再作成と等価だが手間を削減）。追加(`AddPrefixRule`)と改名で共通処理を `CommitPrefixRule`（完全一致ルールのクリーンアップ＋当月未分類の即時分類）に抽出。②「ルールを追加」フォームをルール一覧より**上**に配置（ルールが増えるほど最下部までスクロールが必要だった問題を解消。PC/スマホ共通、マークアップ順序の変更のみ）。③スマホの利用先一覧に**並び替え**（利用先/件数/金額/カテゴリのセレクト＋昇順降順トグル。既存 `SetBulkSort` を再利用しロジック追加なし）。④スマホの「利用先で設定」タブ下部の注意書きは**非表示**（`IsMobile` で画面縦幅を圧迫するため削除、PCでは従来どおり表示）。
+- **#71 の code-review 指摘対応**（commit前）：①`OpenBulk` が `_prefixRenameError`/`_prefixMessage` をリセットしておらず、ダイアログ再オープン時に前回の改名エラー/追加完了メッセージが亡霊のように残る不具合を修正（あわせて別行の編集・削除・追加操作でも古い改名エラーをクリア）。②`UnclassifiedStoreCount`（戻り導線の件数）が `BulkSelection`（ダイアログの未適用選択）基準だったため、一部だけ分類済み・一部未分類な「混在」利用先（`KeepSentinel`）を見落とし、未分類が残っていても戻り導線が消えることがあった → 実データ（`Mo.CardDetails`）基準に修正。③`RenamePrefixRule` が当月明細を無言で再分類していた（`CommitPrefixRule` の戻り値を捨てていた）ため、`AddPrefixRule` と同様の完了メッセージを表示するよう追加。④改名で prefix の対象範囲が狭まる/変わる場合、旧prefixが分類していた明細のカテゴリは残るのに、それを再現するルールがもう存在せず「次回取込では未分類に戻る」という永続状態と表示の乖離があったため、対象を再解決してから新ルールを適用するよう修正（ロジックが少し複雑になったが、データ整合性を優先）。⑤スマホの一括設定バーは `display:contents`＋`order` でPC側マークアップをCSSだけで並べ替えていたが、PC側の構造変更に追従できず壊れやすいため、`RenderFragment`（見出し／カテゴリ選択／適用ボタン／AIで分類／絞り込み）を1か所だけ定義し `@if (IsMobile)` でDOM順そのものを組み替える構成に変更（内容の二重管理を避けつつ、CSSでのDOM順操作をやめてフォーカス順と表示順を一致させた）。
 
 ### 統計ページ（GraphPage）
 - タイトル＋期間セレクタを sticky 固定。`/graph` 直接リロード時は読込完了まで操作不可（戻るも無効）。
@@ -386,7 +394,6 @@ Transfer
 
 | 機能 | issue | 備考 |
 |------|------|------|
-| カテゴリ自動推定（C案） | #27 | Phase 4 土台再利用（Milestone: Phase 5） |
 | 自然言語入力解析 | #28 | Phase 5 |
 | 月次コメント生成 | #29 | Phase 5 |
 | FABチャット（月次データ更新） | #30 | Phase 5・設計メモは「チャット設計」節 |
@@ -531,8 +538,21 @@ Transfer
 - **テスト**：`MoneyBoardApi.Tests/CardImageParserTests.cs`（6件）＝行抽出/返金マイナス保持/不正行スキップ/items欠落→空/不正JSON→空/スキーマがvalid JSON。
 - **検証状況**：ローカルで合成スクショ→実 API 呼び出しの end-to-end OK（合計行除外・日付/金額正規化を確認）。実カード明細でも日付・金額は全件一致、店名は OCR の表記ゆれが軽微に出る（家計簿用途では実用十分・要確認運用）。本番（v1.4.0）でも `Anthropic__ApiKey` 経由で稼働。
 
+### カテゴリ自動推定（C案・issue #27・dev・リリース待ち）
+- **バックエンド**：`DataApi.CategoryClassify.cs`（partial）。`POST /api/classify-categories`（`AuthorizeAsync` ゲート内）。本文 `{stores(string[]), categories([{id,name}])}` を受け、`ClassifyCategoriesAsync` が店名一覧＋カテゴリ一覧をテキストで Haiku に渡し（Vision 不要）、`ParseCategoryClassifyResponse` が応答 JSON を `Dictionary<store, categoryId>` へ。カテゴリ一覧はユーザーごとに異なりサーバー側で保持していないため、**リクエストボディで受け取る**（Cosmos を叩かず完結）。存在しない categoryId・確信が持てない（null）行は結果から除外。AI が返す店名は `LedgerEngine.NormalizeStore`（全角半角/空白）で**要求した原文の店名へ突き合わせ**て表記ゆれを吸収し、キーは必ず原文に揃える（フロントの完全一致採用のため）／要求していない店名（でっち上げ）は捨てる。stores は最大200件（超過は400）。`MaxTokens=32000`（200件でも構造化出力が途中で切れて JSON 不正→全件失敗にならないよう余裕。Haiku 4.5 出力上限 64K 内）。**このAPI自体は何も永続化しない**（キャッシュ書き込みはフロントの「適用」時のみ）。
+- **フロント**：`CardTab` の一括カテゴリダイアログに「AIで分類（未分類のみ）」ボタンを追加。現在「未分類」の利用先だけを対象に呼び出し、返ってきた提案を一括カテゴリの選択欄（`BulkSelection`）へプリセットするだけで、**確定は既存の「適用」操作のまま**（レビュー必須はここで担保）。適用時の `CategoryRules` キャッシュ・カテゴリ反映ロジックは既存のまま変更なし。
+- **テスト**：`MoneyBoardApi.Tests/CategoryClassifyParserTests.cs`（7件）＝店名→カテゴリ変換/null除外/存在しないID除外/店名空行除外/items欠落→空/不正JSON→空/スキーマがvalid JSON。
+
+### カテゴリ前方一致ルール（issue #70・dev・リリース待ち）
+- **背景**：ETC通行料金のように利用先表記が区間ごとに毎回変わる明細（例:「ETC 一宮IC入-鳥見町出口 普通車」）は完全一致ルールだと1件ずつ登録する必要があり非現実的。共通の接頭辞（例:「etc」）でまとめて分類したいという要望から派生（issue #27 の会話）。
+- **データモデル**：`AppState.CategoryPrefixRules: Dictionary<string,string>`（prefix → categoryId）を `CategoryRules`（完全一致）と並列で加算的に追加。キーの正準形は `LedgerEngine.NormalizeStore` + `ToLowerInvariant`（大小文字を区別しない要件をキー側で構造的に満たす）。
+- **解決ロジック（`LedgerEngine.ResolveCategory`・純粋関数）**：①完全一致（`CategoryRules`）を最優先、②該当しなければ前方一致（`CategoryPrefixRules`）を `StartsWith(OrdinalIgnoreCase)` で判定し**最長プレフィックス優先**。完全一致が優先されるため、広い prefix に対する個別上書きが可能（例: prefix `kabu`→公共料金、完全一致 `KABU&【プラス／プレミアム】`→サブスクを個別に維持）。`LedgerService.ApplyCategoryRules`（取込時の自動分類）と `CardTab.OnNameChanged`（手入力確定時。従来 `NormalizeStore` を通さず素の店名で照合していた不整合を本対応で解消）を同じ resolver に統一。
+- **UI（`CardTab` の一括カテゴリダイアログ）**：利用先一覧の下に独立セクションとして前方一致ルールの一覧編集（prefix・該当件数プレビュー・カテゴリ select・削除）＋追加フォーム（前方一致文字列は最低2文字でバリデーション・入力中に現在月の該当件数をプレビュー）を追加。**追加/削除した時点で即座に保存**（完全一致側の「適用」ボタンとは独立）。
+- **クリーンアップ・増加抑止**：前方一致ルールを追加すると、その prefix に包含され**同一カテゴリ**を指す既存の完全一致ルールを件数提示のうえ削除（`LedgerEngine.ExactRulesCoveredByPrefix`。別カテゴリを指すものは個別上書きとして残す）。また `ApplyBulk`（完全一致ルールの保存）時、選んだカテゴリが前方一致ルールで既に解決される場合は完全一致ルールとして重複保存しない（`LedgerEngine.ResolveCategoryByPrefix` で判定）。実データで試算すると現行約139ルール→約95件相当に整理される見込み（ETC 20→1・セブン系 13→1等）。
+- **スキーマ**：SchemaVersion v4→v5（加算のみ・移行処理なし）。
+- **テスト**：`LedgerEngineTests`（完全一致優先/前方一致フォールバック/大小無視/最長プレフィックス優先/該当なし→null/クリーンアップ対象判定の6件）・`SchemaMigrationTests`（v4→v5 が加算のみで既存ルールを保持することの1件）。
+
 ### 今後（この土台を再利用）
-- **カテゴリ自動推定（C案）**：カード明細の利用先を一括分類→レビュー後に適用し `CategoryRules` にキャッシュ。
 - **月次コメント生成 / 自然言語入力解析 / FABチャット** も同じプロキシ土台（サーバー側キー・取得と解析の分離）の上に追加する。
 - 改善余地：店名 OCR の表記ゆれをプロンプトで詰める（ハイフン/長音・英数字を原文どおり等）。トークン増と効果のトレードオフ。
 
@@ -670,11 +690,17 @@ Functions Isolated では `IConfiguration` ではなく
 - 本文サイズ上限（約1.9MB）＋構造バリデーション（コレクション数の健全性チェック）。
 
 ### スキーマ移行
-- `AppState.SchemaVersion` と `SchemaMigration.Apply()` が将来の段階移行の足場。**現状 CurrentVersion=3**。
+- `AppState.SchemaVersion` と `SchemaMigration.Apply()` が将来の段階移行の足場。**現状 CurrentVersion=5**。
 - Phase 2 のカテゴリ/カード/明細、`Ledger.Incomes`/`AtmDeposit`/`AtmWithdraw`・`Card.IsDeleted`・
   `MonthData.CardBilled` はすべて**加算的追加**（旧データはデフォルト値で読める）。
 - **v3**: 月初残高を「作成時スナップショット」から「前月末からの自動連鎖」へ変更。非起点月の `Confirmed` が
   参照されなくなるだけで構造的な移行処理は不要（旧 `Ledger.OpeningPinned` 案は採用せず撤去）。
+- **v4**（#27）: `CategoryRules` のキーを `LedgerEngine.NormalizeStore`（全角半角/空白正規化）済みに統一。
+  OCR・CSV発行元差の表記ゆれ（例：全角/半角の「Amazon Downloads」）で同一店名が別キーに分裂していた
+  既存データを正規化キーへ統合（衝突時は後勝ち）。以降の書き込み（一括カテゴリ「適用」）・読み取り
+  （`LedgerService.ApplyCategoryRules`）も正規化キーで統一し、再分裂を防ぐ。
+- **v5**（#70）: `CategoryPrefixRules`（前方一致カテゴリルール）を追加。加算的なフィールド追加のみで
+  移行処理は不要（旧データは空の辞書として読める）。
 
 ### 月初残高の自動連鎖（OpeningOf）
 - `OpeningOf(ym, acct)` ＝ 前月の同口座台帳があれば `CloseOf(前月)`、無ければ（起点月）`Confirmed`。

@@ -557,7 +557,7 @@
   max-height: 92dvh;
 }
 
-/* 一括ダイアログ：リストが長くても 適用/キャンセル を最下部に固定（中のリストだけスクロール） */
+/* 一括ダイアログ：リストが長くても 適用/キャンセル を最下部に固定（中の一覧だけスクロール） */
 .app-shell.is-mobile .dialog-box.bulk-box {
   display: flex;
   flex-direction: column;
@@ -566,10 +566,41 @@
 .app-shell.is-mobile .bulk-box .bulk-list {
   flex: 1 1 auto;
   max-height: none;
+  min-height: 0;
 }
 
 .app-shell.is-mobile .bulk-box .dialog-btns {
   flex: 0 0 auto;
+}
+
+/* 一括カテゴリ：PC用グリッド流用が崩れの原因（利用先名の間延び・列見出し潰れ・入力潰れ）のため、
+   スマホは Claude Design 提供モック（2a/2b）どおり下からのボトムシート＋別レイアウトに組む（#71追補）。 */
+
+/* ── ダイアログのガワ＝ボトムシート ── */
+.app-shell.is-mobile .dialog-overlay:has(.bulk-box) {
+  align-items: flex-end;
+  padding: 0;
+}
+
+.app-shell.is-mobile .dialog-box.bulk-box {
+  border-radius: 20px 20px 0 0;
+  padding-top: 10px;
+  overflow: hidden;
+}
+
+.app-shell.is-mobile .dialog-box.bulk-box::before {
+  content: "";
+  display: block;
+  width: 40px;
+  height: 4px;
+  border-radius: 3px;
+  background: #e0dbd0;
+  margin: 0 auto 10px;
+}
+
+.app-shell.is-mobile .bulk-close {
+  width: 32px;
+  height: 32px;
 }
 
 /* =====================================================
@@ -582,11 +613,122 @@
   margin: 0 2px;
 }
 
-/* 一括カテゴリ：行が5列で溢れるので2行に */
+/* ── 一括設定バー：スマホは CardTab.razor の @if (IsMobile) 側で見出し／カテゴリ選択／
+   [選択(N)に設定][AIで分類]／絞り込み の順に単独のDOM構造として組む（#71追補）。
+   PCの .bulk-batch-head/.bulk-batch-row とは別構造なので、CSS側は単純な縦積みでよい
+   （display:contents や order によるCSSだけでの並べ替えはやめ、DOM順=表示順に統一）。 ── */
+.app-shell.is-mobile .bulk-batch {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+}
+
+.app-shell.is-mobile .bulk-batch-title-text {
+  flex: 1;
+}
+
+.app-shell.is-mobile .bulk-cat-cell.bulk-batch-cat {
+  width: 100%;
+  min-width: 0;
+}
+
+.app-shell.is-mobile .bulk-batch-cat select {
+  height: 42px;
+}
+
+/* 「選択(N)に設定」「AIで分類」を横並び2分割 */
+.app-shell.is-mobile .bulk-batch-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.app-shell.is-mobile .bulk-batch-actions .bulk-apply-btn,
+.app-shell.is-mobile .bulk-batch-actions .bulk-ai-btn {
+  flex: 1 1 0;
+  height: 44px;
+  justify-content: center;
+}
+
+.app-shell.is-mobile .bulk-filter {
+  width: 100%;
+  margin-left: 0;
+}
+
+.app-shell.is-mobile .bulk-filter select {
+  flex: 1;
+  width: auto;
+  height: 42px;
+}
+
+.app-shell.is-mobile .bulk-ai-msg {
+  order: 6;
+  flex: 1 1 100%;
+}
+
+/* ── 利用先一覧：列見出しは廃止し「全選択＋金額が大きい順」の1行に置き換え（IsMobile分岐・CardTab.razor） ── */
 .app-shell.is-mobile .bulk-head {
   display: none;
 }
 
+.app-shell.is-mobile .bulk-mobile-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px 8px;
+}
+
+.app-shell.is-mobile .bulk-mobile-selectall {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #8f8b84;
+}
+
+.app-shell.is-mobile .bulk-mobile-selectall input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+.app-shell.is-mobile .bulk-mobile-sort {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.app-shell.is-mobile .bulk-mobile-sort select {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 3px 6px;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--accent);
+  background: #fff;
+}
+
+.app-shell.is-mobile .bulk-mobile-sort button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.app-shell.is-mobile .bulk-mobile-sort .msym {
+  font-size: 16px;
+}
+
+/* 一括カテゴリ：行が5列で溢れるので2行のカード行に組み替え */
 .app-shell.is-mobile .bulk-row {
   grid-template-columns: 24px 1fr auto;
   grid-template-areas:
@@ -602,25 +744,86 @@
 .app-shell.is-mobile .bulk-row > .bulk-cat-cell { grid-area: cat; }
 .app-shell.is-mobile .bulk-row > .bulk-count { grid-area: count; text-align: right; font-size: 12px; color: var(--sub); }
 
-/* 一括設定ヘッダを詰める：ラベル / カテゴリ＋設定ボタン / 絞り込み の3行 */
-.app-shell.is-mobile .bulk-batch {
-  gap: 8px;
-  padding: 8px 10px;
+.app-shell.is-mobile .bulk-row .bulk-cat-cell select {
+  height: 42px;
 }
 
-.app-shell.is-mobile .bulk-batch > span {
-  flex-basis: 100%;
+/* ── 前方一致ルールタブ：banner の下だけを独立スクロール領域にする（ダイアログ全体が伸びて崩れるのを防ぐ） ── */
+.app-shell.is-mobile .bulk-box .prefix-rules {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  min-height: 0;
+  gap: 10px;
 }
 
-.app-shell.is-mobile .bulk-batch-cat {
-  width: auto;
-  flex: 1;
+/* 状態メッセージが空（未入力）の間はスロットを潰す。PCは入力中のレイアウトシフト防止を
+   優先しているが、スマホは縦幅が狭いため、空の間だけ詰めて入力し始めたら通常どおり26px確保する。 */
+.app-shell.is-mobile .prefix-status.is-blank {
+  min-height: 0;
 }
 
-.app-shell.is-mobile .bulk-filter {
-  flex-basis: 100%;
-  margin-left: 0;
-  justify-content: flex-end;
+/* 戻り導線：白背景との差が付きにくいので枠を強めて視認性を上げる */
+.app-shell.is-mobile .prefix-back-link {
+  border-width: 1.5px;
+}
+
+/* 列見出しは廃止しルールをカード化 */
+.app-shell.is-mobile .prefix-rules-head {
+  display: none;
+}
+
+.app-shell.is-mobile .prefix-rules-list {
+  gap: 9px;
+}
+
+.app-shell.is-mobile .prefix-rule-row {
+  grid-template-columns: auto 1fr 38px;
+  grid-template-areas:
+    "key count del"
+    "cat cat cat";
+  row-gap: 9px;
+  padding: 11px 12px;
+  background: #fff;
+  border: 1px solid #e6ebf4;
+  border-radius: 11px;
+}
+
+.app-shell.is-mobile .prefix-rule-row > .prefix-rule-key-wrap { grid-area: key; }
+.app-shell.is-mobile .prefix-rule-row > .prefix-rule-count { grid-area: count; }
+.app-shell.is-mobile .prefix-rule-row > .bulk-cat-cell { grid-area: cat; }
+.app-shell.is-mobile .prefix-rule-row > .cd-del { grid-area: del; width: 38px; height: 38px; justify-self: end; }
+
+.app-shell.is-mobile .prefix-rule-key {
+  width: 92px;
+}
+
+.app-shell.is-mobile .prefix-rule-row .bulk-cat-cell select {
+  height: 42px;
+}
+
+/* 追加フォーム：文字列inputを単独行にし、カテゴリ+追加ボタンを次の行へ */
+.app-shell.is-mobile .prefix-rule-add-grid {
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    "input input"
+    "select button";
+  row-gap: 8px;
+}
+
+.app-shell.is-mobile .prefix-rule-add-grid input {
+  grid-area: input;
+  height: 44px;
+}
+
+.app-shell.is-mobile .prefix-rule-add-grid select {
+  grid-area: select;
+  height: 44px;
+}
+
+.app-shell.is-mobile .prefix-rule-add-grid button {
+  grid-area: button;
+  height: 44px;
+  padding: 0 20px;
 }
 
 /* 市場指数：スマホはヒーロー下に3列グリッドで折り返し（横スクロール廃止＝全件視認・#46）。

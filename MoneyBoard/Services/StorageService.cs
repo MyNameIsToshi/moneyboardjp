@@ -13,6 +13,7 @@ public class StorageService(HttpClient http, AuthService auth)
 {
     private const string ApiPath = "api/data";
     private const string ExtractCardPath = "api/extract-card";
+    private const string ClassifyCategoriesPath = "api/classify-categories";
 
     // サーバーから受け取った最新の etag（設定＋月ごと）。保存時に If-Match で送り返す。
     private string? _settingsEtag;
@@ -44,7 +45,8 @@ public class StorageService(HttpClient http, AuthService auth)
             FixedCosts = env.Settings?.FixedCosts ?? new(),
             Categories = env.Settings?.Categories ?? new(),
             Cards = env.Settings?.Cards ?? new(),
-            CategoryRules = env.Settings?.CategoryRules ?? new()
+            CategoryRules = env.Settings?.CategoryRules ?? new(),
+            CategoryPrefixRules = env.Settings?.CategoryPrefixRules ?? new()
         };
         foreach (var (ym, m) in env.Months)
         {
@@ -85,6 +87,24 @@ public class StorageService(HttpClient http, AuthService auth)
     {
         public int? UpstreamStatus { get; set; }
         public string? Message { get; set; }
+    }
+
+    /// <summary>利用先（店名）の一覧を Claude で一括分類し、店名→カテゴリId を返す（カテゴリ自動推定・C案・#27）。
+    /// 分類できなかった（確信が持てない/未対応）店名は結果に含まれない。403=未承認は AccessPendingException。</summary>
+    public async Task<Dictionary<string, string>> ClassifyCategoriesAsync(List<string> stores, List<Category> categories)
+    {
+        await auth.ApplyTokenAsync(http);
+        var payload = new
+        {
+            stores,
+            categories = categories.Select(c => new { c.Id, c.Name })
+        };
+        using var resp = await http.PostAsJsonAsync(ClassifyCategoriesPath, payload);
+        if (resp.StatusCode == HttpStatusCode.Forbidden)
+            throw new AccessPendingException();
+        if (!resp.IsSuccessStatusCode)
+            throw new Exception(await ReadExtractErrorAsync(resp));
+        return await resp.Content.ReadFromJsonAsync<Dictionary<string, string>>() ?? new();
     }
 
     /// <summary>変更分のみ（changes）を送信する。etag は保持中の値を付与し、成功時に更新する。</summary>

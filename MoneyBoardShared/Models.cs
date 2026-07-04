@@ -16,8 +16,11 @@ public class AppState
     public List<FixedCost> FixedCosts { get; set; } = new();
     public List<Category> Categories { get; set; } = new();
     public List<Card> Cards { get; set; } = new();
-    // 利用先(店名) → カテゴリId。一括適用で記憶し、以降の取込で自動分類する。
+    // 利用先(店名) → カテゴリId。一括適用で記憶し、以降の取込で自動分類する（完全一致）。
     public Dictionary<string, string> CategoryRules { get; set; } = new();
+    // 利用先の前方一致(プレフィックス) → カテゴリId。ETC通行料金など区間ごとに店名が
+    // 変わる明細を共通の接頭辞でまとめて分類する（#70）。キーは NormalizeStore + ToLowerInvariant 済み。
+    public Dictionary<string, string> CategoryPrefixRules { get; set; } = new();
     public Dictionary<string, MonthData> Months { get; set; } = new();
 }
 

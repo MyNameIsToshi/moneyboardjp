@@ -447,4 +447,38 @@ public class PortfolioMathTests
         Assert.Equal(2_000m, snap.Values.Single(v => v.HoldingId == "j").ValuationJpy);
         Assert.Equal(75_000m, snap.Values.Single(v => v.HoldingId == "u").ValuationJpy);
     }
+
+    // ── UpsertSnapshot ──
+    private static PriceSnapshot Snap(string at) => new() { At = at };
+
+    [Fact]
+    public void UpsertSnapshot_NewDay_Appends()
+    {
+        var data = new PortfolioData { Snapshots = { Snap("2026-01-14 10:00") } };
+        PortfolioMath.UpsertSnapshot(data, Snap("2026-01-15 09:30"));
+
+        Assert.Equal(2, data.Snapshots.Count);
+        Assert.Equal("2026-01-15 09:30", data.Snapshots[1].At);
+    }
+
+    [Fact]
+    public void UpsertSnapshot_SameDay_Overwrites()
+    {
+        var data = new PortfolioData { Snapshots = { Snap("2026-01-14 10:00"), Snap("2026-01-15 09:30") } };
+        var latest = Snap("2026-01-15 15:00");
+        PortfolioMath.UpsertSnapshot(data, latest);
+
+        Assert.Equal(2, data.Snapshots.Count);   // 同日は1点に保たれる
+        Assert.Same(latest, data.Snapshots[1]);
+    }
+
+    [Fact]
+    public void UpsertSnapshot_KeepsAscendingOrder_WhenBackfillingEarlierDay()
+    {
+        var data = new PortfolioData { Snapshots = { Snap("2026-01-16 10:00") } };
+        PortfolioMath.UpsertSnapshot(data, Snap("2026-01-15 09:30"));
+
+        Assert.Equal(new[] { "2026-01-15 09:30", "2026-01-16 10:00" },
+            data.Snapshots.Select(s => s.At).ToArray());
+    }
 }
