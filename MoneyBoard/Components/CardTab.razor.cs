@@ -381,6 +381,16 @@ public partial class CardTab
     private List<StoreGroup> BulkGroups = new();
     private Dictionary<string, string> BulkSelection = new();
 
+    // タブ型レイアウト（#71）：「利用先で設定」／「前方一致ルール」。既定は利用先タブ。
+    private string _bulkActiveTab = "store";
+
+    // 前方一致ルールタブの戻り導線用：未分類の明細が1件でも残っている利用先数。
+    // BulkSelection（ダイアログの未適用選択）ではなく実データ（Mo.CardDetails）基準で数える。
+    // BulkSelection だけを見ると、一部だけ分類済み・一部未分類な「混在」利用先（KeepSentinel）が
+    // 抜け落ち、未分類が残っているのに戻り導線が消えてしまう。
+    private int UnclassifiedStoreCount =>
+        BulkGroups.Count(g => Mo.CardDetails.Any(d => d.Name == g.Store && string.IsNullOrEmpty(d.CategoryId)));
+
     // 複数の利用先を選んでまとめて同じカテゴリを設定する（チェック＋一括設定）
     private const string AllFilter = "__all__";
     private HashSet<string> _bulkChecked = new();
@@ -445,6 +455,10 @@ public partial class CardTab
         _bulkDirty = false;
         _bulkConfirmCancel = false;
         _bulkAiMessage = null;
+        _bulkActiveTab = "store";
+        _prefixMessage = null;
+        _prefixMessageIsError = false;
+        _prefixRenameError = null;
         BulkSelection = new();
         foreach (var g in BulkGroups)
         {
@@ -592,48 +606,56 @@ public partial class CardTab
 
     private void AddPrefixRule()
     {
+        _prefixRenameError = null;   // 別行の改名エラーが無関係な追加操作の後まで残らないようにする
         var key = NormalizedNewPrefix;
         if (key.Length < 2) { _prefixMessage = "前方一致は2文字以上で入力してください。"; _prefixMessageIsError = true; return; }
         if (string.IsNullOrEmpty(_newPrefixCat)) { _prefixMessage = "カテゴリを選択してください。"; _prefixMessageIsError = true; return; }
 
-        Svc.State.CategoryPrefixRules[key] = _newPrefixCat;
-
-        // クリーンアップ：この prefix に包含され、同一カテゴリを指す完全一致ルールは重複するため削除する
-        // （別カテゴリを指すものは個別上書きとして残す）。
-        var covered = LedgerEngine.ExactRulesCoveredByPrefix(Svc.State.CategoryRules, key, _newPrefixCat);
-        foreach (var k in covered) Svc.State.CategoryRules.Remove(k);
-
-        // 当月の未分類明細のうち、追加した前方一致ルールに該当するものへ即座にカテゴリを適用する
-        // （BulkSelection も合わせて更新し、後続の「適用」で未分類に巻き戻らないようにする）。
-        int classified = 0;
-        foreach (var g in BulkGroups)
-        {
-            if (BulkSelection.GetValueOrDefault(g.Store) != "") continue;   // 未分類の店名のみ対象
-            var catId = LedgerEngine.ResolveCategory(Svc.State.CategoryRules, Svc.State.CategoryPrefixRules, g.Store);
-            if (catId == null) continue;
-
-            foreach (var d in Mo.CardDetails.Where(d => d.Name == g.Store && string.IsNullOrEmpty(d.CategoryId)))
-                d.CategoryId = catId;
-            BulkSelection[g.Store] = catId;
-            classified += g.Count;
-        }
-        if (classified > 0) SortBulk();
+        var (covered, classified) = CommitPrefixRule(key, _newPrefixCat);
 
         _prefixMessageIsError = false;
-        _prefixMessage = (covered.Count, classified) switch
+        _prefixMessage = (covered, classified) switch
         {
             (0, 0) => "前方一致ルールを追加しました",
             (0, > 0) => $"前方一致ルールを追加しました（当月の明細 {classified} 件を分類しました）",
-            (> 0, 0) => $"前方一致ルールを追加しました（重複する完全一致ルール {covered.Count} 件を整理しました）",
-            _ => $"前方一致ルールを追加しました（重複する完全一致ルール {covered.Count} 件を整理・当月の明細 {classified} 件を分類しました）",
+            (> 0, 0) => $"前方一致ルールを追加しました（重複する完全一致ルール {covered} 件を整理しました）",
+            _ => $"前方一致ルールを追加しました（重複する完全一致ルール {covered} 件を整理・当月の明細 {classified} 件を分類しました）",
         };
         _newPrefixText = "";
         _newPrefixCat = "";
         Save();
     }
 
+    // key（前方一致文字列・正規化済み）を categoryId で登録し、以下を行う共通処理（追加・改名で共有）：
+    // ①この prefix に包含され同一カテゴリを指す完全一致ルールの削除（重複整理・増加抑止）
+    // ②当月の未分類明細のうち該当するものへの即時分類（BulkSelection も合わせて更新）。
+    private (int Covered, int Classified) CommitPrefixRule(string key, string catId)
+    {
+        Svc.State.CategoryPrefixRules[key] = catId;
+
+        var covered = LedgerEngine.ExactRulesCoveredByPrefix(Svc.State.CategoryRules, key, catId);
+        foreach (var k in covered) Svc.State.CategoryRules.Remove(k);
+
+        int classified = 0;
+        foreach (var g in BulkGroups)
+        {
+            if (BulkSelection.GetValueOrDefault(g.Store) != "") continue;   // 未分類の店名のみ対象
+            var resolvedCat = LedgerEngine.ResolveCategory(Svc.State.CategoryRules, Svc.State.CategoryPrefixRules, g.Store);
+            if (resolvedCat == null) continue;
+
+            foreach (var d in Mo.CardDetails.Where(d => d.Name == g.Store && string.IsNullOrEmpty(d.CategoryId)))
+                d.CategoryId = resolvedCat;
+            BulkSelection[g.Store] = resolvedCat;
+            classified += g.Count;
+        }
+        if (classified > 0) SortBulk();
+
+        return (covered.Count, classified);
+    }
+
     private void RemovePrefixRule(string key)
     {
+        if (_prefixRenameError?.Key == key) _prefixRenameError = null;
         Svc.State.CategoryPrefixRules.Remove(key);
         Save();
     }
@@ -643,6 +665,62 @@ public partial class CardTab
     {
         if (string.IsNullOrEmpty(catId)) return;
         Svc.State.CategoryPrefixRules[key] = catId;
+        Save();
+    }
+
+    // 前方一致文字列そのものの改名（削除→再作成と等価だが、既存のカテゴリ設定はそのまま引き継ぐ）。
+    // 他のどこからも prefix 文字列自体を参照していない（CardDetail.CategoryId は既に確定済みのID）ため、
+    // 改名しても過去に分類済みの明細には影響しない。
+    private (string Key, string Message)? _prefixRenameError;
+
+    private void RenamePrefixRule(string oldKey, string? newText)
+    {
+        _prefixRenameError = null;
+        var newKey = LedgerEngine.NormalizeStore(newText ?? "").ToLowerInvariant();
+        if (newKey == oldKey) return;   // 変更なし
+
+        if (newKey.Length < 2)
+        {
+            _prefixRenameError = (oldKey, "前方一致は2文字以上で入力してください。");
+            return;
+        }
+        if (Svc.State.CategoryPrefixRules.ContainsKey(newKey))
+        {
+            _prefixRenameError = (oldKey, "その前方一致文字列はすでに登録されています。");
+            return;
+        }
+
+        var catId = Svc.State.CategoryPrefixRules[oldKey];
+        Svc.State.CategoryPrefixRules.Remove(oldKey);
+
+        // 旧prefixで分類され、新prefixではもうカバーされなくなる利用先を再解決する。
+        // 何もしないと「表示上は分類済みだが、そのカテゴリを再現するルールがもう存在しない」
+        // 状態になり、次回の取込で未分類に戻って見える（永続状態と表示の乖離）。
+        // 対象は「このルールの適用結果とみて矛盾しない（BulkSelection==catId）」店名のみに限定し、
+        // 混在（KeepSentinel）や手動で別カテゴリへ上書きした店名は触らない。
+        foreach (var g in BulkGroups)
+        {
+            if (BulkSelection.GetValueOrDefault(g.Store) != catId) continue;
+            var norm = LedgerEngine.NormalizeStore(g.Store);
+            var stillCovered = norm.StartsWith(newKey, StringComparison.OrdinalIgnoreCase);
+            if (!norm.StartsWith(oldKey, StringComparison.OrdinalIgnoreCase) || stillCovered) continue;
+
+            var resolved = LedgerEngine.ResolveCategory(Svc.State.CategoryRules, Svc.State.CategoryPrefixRules, g.Store);
+            foreach (var d in Mo.CardDetails.Where(d => d.Name == g.Store))
+                d.CategoryId = resolved;
+            BulkSelection[g.Store] = resolved ?? "";
+        }
+
+        var (covered, classified) = CommitPrefixRule(newKey, catId);
+
+        _prefixMessageIsError = false;
+        _prefixMessage = (covered, classified) switch
+        {
+            (0, 0) => "前方一致文字列を変更しました",
+            (0, > 0) => $"前方一致文字列を変更しました（当月の明細 {classified} 件を分類しました）",
+            (> 0, 0) => $"前方一致文字列を変更しました（重複する完全一致ルール {covered} 件を整理しました）",
+            _ => $"前方一致文字列を変更しました（重複する完全一致ルール {covered} 件を整理・当月の明細 {classified} 件を分類しました）",
+        };
         Save();
     }
 }

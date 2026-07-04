@@ -316,129 +316,222 @@
 {
     <div class="dialog-overlay" @onclick="RequestCloseBulk">
         <div class="dialog-box bulk-box" @onclick:stopPropagation="true">
-            <h4>一括カテゴリ設定（@monthLabel）</h4>
+            <div class="bulk-head-row">
+                <h4>一括カテゴリ設定<span class="bulk-head-month">（@monthLabel）</span></h4>
+                <button class="bulk-close" title="閉じる" @onclick="RequestCloseBulk"><span class="msym">close</span></button>
+            </div>
             @if (BulkGroups.Count == 0)
             {
                 <div class="none">この月の明細がありません。</div>
             }
             else
             {
-                <div class="bulk-batch">
-                    <div class="bulk-batch-head">
-                        <span>選択した利用先に一括設定</span>
-                        <button class="btn" disabled="@_classifyBusy" @onclick="ClassifyWithAi">
-                            <span class="msym">auto_awesome</span>@(_classifyBusy ? "AIで分類中…" : "AIで分類")
-                        </button>
-                    </div>
-                    <div class="bulk-batch-row">
-                        <div class="bulk-cat-cell bulk-batch-cat">
-                            <span class="color-dot" style="background:@DotColor(_batchCat)"></span>
-                            <select @bind="_batchCat">
-                                <option value="">未分類</option>
-                                @foreach (var c in Svc.CategoriesOrdered)
-                                {
-                                    <option value="@c.Id">@c.Name</option>
-                                }
-                            </select>
-                        </div>
-                        <button class="btn" disabled="@(_bulkChecked.Count == 0)" @onclick="ApplyBatchToChecked">
-                            選択（@_bulkChecked.Count）に設定
-                        </button>
-                        <label class="bulk-filter">カテゴリ絞り込み
-                            <select @bind="_bulkCatFilter">
-                                <option value="@AllFilter">すべて</option>
-                                <option value="">未分類</option>
-                                @foreach (var c in Svc.CategoriesOrdered)
-                                {
-                                    <option value="@c.Id">@c.Name</option>
-                                }
-                            </select>
-                        </label>
-                    </div>
-                    @if (_bulkAiMessage != null)
-                    {
-                        <div class="bulk-ai-msg">@_bulkAiMessage</div>
-                    }
+                <div class="bulk-tabs">
+                    <button class="bulk-tab @(_bulkActiveTab == "store" ? "active" : "")" @onclick='@(() => _bulkActiveTab = "store")'>
+                        <span class="msym">table_rows</span>利用先で設定<span class="bulk-tab-badge">@BulkGroups.Count</span>
+                    </button>
+                    <button class="bulk-tab @(_bulkActiveTab == "prefix" ? "active" : "")" @onclick='@(() => _bulkActiveTab = "prefix")'>
+                        <span class="msym">rule</span>前方一致ルール<span class="bulk-tab-badge navy">@PrefixRulesOrdered.Count</span>
+                    </button>
                 </div>
 
-                <div class="bulk-list">
-                    <div class="bulk-row bulk-head">
-                        <span class="bulk-check"><input type="checkbox" checked="@AllChecked" @onchange="ToggleAll" /></span>
-                        <span class="sortable" @onclick="@(() => SetBulkSort("store"))">@BulkHead("store", "利用先")</span>
-                        <span class="sortable" @onclick="@(() => SetBulkSort("count"))">@BulkHead("count", "件数")</span>
-                        <span class="sortable" @onclick="@(() => SetBulkSort("total"))">@BulkHead("total", "金額")</span>
-                        <span class="sortable" @onclick="@(() => SetBulkSort("category"))">@BulkHead("category", "カテゴリ")</span>
-                    </div>
-                    @if (DisplayedBulkGroups.Count == 0)
-                    {
-                        <div class="none">該当する利用先がありません。</div>
-                    }
-                    @foreach (var g in DisplayedBulkGroups)
-                    {
-                        <div class="bulk-row">
-                            <span class="bulk-check"><input type="checkbox" checked="@_bulkChecked.Contains(g.Store)" @onchange="() => ToggleBulkCheck(g.Store)" /></span>
-                            <span class="bulk-store" title="@g.Store">@g.Store</span>
-                            <span class="bulk-count">@g.Count 件</span>
-                            <span class="bulk-total">@MaskedYen(IsMasked,g.Total)</span>
-                            <div class="bulk-cat-cell">
-                                <span class="color-dot" style="background:@DotColor(BulkSelection.GetValueOrDefault(g.Store))"></span>
-                                <select value="@BulkSelection[g.Store]"
-                                        @onchange="e => SetRowCategory(g.Store, e.Value?.ToString())">
-                                    <option value="@KeepSentinel">変更しない</option>
-                                    <option value="">未分類</option>
-                                    @foreach (var c in Svc.CategoriesOrdered)
-                                    {
-                                        <option value="@c.Id">@c.Name</option>
-                                    }
-                                </select>
-                            </div>
-                        </div>
-                    }
-                </div>
-                <div class="prefix-rules">
-                    <div class="prefix-rules-head">前方一致ルール（利用先の先頭文字列でまとめて分類。例: 「etc」→交通）</div>
-                    @if (PrefixRulesOrdered.Count > 0)
-                    {
-                        <div class="prefix-rules-list">
-                            @foreach (var kv in PrefixRulesOrdered)
-                            {
-                                <div class="prefix-rule-row">
-                                    <span class="prefix-rule-key" title="@kv.Key">@kv.Key</span>
-                                    <span class="prefix-rule-count">@(PrefixPreviewCount(kv.Key)) 件該当</span>
-                                    <div class="bulk-cat-cell">
-                                        <span class="color-dot" style="background:@DotColor(kv.Value)"></span>
-                                        <select value="@kv.Value" @onchange="e => EditPrefixRuleCategory(kv.Key, e.Value?.ToString())">
-                                            @foreach (var c in Svc.CategoriesOrdered)
-                                            {
-                                                <option value="@c.Id">@c.Name</option>
-                                            }
-                                        </select>
-                                    </div>
-                                    <button class="btn" title="削除" @onclick="() => RemovePrefixRule(kv.Key)">
-                                        <span class="msym">delete</span>
-                                    </button>
-                                </div>
-                            }
-                        </div>
-                    }
-                    <div class="prefix-rule-add">
-                        <input type="text" placeholder="前方一致文字列（2文字以上・例: etc）" value="@_newPrefixText" @oninput="OnPrefixTextChanged" />
-                        <select @bind="_newPrefixCat">
-                            <option value="">カテゴリを選択</option>
+                @if (_bulkActiveTab == "store")
+                {
+                    // PC/スマホで並び順が異なるため、中身は RenderFragment として1か所だけ定義し、
+                    // @if (IsMobile) 側は組み替えるだけにする（内容が二重管理でずれるのを防ぐ。#71追補）。
+                    RenderFragment batchTitle = @<div class="bulk-batch-title">
+                        <span class="msym">done_all</span>
+                        <span class="bulk-batch-title-text">選択した利用先にまとめて設定</span>
+                        <span class="bulk-batch-pill">当月のみ</span>
+                    </div>;
+                    RenderFragment aiBtn = @<button class="bulk-ai-btn" disabled="@_classifyBusy" @onclick="ClassifyWithAi">
+                        <span class="msym">auto_awesome</span>@(_classifyBusy ? "AIで分類中…" : "AIで分類")
+                    </button>;
+                    RenderFragment catSelect = @<div class="bulk-cat-cell bulk-batch-cat">
+                        <span class="color-dot" style="background:@DotColor(_batchCat)"></span>
+                        <select @bind="_batchCat">
+                            <option value="">未分類</option>
                             @foreach (var c in Svc.CategoriesOrdered)
                             {
                                 <option value="@c.Id">@c.Name</option>
                             }
                         </select>
-                        <button class="btn" @onclick="AddPrefixRule">追加</button>
+                    </div>;
+                    RenderFragment applyBtn = @<button class="btn primary bulk-apply-btn" disabled="@(_bulkChecked.Count == 0)" @onclick="ApplyBatchToChecked">
+                        選択（@_bulkChecked.Count）に設定
+                    </button>;
+                    RenderFragment filterBlock = @<label class="bulk-filter">絞り込み
+                        <select @bind="_bulkCatFilter">
+                            <option value="@AllFilter">すべて</option>
+                            <option value="">未分類</option>
+                            @foreach (var c in Svc.CategoriesOrdered)
+                            {
+                                <option value="@c.Id">@c.Name</option>
+                            }
+                        </select>
+                    </label>;
+                    <div class="bulk-batch">
+                        @if (IsMobile)
+                        {
+                            @batchTitle
+                            @catSelect
+                            <div class="bulk-batch-actions">
+                                @applyBtn
+                                @aiBtn
+                            </div>
+                            @filterBlock
+                        }
+                        else
+                        {
+                            <div class="bulk-batch-head">
+                                @batchTitle
+                                @aiBtn
+                            </div>
+                            <div class="bulk-batch-row">
+                                @catSelect
+                                @applyBtn
+                                @filterBlock
+                            </div>
+                        }
+                        @if (_bulkAiMessage != null)
+                        {
+                            <div class="bulk-ai-msg">@_bulkAiMessage</div>
+                        }
                     </div>
-                    <div class="prefix-status @(_prefixMessageIsError ? "is-error" : "")">@PrefixStatusText</div>
-                </div>
 
-                <div class="dialog-message">
-                    選んだ利用先のカテゴリを当月の明細にまとめて適用し、以降の取込でも自動分類します。「変更しない」はそのまま。
-                    前方一致ルールは追加/削除した時点で即座に保存されます。
-                </div>
+                    <div class="bulk-list">
+                        <div class="bulk-row bulk-head">
+                            <span class="bulk-check"><input type="checkbox" checked="@AllChecked" @onchange="ToggleAll" /></span>
+                            <span class="sortable" @onclick="@(() => SetBulkSort("store"))">@BulkHead("store", "利用先")</span>
+                            <span class="sortable" @onclick="@(() => SetBulkSort("count"))">@BulkHead("count", "件数")</span>
+                            <span class="sortable" @onclick="@(() => SetBulkSort("total"))">@BulkHead("total", "金額")</span>
+                            <span class="sortable" @onclick="@(() => SetBulkSort("category"))">@BulkHead("category", "カテゴリ")</span>
+                        </div>
+                        @if (IsMobile)
+                        {
+                            <div class="bulk-mobile-tools">
+                                <label class="bulk-mobile-selectall">
+                                    <input type="checkbox" checked="@AllChecked" @onchange="ToggleAll" />全選択
+                                </label>
+                                <div class="bulk-mobile-sort">
+                                    <select value="@_bulkSort" @onchange='e => SetBulkSort(e.Value?.ToString() ?? "total")'>
+                                        <option value="store">利用先</option>
+                                        <option value="count">件数</option>
+                                        <option value="total">金額</option>
+                                        <option value="category">カテゴリ</option>
+                                    </select>
+                                    <button title="昇順/降順を切替" @onclick="@(() => SetBulkSort(_bulkSort))">
+                                        <span class="msym">@(_bulkAsc ? "arrow_upward" : "arrow_downward")</span>
+                                    </button>
+                                </div>
+                            </div>
+                        }
+                        @if (DisplayedBulkGroups.Count == 0)
+                        {
+                            <div class="none">該当する利用先がありません。</div>
+                        }
+                        @foreach (var g in DisplayedBulkGroups)
+                        {
+                            <div class="bulk-row">
+                                <span class="bulk-check"><input type="checkbox" checked="@_bulkChecked.Contains(g.Store)" @onchange="() => ToggleBulkCheck(g.Store)" /></span>
+                                <span class="bulk-store" title="@g.Store">@g.Store</span>
+                                <span class="bulk-count">@g.Count 件</span>
+                                <span class="bulk-total">@MaskedYen(IsMasked,g.Total)</span>
+                                <div class="bulk-cat-cell">
+                                    <span class="color-dot" style="background:@DotColor(BulkSelection.GetValueOrDefault(g.Store))"></span>
+                                    <select value="@BulkSelection[g.Store]"
+                                            @onchange="e => SetRowCategory(g.Store, e.Value?.ToString())">
+                                        <option value="@KeepSentinel">変更しない</option>
+                                        <option value="">未分類</option>
+                                        @foreach (var c in Svc.CategoriesOrdered)
+                                        {
+                                            <option value="@c.Id">@c.Name</option>
+                                        }
+                                    </select>
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                    @if (!IsMobile)
+                    {
+                        <div class="dialog-message">
+                            選んだ利用先のカテゴリを当月の明細にまとめて適用し、以降の取込でも自動分類します。「変更しない」はそのまま。
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="prefix-banner">
+                        <span class="msym">info</span>
+                        <span>利用先の<strong>先頭文字列</strong>でまとめて分類する恒久ルール。<strong>追加・削除した時点で即保存</strong>され、次回以降の取込にも自動適用されます。</span>
+                    </div>
+
+                    <div class="prefix-rules">
+                        <div class="prefix-rule-add">
+                            <div class="prefix-rule-add-head"><span class="msym">add</span>ルールを追加</div>
+                            <div class="prefix-rule-add-grid">
+                                <input type="text" placeholder="前方一致文字列（2文字以上・例: etc）" value="@_newPrefixText" @oninput="OnPrefixTextChanged" />
+                                <select @bind="_newPrefixCat">
+                                    <option value="">カテゴリを選択</option>
+                                    @foreach (var c in Svc.CategoriesOrdered)
+                                    {
+                                        <option value="@c.Id">@c.Name</option>
+                                    }
+                                </select>
+                                <button class="btn primary" @onclick="AddPrefixRule">追加</button>
+                            </div>
+                        </div>
+                        <div class="prefix-status @(_prefixMessageIsError ? "is-error" : "") @(string.IsNullOrEmpty(PrefixStatusText) ? "is-blank" : "")">@PrefixStatusText</div>
+
+                        @if (UnclassifiedStoreCount > 0)
+                        {
+                            <div class="prefix-back-link">
+                                未分類が @UnclassifiedStoreCount 件残っています →
+                                <button @onclick='@(() => _bulkActiveTab = "store")'>利用先で設定へ</button>
+                            </div>
+                        }
+
+                        @if (PrefixRulesOrdered.Count > 0)
+                        {
+                            <div class="prefix-rules-head">
+                                <span>前方一致文字列</span>
+                                <span>該当</span>
+                                <span>カテゴリ</span>
+                                <span></span>
+                            </div>
+                            <div class="prefix-rules-list">
+                                @foreach (var kv in PrefixRulesOrdered)
+                                {
+                                    <div class="prefix-rule-row">
+                                        <div class="prefix-rule-key-wrap">
+                                            <input class="prefix-rule-key" title="@kv.Key"
+                                                   value="@kv.Key"
+                                                   @onchange="e => RenamePrefixRule(kv.Key, e.Value?.ToString())" />
+                                            @if (_prefixRenameError?.Key == kv.Key)
+                                            {
+                                                <span class="prefix-rule-key-error">@_prefixRenameError.Value.Message</span>
+                                            }
+                                        </div>
+                                        <span class="prefix-rule-count">@(PrefixPreviewCount(kv.Key)) 件該当</span>
+                                        <div class="bulk-cat-cell">
+                                            <span class="color-dot" style="background:@DotColor(kv.Value)"></span>
+                                            <select value="@kv.Value" @onchange="e => EditPrefixRuleCategory(kv.Key, e.Value?.ToString())">
+                                                @foreach (var c in Svc.CategoriesOrdered)
+                                                {
+                                                    <option value="@c.Id">@c.Name</option>
+                                                }
+                                            </select>
+                                        </div>
+                                        <button class="cd-del" title="削除" @onclick="() => RemovePrefixRule(kv.Key)">
+                                            <span class="msym">delete</span>
+                                        </button>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
             }
             <div class="dialog-btns">
                 <button class="btn" @onclick="RequestCloseBulk">キャンセル</button>
