@@ -216,6 +216,7 @@ public partial class DataApi
                 holdingInfos.Add(new HoldingCurrentInfo
                 {
                     Name = h.Name,
+                    Account = h.Account,
                     Quantity = sum.Quantity,
                     PriceNative = price,
                     ValuationJpy = vJpy.Value,
@@ -294,6 +295,7 @@ public class PortfolioCurrentResponse
 public class HoldingCurrentInfo
 {
     public string Name { get; set; } = "";
+    public AccountKind Account { get; set; }
     public decimal Quantity { get; set; }
     public decimal PriceNative { get; set; }       // 現在価格（建て通貨）
     public decimal ValuationJpy { get; set; }       // 評価額（円）

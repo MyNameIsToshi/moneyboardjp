@@ -1100,6 +1100,9 @@ components:
       properties:
         name:
           type: string
+        account:
+          type: integer
+          description: "口座区分（税区分）。整数シリアライズ：Nisa=0 / Tokutei=1 / General=2 / NisaGrowth=3 / NisaTsumitate=4"
         quantity:
           type: number
         priceNative:
