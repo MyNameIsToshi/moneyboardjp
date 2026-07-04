@@ -192,12 +192,7 @@ public partial class DataApi
             if (snap != null) PortfolioMath.UpsertSnapshot(data, snap);
 
             // Cosmos に保存。ETag 競合（フロントと同時操作）はスキップ。
-            var saveDoc = ToDoc(data, ownerUserId);
-            var saveOpt = new ItemRequestOptions { EnableContentResponseOnWrite = false };
-            if (!string.IsNullOrEmpty(etag)) saveOpt.IfMatchEtag = etag;
-            try { await container.UpsertItemAsync(saveDoc, pk, saveOpt); }
-            catch (CosmosException e) when (e.StatusCode == HttpStatusCode.PreconditionFailed)
-            { logger.LogWarning("GetPortfolioSnapshotCurrent: etag conflict on save, skipping"); }
+            await TrySavePortfolioAsync(container, ownerUserId, data, etag, nameof(GetPortfolioSnapshotCurrent));
 
             // レスポンス構築。
             var today2 = at[..10];
@@ -216,6 +211,7 @@ public partial class DataApi
                 holdingInfos.Add(new HoldingCurrentInfo
                 {
                     Name = h.Name,
+                    Account = h.Account,
                     Quantity = sum.Quantity,
                     PriceNative = price,
                     ValuationJpy = vJpy.Value,
@@ -259,6 +255,120 @@ public partial class DataApi
             return new StatusCodeResult(500);
         }
     }
+
+    // POST /api/record-snapshots → 全ユーザーの portfolio ドキュメントに当日スナップショットを1点ずつ記録する。
+    // GitHub Actions の cron から毎営業日呼ばれ、画面を開かない日の推移欠測を防ぐ（#37）。SWA Free は
+    // managed Functions が HTTP トリガーのみのため Timer トリガーではなくこの方式を採る（ADR 参照）。
+    // 認証は共有シークレット（X-Internal-Secret、market-summary/portfolio-snapshot-current と共通）。
+    // 同日上書き（PortfolioMath.UpsertSnapshot）のため、手動で画面を開いた記録と二重にはならない。
+    [Function("RecordSnapshots")]
+    public async Task<IActionResult> RecordSnapshots(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "record-snapshots")] HttpRequest req)
+    {
+        if (!IsAuthorizedSharedSecret(Environment.GetEnvironmentVariable("InternalApi__SharedSecret"), req.Headers["X-Internal-Secret"]))
+            return new UnauthorizedResult();
+
+        try
+        {
+            var container = GetContainer();
+
+            // 全ユーザーの portfolio ドキュメントを列挙（クロスパーティション）。
+            var docs = new List<PortfolioReadDoc>();
+            var query = new QueryDefinition("SELECT * FROM c WHERE c.type = 'portfolio'");
+            using (var it = container.GetItemQueryIterator<PortfolioReadDoc>(query))
+            {
+                while (it.HasMoreResults)
+                    docs.AddRange(await it.ReadNextAsync());
+            }
+            if (docs.Count == 0) return new OkObjectResult(new RecordSnapshotsResponse());
+
+            // 価格は全ユーザー分をまとめて重複排除して取得（Yahoo/投信協会への呼び出し回数を抑える）。
+            var stockSymbols = docs
+                .SelectMany(d => d.Holdings.Where(h => !h.IsDeleted && h.Class != AssetClass.Fund && !string.IsNullOrEmpty(h.Symbol)))
+                .Select(PortfolioMath.YahooSymbol)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            var fundHoldings = docs
+                .SelectMany(d => d.Holdings.Where(h => !h.IsDeleted && h.Class == AssetClass.Fund && !string.IsNullOrEmpty(h.AssocFundCd)))
+                .GroupBy(h => h.AssocFundCd.Trim(), StringComparer.OrdinalIgnoreCase)
+                .Select(g => g.First())
+                .ToList();
+
+            var stockTasks = stockSymbols.Select(async s => (Symbol: s, Q: await FetchPriceAsync(s))).ToList();
+            var fundTasks = fundHoldings.Select(async h => (Key: h.AssocFundCd.Trim(), Q: await FetchFundPriceAsync(h.Isin, h.AssocFundCd))).ToList();
+            var rateTask = FetchPriceAsync(RateSymbol);
+            await Task.WhenAll(stockTasks.Cast<Task>().Concat(fundTasks.Cast<Task>()).Append(rateTask));
+
+            var stockPrices = stockTasks.Where(t => t.Result.Q.Price is > 0)
+                .ToDictionary(t => t.Result.Symbol, t => t.Result.Q.Price!.Value, StringComparer.OrdinalIgnoreCase);
+            var fundPrices = fundTasks.Where(t => t.Result.Q.Latest is > 0)
+                .ToDictionary(t => t.Result.Key, t => t.Result.Q.Latest!.Value, StringComparer.OrdinalIgnoreCase);
+            var usdJpyRate = rateTask.Result.Price;
+
+            var at = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm");
+            int recorded = 0;
+            foreach (var doc in docs)
+            {
+                var data = new PortfolioData
+                {
+                    SchemaVersion = doc.SchemaVersion,
+                    Holdings = doc.Holdings, Buys = doc.Buys, Sells = doc.Sells,
+                    Dividends = doc.Dividends, Snapshots = doc.Snapshots,
+                    CurrentPrices = doc.CurrentPrices, UsdJpyRate = doc.UsdJpyRate, PricedAt = doc.PricedAt
+                };
+
+                foreach (var h in data.Holdings.Where(h => !h.IsDeleted))
+                {
+                    if (h.Class == AssetClass.Fund)
+                    {
+                        if (!string.IsNullOrEmpty(h.AssocFundCd) && fundPrices.TryGetValue(h.AssocFundCd.Trim(), out var fp))
+                            data.CurrentPrices[h.Id] = fp;
+                    }
+                    else if (!string.IsNullOrEmpty(h.Symbol) && stockPrices.TryGetValue(PortfolioMath.YahooSymbol(h), out var sp))
+                    {
+                        data.CurrentPrices[h.Id] = sp;
+                    }
+                }
+                if (usdJpyRate is > 0) data.UsdJpyRate = usdJpyRate.Value;
+                data.PricedAt = at;
+
+                // 保有評価額0件（価格未取得含む）は既存 RecordSnapshot と同じく記録しない。
+                var snap = PortfolioMath.BuildSnapshot(data, at);
+                if (snap == null) continue;
+                PortfolioMath.UpsertSnapshot(data, snap);
+
+                // 競合（フロントが同時に価格更新等）はそのユーザーだけスキップ。次回 cron で吸収される。
+                if (await TrySavePortfolioAsync(container, doc.UserId, data, doc.Etag, nameof(RecordSnapshots)))
+                    recorded++;
+            }
+
+            return new OkObjectResult(new RecordSnapshotsResponse { UserCount = docs.Count, RecordedCount = recorded });
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "RecordSnapshots failed");
+            return new StatusCodeResult(500);
+        }
+    }
+
+    // portfolio ドキュメントを ETag 付きで保存する（GetPortfolioSnapshotCurrent / RecordSnapshots 共通）。
+    // 競合(412)はログのみでスキップ可＝戻り値 false（呼び出し元のリトライ方針に委ねる）。
+    private async Task<bool> TrySavePortfolioAsync(Container container, string userId, PortfolioData data, string? etag, string logContext)
+    {
+        var saveDoc = ToDoc(data, userId);
+        var saveOpt = new ItemRequestOptions { EnableContentResponseOnWrite = false };
+        if (!string.IsNullOrEmpty(etag)) saveOpt.IfMatchEtag = etag;
+        try
+        {
+            await container.UpsertItemAsync(saveDoc, new PartitionKey(userId), saveOpt);
+            return true;
+        }
+        catch (CosmosException e) when (e.StatusCode == HttpStatusCode.PreconditionFailed)
+        {
+            logger.LogWarning("{Context}: etag conflict for user {UserId}, skipping", logContext, userId);
+            return false;
+        }
+    }
 }
 
 // Cosmos ドキュメント（同一パーティション /userId 内で type="portfolio"）。
@@ -294,6 +404,7 @@ public class PortfolioCurrentResponse
 public class HoldingCurrentInfo
 {
     public string Name { get; set; } = "";
+    public AccountKind Account { get; set; }
     public decimal Quantity { get; set; }
     public decimal PriceNative { get; set; }       // 現在価格（建て通貨）
     public decimal ValuationJpy { get; set; }       // 評価額（円）
@@ -309,4 +420,27 @@ public class SnapshotPnlPoint
     public decimal TotalValuationJpy { get; set; }
     public decimal CostBasisJpy { get; set; }
     public decimal PnlJpy { get; set; }
+}
+
+// 全ユーザー横断の portfolio クエリ読み取り専用（_etag を本文から取得するため。#37）。
+public class PortfolioReadDoc
+{
+    public string UserId { get; set; } = "";
+    public int SchemaVersion { get; set; } = 1;
+    public List<Holding> Holdings { get; set; } = new();
+    public List<BuyLot> Buys { get; set; } = new();
+    public List<SellLot> Sells { get; set; } = new();
+    public List<Dividend> Dividends { get; set; } = new();
+    public List<PriceSnapshot> Snapshots { get; set; } = new();
+    public Dictionary<string, decimal> CurrentPrices { get; set; } = new();
+    public decimal UsdJpyRate { get; set; }
+    public string PricedAt { get; set; } = "";
+    [Newtonsoft.Json.JsonProperty("_etag")] public string? Etag { get; set; }
+}
+
+/// <summary>POST /api/record-snapshots のレスポンス（GitHub Actions cron からの呼び出し用）。</summary>
+public class RecordSnapshotsResponse
+{
+    public int UserCount { get; set; }      // portfolio ドキュメントを持つユーザー数
+    public int RecordedCount { get; set; }  // 実際にスナップショットを記録できたユーザー数
 }
