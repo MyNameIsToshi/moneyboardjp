@@ -10,7 +10,7 @@ info:
     |---|---|
     | `/data`, `/portfolio`, `/quote`, `/extract-card`, `/access` | Firebase Auth JWT（`Authorization: Bearer <token>`） |
     | `/access` | オーナーのみ（JWT + OwnerEmail 一致） |
-    | `/market-summary`, `/portfolio-snapshot-current` | 共有シークレット（`X-Internal-Secret` ヘッダー） |
+    | `/market-summary`, `/portfolio-snapshot-current`, `/record-snapshots` | 共有シークレット（`X-Internal-Secret` ヘッダー） |
 
     ローカル開発では `AuthBypass=true` 環境変数でJWT検証をスキップできます。
 
@@ -263,6 +263,40 @@ paths:
           description: 共有シークレット不一致または未指定
         "503":
           description: OwnerUserId 環境変数が未設定
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /record-snapshots:
+    post:
+      operationId: recordSnapshots
+      summary: 全ユーザーの推移スナップショットを記録（GitHub Actions cron 専用）
+      description: |
+        全ユーザーの portfolio ドキュメントを列挙し、当日の推移スナップショットを1点ずつ記録する。
+        アプリを開かない日でも推移グラフに欠測が出ないよう、GitHub Actions の cron（平日1回）
+        から呼び出す想定（Timer トリガー非対応の SWA Free を据え置くための代替構成）。
+
+        **処理フロー:**
+        1. `type = 'portfolio'` を全ユーザー横断でクエリ
+        2. 全ユーザー分の保有銘柄をまとめて重複排除し、価格を並行取得（Yahoo Finance v8 / 投信協会 CSV）
+        3. ユーザーごとに当日スナップショットを記録（同日上書き）して Cosmos に保存
+        4. 評価額を1件も算出できないユーザーはスキップ（記録しない）
+
+        同日上書きのため、手動で画面を開いた時の記録と二重にはならない。
+
+        **認証: Firebase JWT ではなく共有シークレット（`X-Internal-Secret` ヘッダー）。**
+        `/market-summary` / `/portfolio-snapshot-current` と共通のシークレットを使用。
+      tags: [portfolio]
+      security:
+        - internalSecret: []
+      responses:
+        "200":
+          description: 記録結果（対象ユーザー数・記録できた数）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordSnapshotsResponse"
+        "401":
+          description: 共有シークレット不一致または未指定
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -1093,6 +1127,17 @@ components:
           description: スナップショット時系列（古い順）
           items:
             $ref: "#/components/schemas/SnapshotPnlPoint"
+
+    RecordSnapshotsResponse:
+      type: object
+      description: POST /record-snapshots のレスポンス（GitHub Actions cron からの呼び出し用）
+      properties:
+        userCount:
+          type: integer
+          description: portfolio ドキュメントを持つユーザー数
+        recordedCount:
+          type: integer
+          description: 実際にスナップショットを記録できたユーザー数
 
     HoldingCurrentInfo:
       type: object

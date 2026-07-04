@@ -1,0 +1,19 @@
+name: Record Portfolio Snapshots
+
+# SWA Free の managed Functions は HTTP トリガーのみ対応（Timer は SWA Standard=有料が必要）のため、
+# 毎営業日この cron から記録用エンドポイントを HTTP 呼び出しすることで、画面を開かない日の
+# 推移スナップショット欠測を防ぐ（#37）。同日上書きのため手動記録（画面を開いた時）と二重にはならない。
+on:
+  schedule:
+    # 平日 12:00 UTC（=21:00 JST・東証クローズ後）に1回実行。
+    - cron: "0 12 * * 1-5"
+  workflow_dispatch: {}
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call record-snapshots endpoint
+        run: |
+          curl -sf -X POST "https://purple-stone-08eacab00.7.azurestaticapps.net/api/record-snapshots" \
+            -H "X-Internal-Secret: ${{ secrets.INTERNAL_API_SHARED_SECRET }}"

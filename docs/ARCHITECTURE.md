@@ -103,7 +103,7 @@ C:\Development\moneyboard\launch.bat をダブルクリック
 - `Firebase__ProjectId` = `money-board-jp`（IDトークン検証用・**必須**）
 - `OwnerEmail` = （オーナーの Google アカウント・**実値は SWA アプリ設定で管理**。承認なしで使えるオーナー）
 - `OwnerUserId` = （オーナーの Firebase uid・**実値は SWA アプリ設定で管理**。`/api/portfolio-snapshot-current` がオーナーのポートフォリオを特定するために使用 #48）
-- `InternalApi__SharedSecret` = （内部 API 用共有シークレット・`/api/market-summary` / `/api/portfolio-snapshot-current` 共用。**実値は SWA アプリ設定 ＋ GitHub Secrets で管理** #48/#54）
+- `InternalApi__SharedSecret` = （内部 API 用共有シークレット・`/api/market-summary` / `/api/portfolio-snapshot-current` / `/api/record-snapshots` 共用。**実値は SWA アプリ設定 ＋ GitHub Secrets（`INTERNAL_API_SHARED_SECRET`）で管理** #48/#54/#37）
 - ⚠️ `AuthBypass` は**本番では設定しない**（＝JWT検証必須）。ローカルのみ `true`。未設定でデプロイすると projectId 不一致で全員ログイン不可になるので注意
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` … 旧SWA-Google認証用で**現在は未使用**（残置可）
 
@@ -328,6 +328,7 @@ Transfer
 | 市場指標バー（/portfolio 上部・固定5本のチップ列・前日比%・既存 `/api/quote` 再利用・AI不要） | ✅ 完了（本番反映済み・v1.5.0・#26） |
 | カテゴリ自動推定（C案・`POST /api/classify-categories`。未分類の利用先を Claude Haiku 4.5 で一括分類→一括カテゴリ画面でレビュー→適用時に `CategoryRules` へキャッシュ。CSV取込・AIスクショ読取後に未分類が残っていれば一括カテゴリ画面を自動オープン＋AI分類まで自動実行、適用はユーザー操作。CategoryRules は `NormalizeStore` 正規化キーで統合し表記ゆれによる分裂を解消、SchemaMigration v3→v4 で既存データも統合） | ✅ 完了（dev・リリース待ち・#27） |
 | カテゴリ前方一致ルール（`CategoryPrefixRules`。ETC通行料金など区間ごとに店名が変わる明細を共通の接頭辞でまとめて分類。完全一致優先→前方一致は最長プレフィックス優先・大小無視。一括カテゴリ画面で一覧編集＋プレビュー件数＋最低2文字。登録時に同カテゴリの完全一致ルールを整理／完全一致保存時は前方一致で解決済みなら重複保存しない。SchemaMigration v4→v5） | ✅ 完了（dev・リリース待ち・#70） |
+| 推移スナップショットのサーバー側自動記録（`POST /api/record-snapshots`。全ユーザー横断でクロスパーティションクエリ→価格重複排除取得→`PortfolioMath.BuildSnapshot`/`UpsertSnapshot`再利用で1点ずつ記録。GitHub Actions cron `record-snapshots.yml` から平日1回呼び出し。SWA Free の Timer トリガー非対応を cron→HTTP で代替） | ✅ 完了（dev・リリース待ち・#37。要 GitHub Secrets `INTERNAL_API_SHARED_SECRET` 設定） |
 
 ---
 
@@ -433,6 +434,7 @@ Transfer
 - **日報のアプリ化は見送り（#32・closed）** … 投資SNSの日次日報を MoneyBoard で生成/編集/X投稿/記録簿化する構想は見送り。価値の大半が当日ニュースの web 検索＋分析＝既存 Claude 会話との差分が薄く、X自動投稿も外部・有料・OAuth でリスク過大なため。代替として **市場指標バー（#26）** のみ実装。詳細は issue #32。
 - **ポートフォリオ現況 API はオーナー固定・共有シークレット認証（#48）** … 日報生成向けの `/api/portfolio-snapshot-current` は日報対象がオーナー1名に固定のため、ユーザー JWT ではなく共有シークレット（`InternalApi__SharedSecret` / `X-Internal-Secret`）を採用。オーナーの userId は `OwnerUserId` 環境変数で直接指定（`OwnerEmail` からの検索は Cosmos クロスパーティションクエリが必要になり不要な複雑性を招くため採らない）。`/api/market-summary` と同じ認証パターンを踏襲しシークレットを共有。
   - **#37 を待たずに #48 を実装**：issue #48 は「#37 の記録処理を呼ぶ」と記述していたが、#37 は全ユーザーバッチ処理 × GitHub Actions cron の文脈。#48 は単一ユーザー × 日報スキル呼び出しであり、共通の内部ロジック（`FetchPriceAsync` + `BuildSnapshot`）を直接呼べば #37 の HTTP エンドポイントは不要と判断。issue にコメント済み。
+- **推移スナップショットの自動記録は SWA Free 据え置き＋ GitHub Actions cron→HTTP（#37）** … SWA Free の managed Functions は HTTP トリガーのみ対応（Timer トリガーは SWA Standard=有料）。Timer 相当を実現するため、Azure Functions 側に Timer を持たせず、**GitHub Actions の `schedule(cron)` から `POST /api/record-snapshots` を叩く**構成を採用（追加コスト無し）。認証は `/api/market-summary`/`/api/portfolio-snapshot-current` と同じ共有シークレットを再利用し、専用の認証系統を増やさない。全ユーザー分の価格取得は銘柄単位で重複排除してから1回だけ行い（ユーザーごとの個別取得にしない）、日々の cron 実行が外部API（Yahoo/投信協会）へ与える負荷を抑える。
 - **OpenAPI 仕様を手書き YAML + Swagger UI（GitHub Pages）で公開（#66）** … Azure Functions Isolated は ASP.NET Core と異なり Swashbuckle が直接使えない（Isolated は HTTP middleware を持たずビルド時のリフレクションが複雑）。NSwag や Microsoft.Azure.Functions.Worker.Extensions.OpenApi も追加パッケージ・スタートアップ変更を要し、ポートフォリオ用途（実際にトライアウトするわけではない）に対してコストが大きい。そのため **`docs/swagger/openapi.yaml` を手書き**してリポジトリに置き、GitHub Pages（`docs/` フォルダ）で Swagger UI（CDN）を介して公開する方式を採用。openapi.yaml はコードとともにメンテ・CI やパッケージの追加なし。GitHub Pages は repo 設定で `main` ブランチの `docs/` フォルダを Source に設定する（一度限りの手作業）。公開 URL: https://mynameistoshi.github.io/moneyboardjp/swagger/
 
 > **Claude API 連携（土台）／カード画像（スクショ）読み取り** は **v1.4.0 で本番リリース済み**（下記「実装済み機能」表・「Phase 4」節を参照）。
@@ -487,6 +489,16 @@ Transfer
 - **レスポンス**（`PortfolioCurrentResponse`）：`PricedAt`・`UsdJpyRate`・`TotalValuationJpy`・`CostBasisJpy`・`UnrealizedPnlJpy` / `Holdings`（銘柄ごと：名前・口座区分`AccountKind`・数量・現在価格・評価額・取得原価・含み損益。同一銘柄が成長/つみたて両枠にある場合の判別に使用 #69）/ `History`（スナップショット時系列：日時・UsdJpyRate・総資産・取得原価・評価損益）
 - **取得原価の算出**：`PortfolioMath.CostBasisJpyAsOf`（指定日元本・円換算）を再利用。現況・各スナップショット点ともに同方式。
 - **ETag 競合の扱い**：フロント（Portfolio 画面）と同時操作で 412 が発生した場合はスキップして記録なしでも応答は返す（読み取った価格データは正しいため）。
+
+### 推移スナップショットのサーバー側自動記録 `POST /api/record-snapshots`（#37）
+- **目的**：アプリ（ポートフォリオ画面）を開かなくても、毎営業日 推移スナップショットが自動で1点記録されるようにする（開かない日は従来欠測だった）。
+- **認証**：`/api/market-summary` / `/api/portfolio-snapshot-current` と同じ共有シークレット（`InternalApi__SharedSecret` / `X-Internal-Secret`）。ユーザー JWT ゲートとは別系統。
+- **全ユーザー対応**（#48 のオーナー固定とは異なる）：`type = 'portfolio'` でクロスパーティションクエリし、全ユーザーの portfolio ドキュメントを列挙。価格は全ユーザー分の銘柄をまとめて重複排除してから取得し（Yahoo/投信協会への呼び出し回数を抑制）、ユーザーごとに `PortfolioMath.BuildSnapshot`→`UpsertSnapshot`→保存。
+- **記録しない条件**：評価額を1件も算出できないユーザー（保有0件・全銘柄価格未取得等）は `BuildSnapshot` が null を返し、そのユーザーはスキップ（既存 `GetPortfolioSnapshotCurrent` と同じ規則）。
+- **二重記録の防止**：`UpsertSnapshot` の同日上書きにより、手動で画面を開いた時の記録（既存の価格更新フロー）と cron 記録は同じ日なら1点に吸収される。
+- **ETag 競合の扱い**：フロントと同時操作で 412 が発生したユーザーはそのユーザーだけスキップし、他ユーザーの記録は継続する。
+- **呼び出し元**：GitHub Actions の `record-snapshots.yml`（`schedule: cron` 平日 12:00 UTC＝21:00 JST）が本番 URL に POST。SWA Free の managed Functions は HTTP トリガーのみ対応（Timer トリガーは SWA Standard=有料が必要）なため、Timer ではなく「cron→HTTP」で実現（下記 ADR）。
+- **必要な設定（手動）**：GitHub Actions が呼ぶための **GitHub Secrets `INTERNAL_API_SHARED_SECRET`**（SWA アプリ設定の `InternalApi__SharedSecret` と同じ値）を追加すること。
 
 ### 入力簡略化
 - 日本株＝証券コード4桁のみ（取得時 `.T` 自動付与）／米国株＝ティッカー／投信＝標準 `<select>`「投信を選択」（`FundMaster` の銘柄名→協会コード自動入力、無ければ「その他」で協会コード直接入力）。
