@@ -110,7 +110,7 @@ paths:
       description: |
         保有銘柄・買付・売却・配当・価格スナップショット等を全て返す。
         データ未作成の新規ユーザーは空の PortfolioData を返す。
-        レスポンスの `isTsmcEmployee` はリクエスト本人の状態のみ（他人の状態は返さない）。
+        レスポンスの `isEsppEligible` はリクエスト本人の状態のみ（他人の状態は返さない）。
       tags: [portfolio]
       security:
         - firebaseJwt: []
@@ -398,7 +398,7 @@ paths:
     get:
       operationId: getAccess
       summary: アクセス承認データを取得（オーナー専用）
-      description: 承認済みユーザー・承認待ちユーザー・TSMC社員フラグ付きユーザーの一覧を返す。
+      description: 承認済みユーザー・承認待ちユーザー・ESPP対象社員フラグ付きユーザーの一覧を返す。
       tags: [access]
       security:
         - firebaseJwt: []
@@ -420,14 +420,14 @@ paths:
       summary: ユーザーを承認／拒否／解除（オーナー専用）
       description: |
         承認待ちユーザーを承認・拒否するか、承認済みユーザーのアクセスを解除する。
-        TSMC 社員フラグ（ESPP UI 表示可否）の設定も兼ねる。
+        ESPP 対象社員フラグ（ESPP UI 表示可否）の設定も兼ねる。
 
         | action | 説明 |
         |---|---|
         | `approve` | 承認待ち → 承認済みに移動 |
         | `reject` | 承認待ちから削除 |
-        | `revoke` | 承認済みを解除（社員フラグも除去） |
-        | `tsmc` | TSMC 社員フラグを `value` で ON/OFF |
+        | `revoke` | 承認済みを解除（対象フラグも除去） |
+        | `espp` | ESPP 対象社員フラグを `value` で ON/OFF |
       tags: [access]
       security:
         - firebaseJwt: []
@@ -444,10 +444,10 @@ paths:
                   action: approve
                   uid: firebase-uid-here
                   value: false
-              tsmc_on:
-                summary: TSMC社員フラグを付与
+              espp_on:
+                summary: ESPP対象社員フラグを付与
                 value:
-                  action: tsmc
+                  action: espp
                   uid: firebase-uid-here
                   value: true
       responses:
@@ -824,9 +824,9 @@ components:
           nullable: true
         data:
           $ref: "#/components/schemas/PortfolioData"
-        isTsmcEmployee:
+        isEsppEligible:
           type: boolean
-          description: GET 時のみサーバーが設定。リクエスト本人が TSMC 社員か（ESPP UI の表示可否）。
+          description: GET 時のみサーバーが設定。リクエスト本人が ESPP 対象社員か（ESPP UI の表示可否）。
           readOnly: true
 
     PortfolioData:
@@ -1193,9 +1193,9 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PendingUser"
-        tsmcEmployees:
+        esppEligibleEmployees:
           type: array
-          description: TSMC社員フラグ付きのユーザーUID一覧
+          description: ESPP対象社員フラグ付きのユーザーUID一覧
           items:
             type: string
 
@@ -1236,10 +1236,10 @@ components:
       properties:
         action:
           type: string
-          enum: [approve, reject, revoke, tsmc]
+          enum: [approve, reject, revoke, espp]
         uid:
           type: string
           description: 対象の Firebase UID
         value:
           type: boolean
-          description: tsmc アクションのみ使用。true で社員フラグを付与、false で解除。
+          description: espp アクションのみ使用。true で対象フラグを付与、false で解除。

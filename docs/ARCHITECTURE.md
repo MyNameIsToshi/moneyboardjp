@@ -395,10 +395,9 @@ Transfer
 
 | 機能 | issue | 備考 |
 |------|------|------|
-| 自然言語入力解析 | #28 | Phase 5 |
-| 月次コメント生成 | #29 | Phase 5 |
-| FABチャット（月次データ更新） | #30 | Phase 5・設計メモは「チャット設計」節 |
 | README スクリーンショット追加 | #31 | 残高マスク前提 |
+
+> 自然言語入力解析（#28）／月次コメント生成（#29）／FABチャット（#30）は **見送り・クローズ済み**。理由は下記 ADR 参照。
 
 > タスクの最新状況は **GitHub Issues** を参照。本表は索引。
 
@@ -431,11 +430,16 @@ Transfer
 - **月次タブのレイアウト/質感リデザイン＋アイコンを線アイコンに統一（#43）** … 外部の Claude Design に作らせた PC 設計（`docs/redesign-spec.md` 相当）を採用。(1) サマリの主従化（月末残高合計のヒーロー化）、(2) 本文幅を `.app-shell.has-sidenav .wrap` で 1200→**1880px**（ほぼ全幅。**graph/portfolio も同 `.wrap` で広がる**＝#44/#45 はこの幅前提で調整）、(3) 編集可/表示専用の質感分離、**固定費はインライン編集廃止＝表示専用**（変更は固定費設定タブ。挙動変更）、(4) 口座カード/カード/固定費の折りたたみ、(5) **絵文字を全画面で Material Symbols Outlined に置換**（`index.html` にフォント1行＋`base.css .msym`・新色は足さず既存トークン）。
   - **スマホへの適用方針**：マークアップを二重化せず共有し、**PC 設計を入れると mobile.css の調整なしでスマホにも反映される**（`IsMobile` ＋ CSS で差分のみ出し分け）。当初 #43/spec は「PCのみ」想定だったが、別ツリー化を避ける本方針を採用＝**以後 PC 設計の提供だけでスマホ版にも反映**（Design 依頼の手間・トークン削減）。口座カードの既定折りたたみだけは `IsMobile` で出し分け。
 - **PC ナビは左サイドバーで統一（#41）** … PC は「Home 上部タブ＋月次タブ内の入口ボタン＋各ページの戻る」で遷移方法が混在していた。スマホの下部バー（5系統一貫）に倣い、**PC は左サイドナビ（`SideNav`）に統一**。`MainLayout` が PC=サイドナビ／スマホ=下部バーを出し分け、行き先・ハイライト規則は両者で同形。ブランドはサイドナビ上部に集約し、各ページ頭のヘッダー・「← 戻る」・📊💹 入口ボタンは撤去。代替案（トップバー／各ページにタブ複製）より、本文幅を確保しつつ全画面で一貫した導線になるため採用。**統計/資産の URL 一貫性（`/graph`・`/portfolio` を他と揃える）は別 issue で継続検討**。
+- **会話型 AI 機能（自然言語入力解析・月次コメント生成・FABチャット）は見送り（#28/#29/#30・closed）** … #27（カテゴリAI一括推定）・AI読取スクショ・#70（前方一致ルール）の実績から、このアプリで価値が出るのは「機能に埋め込まれた自動化（ボタン一発でAI処理）」であり、会話型UI（自由入力解析・チャット常駐）は既存のUXパターンと方向性が合わないと判断。特に FABチャット（#30）は新規UI要素（常駐FAB・セッション管理・保持期間）の実装コストが大きい割に、既存の「機能組み込み型」体験と比べて得られる価値が見えにくい。今後 AI 機能を追加する際は会話型ではなく機能組み込み型を前提とする。チャットUIの設計メモ（旧「チャット設計」節）は本方針転換に伴い削除。
 - **日報のアプリ化は見送り（#32・closed）** … 投資SNSの日次日報を MoneyBoard で生成/編集/X投稿/記録簿化する構想は見送り。価値の大半が当日ニュースの web 検索＋分析＝既存 Claude 会話との差分が薄く、X自動投稿も外部・有料・OAuth でリスク過大なため。代替として **市場指標バー（#26）** のみ実装。詳細は issue #32。
 - **ポートフォリオ現況 API はオーナー固定・共有シークレット認証（#48）** … 日報生成向けの `/api/portfolio-snapshot-current` は日報対象がオーナー1名に固定のため、ユーザー JWT ではなく共有シークレット（`InternalApi__SharedSecret` / `X-Internal-Secret`）を採用。オーナーの userId は `OwnerUserId` 環境変数で直接指定（`OwnerEmail` からの検索は Cosmos クロスパーティションクエリが必要になり不要な複雑性を招くため採らない）。`/api/market-summary` と同じ認証パターンを踏襲しシークレットを共有。
   - **#37 を待たずに #48 を実装**：issue #48 は「#37 の記録処理を呼ぶ」と記述していたが、#37 は全ユーザーバッチ処理 × GitHub Actions cron の文脈。#48 は単一ユーザー × 日報スキル呼び出しであり、共通の内部ロジック（`FetchPriceAsync` + `BuildSnapshot`）を直接呼べば #37 の HTTP エンドポイントは不要と判断。issue にコメント済み。
 - **推移スナップショットの自動記録は SWA Free 据え置き＋ GitHub Actions cron→HTTP（#37）** … SWA Free の managed Functions は HTTP トリガーのみ対応（Timer トリガーは SWA Standard=有料）。Timer 相当を実現するため、Azure Functions 側に Timer を持たせず、**GitHub Actions の `schedule(cron)` から `POST /api/record-snapshots` を叩く**構成を採用（追加コスト無し）。認証は `/api/market-summary`/`/api/portfolio-snapshot-current` と同じ共有シークレットを再利用し、専用の認証系統を増やさない。全ユーザー分の価格取得は銘柄単位で重複排除してから1回だけ行い（ユーザーごとの個別取得にしない）、日々の cron 実行が外部API（Yahoo/投信協会）へ与える負荷を抑える。
 - **OpenAPI 仕様を手書き YAML + Swagger UI（GitHub Pages）で公開（#66）** … Azure Functions Isolated は ASP.NET Core と異なり Swashbuckle が直接使えない（Isolated は HTTP middleware を持たずビルド時のリフレクションが複雑）。NSwag や Microsoft.Azure.Functions.Worker.Extensions.OpenApi も追加パッケージ・スタートアップ変更を要し、ポートフォリオ用途（実際にトライアウトするわけではない）に対してコストが大きい。そのため **`docs/swagger/openapi.yaml` を手書き**してリポジトリに置き、GitHub Pages（`docs/` フォルダ）で Swagger UI（CDN）を介して公開する方式を採用。openapi.yaml はコードとともにメンテ・CI やパッケージの追加なし。GitHub Pages は repo 設定で `main` ブランチの `docs/` フォルダを Source に設定する（一度限りの手作業）。公開 URL: https://mynameistoshi.github.io/moneyboardjp/swagger/
+- **iOS/Android 展開は PWA 化のみを段階的に採用、.NET MAUI Hybrid は見送り（#67・技術スパイク）** … MoneyBoard は不特定多数への配布を想定しない**承認制の個人利用アプリ**（オーナーが承認した少数ユーザーのみ）であり、ストア掲載による発見性（レビュー・検索・カテゴリランキング）には価値がない。この前提で2経路を比較した。
+  - **PWA化（manifest + service worker）**：`wwwroot/manifest.json`＋`service-worker.js`＋`apple-touch-icon`を追加し、iOS Safari／Android Chrome の「ホーム画面に追加」でアイコン起動・スタンドアロン表示（ブラウザUIなし）を実現できる。**コスト0・ストアアカウント不要**。iOS は自動インストールプロンプト非対応（共有→「ホーム画面に追加」の手動操作が必要）、Background Sync 非対応、Web Push は iOS 16.4+ でホーム画面追加後のみ対応（VAPID等サーバー実装が別途必要・今回は対象外）。いずれも MoneyBoard の使い方（手動更新・サーバー側 Cosmos DB が正のデータソースでオフラインキャッシュはアプリシェルのみ）と衝突しない。SWA の静的ホスティングのまま追加ファイルを配信するだけで、CI/CD・デプロイ構成の変更は不要。
+  - **.NET MAUI Hybrid（BlazorWebView）**：既存の `MoneyBoard.csproj`（単一 Blazor WASM App）を Razor コンポーネントライブラリ＋MAUI ホストへ分割する構造変更が必要。iOS ビルドには**ネットワーク接続された Mac＋Xcode**が必須（GitHub Actions の macOS runner で代替可、public repo のため Actions 分数は無料）。ただし**コード署名に Apple Developer Program（$99/年）の証明書・プロビジョニングプロファイルを CI シークレットとして管理**する必要があり、現行の `dotnet-test.yml` に対して構成・秘密情報管理が大幅に増える。App Store 配布には審査（提出後 1〜3 日程度）が挟まり、**本リポジトリの「small diff→即 SWA 自動デプロイ」という速いケイデンスと相性が悪い**。Google Play は $25 の一度払いで Apple より軽いが、いずれにせよ得られる利点（プッシュ通知・生体認証・ストア発見性）は上記の通り本アプリの利用形態では価値が薄く、$99/年の継続コストと CI 複雑化に見合わない。
+  - **結論**：PWA化（manifest・service worker・アイコン一式）のみを別 issue で段階実装する。Web Push・MAUI Hybrid は不採用。将来ストア配布や生体認証など明確なネイティブ要件が生じた場合のみ MAUI Hybrid を再検討する。
 
 > **Claude API 連携（土台）／カード画像（スクショ）読み取り** は **v1.4.0 で本番リリース済み**（下記「実装済み機能」表・「Phase 4」節を参照）。
 
@@ -517,7 +521,7 @@ Transfer
 - **元本推移を取引履歴から全期間化**＋総資産/元本チャートを**日時軸（横軸 yy/MM）**・**期間切替 1W/1M/3M/6M/1Y/ALL**（元本は期間開始日にアンカー）。推移の再描画キーは `_trendRev` に分離。
 - **約定為替レート**（`BuyLot.FxRate`）：ドル建て元本(円)=Σ数量×単価×係数×約定レート（未設定は現在レート）。一覧に銘柄別「元本」列、評価損益に損益率(%)。
 - **投信元本=受渡金額**（`BuyLot.Amount`）：入力時はその額を取得原価に（口数丸めズレ解消）。`Summarize`/`CostBasisJpyAsOf` は「ロット別実取得原価の合計 →平均取得単価法で按分」（Amount 未設定・ESPP 無しなら従来と同値）。
-- **ESPP（従業員株式購入制度）**：`BuyLot.IsEspp`＋`EsppDiscount=0.15`。買付ロット単位で会社補助15%を差し引く。社員フラグ＝`AccessDoc.TsmcEmployees`（Owner マイページでチェック）。`GET /api/portfolio` は**本人ぶんの `IsTsmcEmployee` のみ**返す（Owner 常に true・非社員に UI を出さない）。ESPP 列は TSM ティッカー×社員のみ表示。
+- **ESPP（従業員株式購入制度）**：`BuyLot.IsEspp`＋`EsppDiscount=0.15`。買付ロット単位で会社補助15%を差し引く。対象社員フラグ＝`AccessDoc.EsppEligibleEmployees`（Owner マイページでチェック）。`GET /api/portfolio` は**本人ぶんの `IsEsppEligible` のみ**返す（Owner 常に true・対象外に UI を出さない）。ESPP 列は対象ティッカー（`PortfolioMath.EsppEligibleTicker`）×対象社員のみ表示。
 
 ### v1.3.2 の追加（本番反映済み・2026-06-20）
 - **米国株の円/ドル評価切替**：米国株グループ見出しの円/ドルトグルで、その**グループの評価額・評価損益・前日比の表示通貨**を一括切替（既定=円）。**元本・平均取得単価は建て通貨のまま**。換算は現在レート（`CcyFactor`／`ValDisp`／`UpnlDisp`）、為替未取得は「—」。損益率(%)は通貨非依存（建て通貨ベース）。日本株・投信は常に円。
@@ -527,7 +531,7 @@ Transfer
 - **一覧レイアウト**：**現在価格列を追加**／**口座は列を廃し銘柄名下のバッジ**（`pf-badge-sub`・名前は列幅で省略・バッジは `align-self:flex-start` で文字幅）／**評価額＋評価損益を1列に統合**（評価額の下に損益・金額メイン）／**取引列を固定幅(56px)化**してヘッダーと行のグリッドを一致（以前のヘッダーずれを解消）。列順＝銘柄名・元本・平均取得単価・数量・現在価格・評価額／損益・前日比。スマホのカードは**現在価格のみ**追加表示。
 
 ### 残タスク（→ GitHub Issues）
-- AI 機能（C案 #27 / 自然言語入力 #28 / 月次コメント #29 / FABチャット #30）は **Phase 4 の土台を再利用**。Milestone「Phase 5: AI機能拡張」。
+- AI 機能（C案 #27）は **✅ 実装済み**（Phase 4 の土台を再利用・v2.4.0 で本番リリース）。自然言語入力解析（#28）／月次コメント生成（#29）／FABチャット（#30）は会話型UIが方向性に合わないため見送り・クローズ済み（「保留中・未実装」節の ADR 参照）。
 - 市場指標バー（`/portfolio` 上部）＝ **✅ v1.5.0 で完了**（#26 closed）。
 
 ---
@@ -596,31 +600,6 @@ Chrome の mobile emulator と **iOS Safari 実機で挙動差**があると判�
 - **カード明細の日付入力欄がはみ出る**：iOS の `input[type=date]` はネイティブ装飾の最小幅で枠外へ膨らむ。mobile.css で `-webkit-appearance:none; appearance:none; min-width:0; width:100%`。
 - **シート/ダイアログの下部ボタンが下部バーに隠れる**：下部バー（`.botnav`）は in-flow で最下段在席のため、ボトムシートの削除/完了・取引ダイアログの下部ボタンと重なっていた。mobile.css で `.app-shell.is-mobile:has(.sheet-backdrop) .botnav` / `:has(.dialog-overlay) .botnav { display:none }`（**オーバーレイ表示中だけ下部バーを退避**。`:has()` は iOS Safari 15.4+）。
 - **ポートフォリオ最上部を固定**：タイトル＋総資産バーを `.pf-sticky`（`position:sticky; top:0`・統計の `graph-sticky` と同流儀）でまとめ、一覧/グラフをスクロールしても総資産が見える（PC/スマホ共通）。`Portfolio.razor` の summary バーを sticky ラッパへ移設。
-
----
-
-## チャット設計 (未実装)
-
-```
-FAB（右下💬・全画面常時表示）
-  └─ タップでチャットダイアログ出現
-
-ダイアログ
-  ├─ 最小化（—）: セッション継続・FABにドット
-  └─ 閉じる（×）: セッション終了
-
-タブ構成
-  ├─ 新規（デフォルト）
-  └─ 月別（降順・保持期間内）
-       └─ 月内は日付区切り線
-
-保持期間: 15日サイクルで2ヶ月保持・自動消去
-
-選択肢
-  月次データ更新 / 固定費の変更
-  口座の追加 / カード明細の読み込み
-  その他（自由入力）
-```
 
 ---
 

@@ -612,8 +612,8 @@
   flex-shrink: 0;
 }
 
-/* TSMC社員チェック（解除ボタンと縦位置を揃える）*/
-.access-tsmc {
+/* ESPP対象社員チェック（解除ボタンと縦位置を揃える）*/
+.access-espp {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -621,7 +621,7 @@
   white-space: nowrap;
 }
 
-.access-tsmc input {
+.access-espp input {
   margin: 0;
   accent-color: var(--accent);
 }

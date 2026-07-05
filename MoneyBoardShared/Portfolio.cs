@@ -124,8 +124,8 @@ public class PortfolioEnvelope
 {
     public string? Etag { get; set; }
     public PortfolioData Data { get; set; } = new();
-    /// <summary>リクエスト本人が TSMC 社員か（Owner は常に true）。GET 時のみサーバーが設定＝ESPP UI の表示可否。他人の状態は返さない。</summary>
-    public bool IsTsmcEmployee { get; set; }
+    /// <summary>リクエスト本人が ESPP 対象社員か（Owner は常に true）。GET 時のみサーバーが設定＝ESPP UI の表示可否。他人の状態は返さない。</summary>
+    public bool IsEsppEligible { get; set; }
 }
 
 /// <summary>POST /api/portfolio の成功レスポンス（保存後の新しい etag）。</summary>

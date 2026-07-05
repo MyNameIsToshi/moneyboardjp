@@ -16,6 +16,8 @@ public static class PortfolioMath
 
     /// <summary>ESPP（従業員株式購入制度）の会社補助＝15%。ESPP 買付の取得原価は市場価格×(1−これ)＝実拠出。</summary>
     public const decimal EsppDiscount = 0.15m;
+    /// <summary>ESPP 対象銘柄のティッカー（この銘柄×社員のみ ESPP 列を表示）。</summary>
+    public const string EsppEligibleTicker = "TSM";
     /// <summary>買付ロットの実取得単価係数（ESPP は割引後＝実際に払った価格）。</summary>
     public static decimal CostFactor(BuyLot b) => b.IsEspp ? 1m - EsppDiscount : 1m;
 

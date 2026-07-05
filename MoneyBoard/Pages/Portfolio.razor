@@ -517,7 +517,7 @@
                 {
                     var fund = h.Class == AssetClass.Fund;              // 投信は取得金額（受渡金額）列
                     var fx = h.CostCurrency == Currency.Usd;            // ドル建てのみ約定為替レート列
-                    var espp = ShowEspp(h);                              // TSM かつ社員のみ ESPP 列
+                    var espp = ShowEspp(h);                              // 対象銘柄かつ対象社員のみ ESPP 列
                     // 取得金額（拠出した円）列：投信＋円建て株（円で拠出＝為替換算せず元本にする）。ドル建ては約定為替で対応。
                     var amt = fund || (h.Class != AssetClass.Fund && h.CostCurrency == Currency.Jpy);
                     var gridCls = amt && espp ? "pf-tx-grid-espp-amt"

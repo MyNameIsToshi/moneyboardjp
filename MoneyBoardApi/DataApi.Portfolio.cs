@@ -51,12 +51,12 @@ public partial class DataApi
             var pk = new PartitionKey(userId!);
             var env = new PortfolioEnvelope();
 
-            // ESPP UI の表示可否：Owner は常に true、それ以外は access の社員リストに含まれるか。本人ぶんのみ返す。
-            if (isOwner) env.IsTsmcEmployee = true;
+            // ESPP UI の表示可否：Owner は常に true、それ以外は access の対象社員リストに含まれるか。本人ぶんのみ返す。
+            if (isOwner) env.IsEsppEligible = true;
             else
             {
                 var access = await ReadAccessAsync(container);
-                env.IsTsmcEmployee = access.TsmcEmployees.Contains(userId!);
+                env.IsEsppEligible = access.EsppEligibleEmployees.Contains(userId!);
             }
 
             try

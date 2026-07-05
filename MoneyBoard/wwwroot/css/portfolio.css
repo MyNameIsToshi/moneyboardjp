@@ -630,7 +630,7 @@
 .pf-tx-grid-fx {
   grid-template-columns: 1.1fr 0.9fr 0.9fr 0.8fr 32px;
 }
-/* ESPP（TSM・社員のみ）列を加えた5列／ドル建て＋ESPP の6列 */
+/* ESPP（対象銘柄・対象社員のみ）列を加えた5列／ドル建て＋ESPP の6列 */
 .pf-tx-grid-espp {
   grid-template-columns: 1.1fr 0.9fr 0.9fr 48px 32px;
 }
@@ -646,7 +646,7 @@
 .pf-tx-grid-amt {
   grid-template-columns: 1.1fr 0.95fr 0.95fr 0.95fr 32px;
 }
-/* 取得金額列＋ESPP列（円建てTSM・社員）の6列（約定日 数量 単価 取得金額 ESPP 削除）*/
+/* 取得金額列＋ESPP列（円建て対象銘柄・対象社員）の6列（約定日 数量 単価 取得金額 ESPP 削除）*/
 .pf-tx-grid-espp-amt {
   grid-template-columns: 1fr 0.85fr 0.85fr 0.95fr 48px 32px;
 }
