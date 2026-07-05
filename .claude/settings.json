@@ -14,8 +14,6 @@
       "PowerShell(dotnet build MoneyBoard/MoneyBoard.csproj --no-restore -v q 2>&1)",
       "PowerShell(tail -15)",
       "PowerShell(\\(Get-Content MoneyBoard/Pages/Portfolio.razor.cs | Measure-Object -Line\\).Lines; \\(Get-Content MoneyBoard/Pages/Portfolio.Disp.cs | Measure-Object -Line\\).Lines)",
-      "PowerShell(\\(Get-Item \"C:\\\\Users\\\\tsugi\\\\.claude\\\\skills\\\\release\"\\).LinkType; \\(Get-Item \"C:\\\\Users\\\\tsugi\\\\.claude\\\\skills\\\\release\"\\).Target)",
-      "Bash(grep -q \"Host lock lease acquired\\\\|Now listening on\\\\|Functions:\" \"C:\\\\Users\\\\tsugi\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Development-moneyboard\\\\80ac5b31-546a-46b4-a734-9972b3bebfcb\\\\tasks\\\\bmfpuub8n.output\")",
       "Bash(break)",
       "Bash(func start *)",
       "Bash(python -c \"import json,sys; data=json.load\\(sys.stdin\\); [print\\(f'#{d[\\\\\"number\\\\\"]} [{d[\\\\\"milestone\\\\\"][\\\\\"title\\\\\"] if d[\\\\\"milestone\\\\\"] else \\\\\"no milestone\\\\\"}] {d[\\\\\"title\\\\\"]}'\\) for d in data]\")",
@@ -33,7 +31,6 @@
       "Edit(~/.claude/skills/daily-report/**)",
       "Bash(fsutil reparsepoint *)",
       "Bash(findstr /i \"print target substitute\")",
-      "PowerShell(\\(Get-Item \"C:\\\\Users\\\\tsugi\\\\.claude\\\\skills\"\\).Target)",
       "PowerShell(dotnet test MoneyBoardShared.Tests/MoneyBoardShared.Tests.csproj --nologo -v q)",
       "PowerShell(dotnet test MoneyBoardApi.Tests/MoneyBoardApi.Tests.csproj --nologo -v q)",
       "Read(//c/Development/moneyboard/MoneyBoard/wwwroot/js/**)",
@@ -83,9 +80,6 @@
       "Bash(taskkill //F //IM azurite.exe)",
       "Bash(taskkill //F //IM dotnet.exe)",
       "Bash(taskkill //F //IM node.exe)"
-    ],
-    "additionalDirectories": [
-      "C:\\Users\\tsugi\\iCloudDrive\\02_Financial"
     ]
   }
 }
