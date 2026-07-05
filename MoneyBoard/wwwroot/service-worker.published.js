@@ -1,5 +1,6 @@
 // 本番用 service worker。静的アセット（アプリシェル）のみをキャッシュし、
 // /api/* は常にネットワークから取得する（Cosmos DB が正のデータソースのため）。
+// 更新検知はブラウザがこのファイル自体のバイト差分（先頭の Manifest version コメント含む）を比較して行う。
 self.importScripts('./service-worker-assets.js');
 
 self.addEventListener('install', event => event.waitUntil(onInstall(event)));
