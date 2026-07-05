@@ -589,10 +589,10 @@ public partial class Portfolio
         return v.HasValue ? v.Value - s.CostBasis : (decimal?)null;
     }
 
-    // ESPP 列の表示可否：本人が TSMC 社員（Owner は常に true）かつ TSM ティッカーの米国株のみ。非社員には一切出さない。
+    // ESPP 列の表示可否：本人が ESPP 対象社員（Owner は常に true）かつ ESPP 対象ティッカーの米国株のみ。対象外には一切出さない。
     private bool ShowEspp(Holding h) =>
-        Store.IsTsmcEmployee && h.Class == AssetClass.UsStock
-        && string.Equals(h.Symbol?.Trim(), "TSM", StringComparison.OrdinalIgnoreCase);
+        Store.IsEsppEligible && h.Class == AssetClass.UsStock
+        && string.Equals(h.Symbol?.Trim(), PortfolioMath.EsppEligibleTicker, StringComparison.OrdinalIgnoreCase);
 
     // スマホ：取引カードの展開状態（id 集合）。既存はたたんで表示、＋追加は自動展開。
     private readonly HashSet<string> _txOpen = new();

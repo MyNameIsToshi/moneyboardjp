@@ -521,7 +521,7 @@ Transfer
 - **元本推移を取引履歴から全期間化**＋総資産/元本チャートを**日時軸（横軸 yy/MM）**・**期間切替 1W/1M/3M/6M/1Y/ALL**（元本は期間開始日にアンカー）。推移の再描画キーは `_trendRev` に分離。
 - **約定為替レート**（`BuyLot.FxRate`）：ドル建て元本(円)=Σ数量×単価×係数×約定レート（未設定は現在レート）。一覧に銘柄別「元本」列、評価損益に損益率(%)。
 - **投信元本=受渡金額**（`BuyLot.Amount`）：入力時はその額を取得原価に（口数丸めズレ解消）。`Summarize`/`CostBasisJpyAsOf` は「ロット別実取得原価の合計 →平均取得単価法で按分」（Amount 未設定・ESPP 無しなら従来と同値）。
-- **ESPP（従業員株式購入制度）**：`BuyLot.IsEspp`＋`EsppDiscount=0.15`。買付ロット単位で会社補助15%を差し引く。社員フラグ＝`AccessDoc.TsmcEmployees`（Owner マイページでチェック）。`GET /api/portfolio` は**本人ぶんの `IsTsmcEmployee` のみ**返す（Owner 常に true・非社員に UI を出さない）。ESPP 列は TSM ティッカー×社員のみ表示。
+- **ESPP（従業員株式購入制度）**：`BuyLot.IsEspp`＋`EsppDiscount=0.15`。買付ロット単位で会社補助15%を差し引く。対象社員フラグ＝`AccessDoc.EsppEligibleEmployees`（Owner マイページでチェック）。`GET /api/portfolio` は**本人ぶんの `IsEsppEligible` のみ**返す（Owner 常に true・対象外に UI を出さない）。ESPP 列は対象ティッカー（`PortfolioMath.EsppEligibleTicker`）×対象社員のみ表示。
 
 ### v1.3.2 の追加（本番反映済み・2026-06-20）
 - **米国株の円/ドル評価切替**：米国株グループ見出しの円/ドルトグルで、その**グループの評価額・評価損益・前日比の表示通貨**を一括切替（既定=円）。**元本・平均取得単価は建て通貨のまま**。換算は現在レート（`CcyFactor`／`ValDisp`／`UpnlDisp`）、為替未取得は「—」。損益率(%)は通貨非依存（建て通貨ベース）。日本株・投信は常に円。

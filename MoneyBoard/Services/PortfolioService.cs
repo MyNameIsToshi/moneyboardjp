@@ -13,8 +13,8 @@ public class PortfolioService(HttpClient http, AuthService auth)
     private const string ApiPath = "api/portfolio";
     private string? _etag;   // サーバーの最新 etag（保存時に If-Match で送り返す）
 
-    /// <summary>直近の GET で得た「本人が TSMC 社員か」（Owner は常に true）。ESPP UI 表示判定用。</summary>
-    public bool IsTsmcEmployee { get; private set; }
+    /// <summary>直近の GET で得た「本人が ESPP 対象社員か」（Owner は常に true）。ESPP UI 表示判定用。</summary>
+    public bool IsEsppEligible { get; private set; }
 
     public async Task<PortfolioData?> LoadAsync()
     {
@@ -26,7 +26,7 @@ public class PortfolioService(HttpClient http, AuthService auth)
         var env = await resp.Content.ReadFromJsonAsync<PortfolioEnvelope>();
         if (env == null) return null;
         _etag = env.Etag;
-        IsTsmcEmployee = env.IsTsmcEmployee;
+        IsEsppEligible = env.IsEsppEligible;
         return env.Data;
     }
 
