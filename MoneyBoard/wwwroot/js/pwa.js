@@ -22,6 +22,14 @@ if ('serviceWorker' in navigator) {
                     }
                 });
             });
+
+            // ブラウザの自動更新チェックは前回チェックから24時間未満だとスキップされる仕様のため、
+            // アプリをフォアグラウンドに戻した時は明示的に更新確認する（デプロイ直後に再度開いた時も検知できるように）。
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') {
+                    registration.update();
+                }
+            });
         });
     });
 
