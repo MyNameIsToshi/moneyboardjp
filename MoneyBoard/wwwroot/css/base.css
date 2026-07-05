@@ -507,3 +507,22 @@ body {
 #blazor-error-ui a {
   color: #fff
 }
+
+#pwa-update-toast {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--accent);
+  color: #fff;
+  padding: 8px 16px;
+  font-size: 13px;
+  text-align: center;
+  z-index: 1000;
+}
+
+#pwa-update-toast a {
+  color: #fff;
+  font-weight: 600;
+  text-decoration: underline;
+}

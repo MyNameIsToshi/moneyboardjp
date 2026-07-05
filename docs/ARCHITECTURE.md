@@ -314,7 +314,7 @@ Transfer
 | Cosmos DB 移行 / ドキュメント分割（settings/month） | ✅ 完了 |
 | データ保全・楽観的並行制御（ETag）・差分保存 | ✅ 完了 |
 | Azure SWA デプロイ / CI/CD / Application Insights | ✅ 完了 |
-| PWA対応 (favicon・タイトル) | ✅ 完了 |
+| PWA化（manifest・service worker・ホーム画面追加・アプリ更新検知） | ✅ 完了（#76） |
 | フォント統一（Noto Sans JP・Google Fonts） | ✅ 完了 |
 | 起動・統計リロード時のローディング制御（スピナー＋操作不可） | ✅ 完了 |
 | Firebase認証（Googleログイン）・uid別パーティションでマルチユーザー化 | ✅ 完了（本番反映済み・v1.2.0） |
@@ -440,6 +440,13 @@ Transfer
   - **PWA化（manifest + service worker）**：`wwwroot/manifest.json`＋`service-worker.js`＋`apple-touch-icon`を追加し、iOS Safari／Android Chrome の「ホーム画面に追加」でアイコン起動・スタンドアロン表示（ブラウザUIなし）を実現できる。**コスト0・ストアアカウント不要**。iOS は自動インストールプロンプト非対応（共有→「ホーム画面に追加」の手動操作が必要）、Background Sync 非対応、Web Push は iOS 16.4+ でホーム画面追加後のみ対応（VAPID等サーバー実装が別途必要・今回は対象外）。いずれも MoneyBoard の使い方（手動更新・サーバー側 Cosmos DB が正のデータソースでオフラインキャッシュはアプリシェルのみ）と衝突しない。SWA の静的ホスティングのまま追加ファイルを配信するだけで、CI/CD・デプロイ構成の変更は不要。
   - **.NET MAUI Hybrid（BlazorWebView）**：既存の `MoneyBoard.csproj`（単一 Blazor WASM App）を Razor コンポーネントライブラリ＋MAUI ホストへ分割する構造変更が必要。iOS ビルドには**ネットワーク接続された Mac＋Xcode**が必須（GitHub Actions の macOS runner で代替可、public repo のため Actions 分数は無料）。ただし**コード署名に Apple Developer Program（$99/年）の証明書・プロビジョニングプロファイルを CI シークレットとして管理**する必要があり、現行の `dotnet-test.yml` に対して構成・秘密情報管理が大幅に増える。App Store 配布には審査（提出後 1〜3 日程度）が挟まり、**本リポジトリの「small diff→即 SWA 自動デプロイ」という速いケイデンスと相性が悪い**。Google Play は $25 の一度払いで Apple より軽いが、いずれにせよ得られる利点（プッシュ通知・生体認証・ストア発見性）は上記の通り本アプリの利用形態では価値が薄く、$99/年の継続コストと CI 複雑化に見合わない。
   - **結論**：PWA化（manifest・service worker・アイコン一式）のみを別 issue で段階実装する。Web Push・MAUI Hybrid は不採用。将来ストア配布や生体認証など明確なネイティブ要件が生じた場合のみ MAUI Hybrid を再検討する。
+- **PWA化の実装方式（#76・#67の実装）** … Blazor WASM SDK 標準の `ServiceWorker` MSBuild 連携（`MoneyBoard.csproj` に `<ServiceWorkerAssetsManifest>` プロパティ＋ `<ServiceWorker Include="wwwroot\service-worker.js" PublishedContent="wwwroot\service-worker.published.js" />`）を採用。追加 NuGet パッケージ・ビルドスクリプト変更は不要（`dotnet publish` 時に `service-worker.js` が published 版へ差し替わり、`service-worker-assets.js`＝静的アセットのハッシュ一覧が自動生成される）。
+  - **キャッシュ対象は静的アセットのみ・`/api/*` は明示的に除外**：`service-worker.published.js` の `onFetch` で `url.pathname.startsWith('/api/')` を最優先チェックし常にネットワークへ素通し。Cosmos DB が正のデータソースであるという既存方針（申し送り事項）と矛盾しないための必須ガード。
+  - **アイコンは絵文字 💰（既存 favicon と統一）＋既存アクセント色 `--accent`（`#1f3a5f`）**：新規ブランド色を増やさず、`base.css` の既存トークンをそのまま icons 生成に流用。実ファイルは PowerShell + `System.Drawing` でオンザフライ生成（`icon-192/512.png`・`icon-maskable-192/512.png`・`apple-touch-icon.png`）。追加の画像編集ツールやライセンス済みアセットへの依存なし。
+  - **アプリ更新検知→再読み込み導線**：`js/pwa.js` が新 service worker の `installed`（かつ既存 controller あり＝初回インストールでなく更新）を検知して `#pwa-update-toast`（`base.css`。既存 `#blazor-error-ui` と同じ「画面下部固定バー」パターンを踏襲）を表示。クリックで `postMessage({type:'SKIP_WAITING'})` → 新 SW が `self.skipWaiting()` → `controllerchange` を検知して自動リロード。ユーザー操作なしの強制リロードは避け、明示的なクリックを起点にした（作業中データを失わせないため）。
+    - **他タブを巻き込まない**：`skipWaiting()` は同一オリジンの全タブに反映され `controllerchange` も全タブで発火するため、`updateRequested` フラグで「このタブでクリックしたか」を管理し、クリックしていない裏タブは無操作リロードしない（未保存のデバウンス編集を保護）。
+    - **前回セッションから waiting のままの SW も検知**：`updatefound` は今回のロード後に新規インストールが始まった時のみ発火するため、`register()` 直後に `registration.waiting` を確認し、既にインストール済みで待機中の SW があればその場でトーストを出す（クリック前にタブを閉じた場合に更新が握り潰されないように）。
+  - **iOS 16.4 未満のスタンドアロン対応**：manifest の `display:standalone` は iOS 16.4+ でのみ有効なため、`index.html` に旧来の `apple-mobile-web-app-capable`（`content="yes"`）を追加。`apple-mobile-web-app-status-bar-style` は `black-translucent`（透過）だと `viewport-fit=cover` とヘッダー側の `env(safe-area-inset-top)` 対応が別途必要になり、本アプリは bottom 側の safe-area（botnav）のみ対応済みで top 側は未対応のため、既存レイアウトと衝突しないよう `default`（不透明）を採用。
 
 > **Claude API 連携（土台）／カード画像（スクショ）読み取り** は **v1.4.0 で本番リリース済み**（下記「実装済み機能」表・「Phase 4」節を参照）。
 
