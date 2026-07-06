@@ -132,12 +132,16 @@
 
         <!-- 〔収入内訳｜口座残高〕の2列ブロック -->
         <div class="graph-row2">
-            <!-- 収入の内訳推移（給料・ボーナス・臨時収入を入力名ごとに積み上げ） -->
+            <!-- 収入の内訳推移（給料・ボーナス・臨時収入[月内合算]の3系列。棒タップで名称別内訳） -->
             <div class="graph-card">
-                <h4>収入の内訳推移</h4>
+                <div class="graph-card-head">
+                    <h4>収入の内訳推移</h4>
+                    <span class="graph-card-hint">棒タップで内訳</span>
+                </div>
                 @if (IncomeBreakdown.Any())
                 {
-                    <ApexChart TItem="ChartPoint" Options="IncomeBreakdownOptions" @key="@($"inc-{PeriodKey}-{_maskRev}")">
+                    <ApexChart TItem="ChartPoint" Options="IncomeBreakdownOptions" @key="@($"inc-{PeriodKey}-{_maskRev}")"
+                               OnDataPointSelection="OnIncomeBreakdownSelected">
                         @foreach (var s in IncomeBreakdown)
                         {
                             <ApexPointSeries TItem="ChartPoint"

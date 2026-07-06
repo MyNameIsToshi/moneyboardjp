@@ -439,35 +439,35 @@ public partial class GraphPage
         _cardColors = CardSpendData.ToDictionary(s => s.Key, s => s.Color);
     }
 
-    // ③ 給料・ボーナスに加え、期間中に登場する臨時収入を入力名ごとの系列にする。
+    // ③ 給料・ボーナス・臨時収入（合算）の3系列固定（#89）。臨時収入は月ごとに入力名の
+    // 顔ぶれが変わり個別系列だと色が乱立して判別不能になるため合算1系列にまとめ、
+    // 内訳（名称別）は棒タップで OnIncomeBreakdownSelected → 既存の内訳ダイアログに委譲する。
     private void BuildIncomeBreakdown(List<string> yms)
     {
+        var otherIncome = BuildSeries(yms, ym => MonthSum(ym, l => l.Incomes.Sum(i => i.Amount)));
         var series = new List<IncomeSeries>
         {
             new("給料", SalaryData),
             new("ボーナス", BonusData),
+            new("臨時収入", otherIncome),
         };
-
-        // 期間中の臨時収入の入力名（空名は「その他収入」にまとめる）を出現順で収集
-        var names = yms
-            .SelectMany(ym => Svc.State.Months.GetValueOrDefault(ym)?.Ledgers.Values ?? Enumerable.Empty<Ledger>())
-            .SelectMany(l => l.Incomes)
-            .Select(IncomeName)
-            .Distinct()
-            .ToList();
-
-        foreach (var name in names)
-        {
-            series.Add(new(name, BuildSeries(yms, ym =>
-                MonthSum(ym, l => l.Incomes.Where(i => IncomeName(i) == name).Sum(i => i.Amount)))));
-        }
 
         // すべて 0 の系列しかない（=収入が一切ない）場合は空にしてプレースホルダ表示
         IncomeBreakdown = series.Any(s => s.Data.Any(p => p.Value != 0)) ? series : new();
 
-        // 色：給料=navy／ボーナス=緑／以降の臨時収入=ゴールド（spec §5）
-        IncomeBreakdownOptions.Colors = IncomeBreakdown
-            .Select((_, i) => i == 0 ? "#1f3a5f" : i == 1 ? "#0f6e56" : IncomeGold).ToList();
+        // 色：給料=navy／ボーナス=緑／臨時収入=ゴールド（系列が3本固定になったためローテ不要。spec §5）
+        IncomeBreakdownOptions.Colors = new List<string> { "#1f3a5f", "#0f6e56", IncomeGold };
+    }
+
+    // 収入内訳推移の棒タップ→その月の収入内訳（給料/ボーナス/臨時収入の各入力名）を
+    // 既存の内訳ダイアログ（OpenIncomeBreakdown）で表示する（コンボ棒タップと同じ導線）。
+    private void OnIncomeBreakdownSelected(SelectedData<ChartPoint> sel)
+    {
+        var yms = GetTargetYms();
+        if (sel.DataPointIndex < 0 || sel.DataPointIndex >= yms.Count) return;
+        var ym = yms[sel.DataPointIndex];
+        var label = LedgerService.Label(ym);
+        OpenIncomeBreakdown(new List<string> { ym }, $"{label}の収入内訳", $"{label}（1ヶ月）");
     }
 
     private static string IncomeName(IncomeItem i) => string.IsNullOrWhiteSpace(i.Name) ? "その他収入" : i.Name;
