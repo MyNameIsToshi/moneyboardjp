@@ -65,10 +65,19 @@
             // ATM は資産移動のためセクション合計には含めない（既存の統計集計と同じ流儀）。
             var incomeTotal = l.Salary + l.Bonus + l.Incomes.Sum(x => x.Amount);
             var spendTotal = l.Debits.Sum(d => d.Amount);
+            var netFlow = incomeTotal - spendTotal;
+            var incomeCount = 1 + (a.IsBonusAccount ? 1 : 0) + l.Incomes.Count;
+            // 収支バーの flex 比（culture 依存のカンマ/小数点区切りが CSS に混ざらないよう invariant で文字列化）。
+            var barIn = Math.Max(incomeTotal, 0.01m).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var barOut = Math.Max(spendTotal, 0.01m).ToString(System.Globalization.CultureInfo.InvariantCulture);
             // 口座カードの既定はスマホ=折りたたみ / PC=展開。_toggled は「既定からの反転」。
             var collapsed = _toggled.Contains(a.Id) ? !IsMobile : IsMobile;
             var cardOpen = _cardOpen.Contains(a.Id);
             var fixedOpen = _fixedOpen.Contains(a.Id);
+            // ゾーン開閉の既定：収入/支出/振込とも閉。_xxxToggled が展開中の口座を保持。
+            var incomeOpen = _incomeToggled.Contains(a.Id);
+            var expenseOpen = _expenseToggled.Contains(a.Id);
+            var transferOpen = _transferToggled.Contains(a.Id);
             var chip = "c" + (i % 4);
 
             <div class="acct @(bad ? "bad" : "") @(collapsed ? "collapsed" : "")">
@@ -86,159 +95,217 @@
 
                 @if (!collapsed)
                 {
-                    @* 月初残高：表示専用（前月末から自動）。起点月のみ開始残高を入力。 *@
-                    <div class="opening-box">
-                        <div class="opening-lab">
-                            <span>月初残高</span>
-                            <span class="hint">@(isAnchor ? "開始残高（起点）" : "前月末より自動")</span>
+                    @* 月初残高は畳んだカードでは表示しないため、展開時のみ計算する（CloseOf 側の内部計算と合わせ二重にはなるが、
+                       畳んだ口座・畳んだ月では計算自体を省く）。 *@
+                    var opening = Svc.OpeningOf(Svc.CurrentMonth, a.Id);
+
+                    @* ヒーロー：月末残高（見込み）を主役化。収支ピル＋収支バー＋月初/収入/支出の補助行。 *@
+                    <div class="acct-hero">
+                        <div class="acct-hero-top">
+                            <div class="acct-hero-lab">月末残高（見込み）</div>
+                            @* マスク時は収支の増減方向（アイコン・色）も伏せる。数値だけでなく符号も個人情報のため。 *@
+                            <div class="acct-hero-pill @(IsMasked ? "masked" : (netFlow < 0 ? "bad" : ""))">
+                                <span class="msym">@(IsMasked ? "trending_flat" : (netFlow < 0 ? "trending_down" : "trending_up"))</span>@MaskedSignedYen(IsMasked,netFlow)
+                            </div>
                         </div>
-                        @if (isAnchor)
-                        {
-                            <AmountInput Value="@l.Confirmed" ValueChanged="v => { l.Confirmed = v; Svc.RequestSave(); }" />
-                        }
-                        else
-                        {
-                            var opening = Svc.OpeningOf(Svc.CurrentMonth, a.Id);
-                            <span class="opening-auto @(opening < 0 ? "neg" : "")">@MaskedYen(IsMasked,opening)</span>
-                        }
+                        <div class="acct-hero-val @(bad ? "neg" : "")">@MaskedYen(IsMasked,close)</div>
+                        @* マスク時は収支バーの塗り分けが比率を漏らさないよう均等表示にする。 *@
+                        <div class="acct-hero-bar">
+                            <span class="bar-in" style="flex:@(IsMasked ? "1" : barIn)"></span>
+                            <span class="bar-out" style="flex:@(IsMasked ? "1" : barOut)"></span>
+                        </div>
+                        <div class="acct-hero-sub">
+                            <span class="@(opening < 0 ? "neg" : "")">月初 @MaskedYen(IsMasked,opening)</span>
+                            <span>収入 @MaskedYen(IsMasked,incomeTotal)</span>
+                            <span>支出 @MaskedYen(IsMasked,spendTotal)</span>
+                        </div>
                     </div>
 
-                    <div class="sec">
-                        <h4>収入 <span class="sec-total">@MaskedYen(IsMasked,incomeTotal)</span></h4>
-                        <div class="field">
-                            <label>給料</label>
-                            <AmountInput Value="@l.Salary" ValueChanged="v => { l.Salary = v; Svc.RequestSave(); }" />
-                        </div>
-                        @if (a.IsBonusAccount)
-                        {
-                            <div class="field">
-                                <label>ボーナス <span class="bonus-tag">受取口座</span></label>
-                                <AmountInput Value="@l.Bonus" ValueChanged="v => { l.Bonus = v; Svc.RequestSave(); }" />
-                            </div>
-                        }
-                        <div class="sub-line">
-                            <span>その他</span>
-                            <button class="add-line" @onclick="() => AddIncome(a.Id)"><span class="msym">add</span>追加</button>
-                        </div>
-                        @* ATM入金（一番上に固定・資産移動のため統計には含めない） *@
-                        <div class="row atm-row">
-                            <span class="atm-label"><span class="msym">local_atm</span> ATM入金</span>
-                            <AmountInput CssClass="amt" Value="@l.AtmDeposit" ValueChanged="v => { l.AtmDeposit = v; Svc.RequestSave(); }" />
-                        </div>
-                        @foreach (var inc in l.Incomes)
-                        {
-                            <div class="row">
-                                <input class="name" @bind="inc.Name" @bind:after="Save" placeholder="収入名（例：副業・還付金）" />
-                                <AmountInput CssClass="amt" Value="@inc.Amount" ValueChanged="v => { inc.Amount = v; Svc.RequestSave(); }" />
-                                <button class="x" @onclick="() => RemoveIncome(a.Id, inc.Id)">✕</button>
-                            </div>
-                        }
-                    </div>
-
-                    <div class="sec">
-                        <h4>支出 <span class="sec-total">@MaskedYen(IsMasked,spendTotal)</span></h4>
-                        @* 固定費＝表示専用（折りたたみ）。金額の変更は固定費設定タブから。 *@
-                        @if (fixedDebits.Count > 0)
-                        {
-                            <div class="fold @(fixedOpen ? "open" : "")">
-                                <button class="fold-head" @onclick="() => ToggleFixed(a.Id)">
-                                    <span class="fold-head-lab"><span class="msym">lock</span> 固定費 @fixedDebits.Count 件</span>
-                                    <span class="fold-head-right">
-                                        <span class="fold-total">@MaskedYen(IsMasked,fixedDebits.Sum(d => d.Amount))</span>
-                                        <span class="msym fold-chev">@(fixedOpen ? "expand_less" : "expand_more")</span>
-                                    </span>
-                                </button>
-                                @if (fixedOpen)
-                                {
-                                    <div class="fold-list">
-                                        @foreach (var d in fixedDebits)
-                                        {
-                                            <div class="fixed-row">
-                                                <span class="fixed-name">@d.Name</span>
-                                                <span class="msym fixed-lock" title="固定費マスタから展開">lock</span>
-                                                <span class="fixed-amt">@MaskedYen(IsMasked,d.Amount)</span>
-                                            </div>
-                                        }
-                                    </div>
-                                }
-                            </div>
-                        }
-                        @* カード由来＝表示専用（折りたたみ）。展開で各カードへのリンク行。 *@
-                        @if (cardDebits.Count > 0)
-                        {
-                            <div class="fold @(cardOpen ? "open" : "")">
-                                <button class="fold-head" @onclick="() => ToggleCardBlock(a.Id)">
-                                    <span class="fold-head-lab"><span class="msym">credit_card</span> カード @cardDebits.Count 件</span>
-                                    <span class="fold-head-right">
-                                        <span class="fold-total">@MaskedYen(IsMasked,cardDebits.Sum(d => d.Amount))</span>
-                                        <span class="msym fold-chev">@(cardOpen ? "expand_less" : "expand_more")</span>
-                                    </span>
-                                </button>
-                                @if (cardOpen)
-                                {
-                                    <div class="fold-list">
-                                        @foreach (var d in cardDebits)
-                                        {
-                                            <div class="row card-row" @onclick="() => GoToCard(d.CardId)" title="カードタブで明細を編集">
-                                                <span class="name card-name"><span class="msym">credit_card</span> @d.Name</span>
-                                                <span class="amt card-amt">@MaskedYen(IsMasked,d.Amount)</span>
-                                                <span class="card-arrow msym">chevron_right</span>
-                                            </div>
-                                        }
-                                    </div>
-                                }
-                            </div>
-                        }
-                        @* ATM出金（資産移動のため統計には含めない） *@
-                        <div class="row atm-row">
-                            <span class="atm-label"><span class="msym">local_atm</span> ATM出金</span>
-                            <AmountInput CssClass="amt" Value="@l.AtmWithdraw" ValueChanged="v => { l.AtmWithdraw = v; Svc.RequestSave(); }" />
-                        </div>
-                        <div class="sub-line">
-                            <span>手入力</span>
-                            <button class="add-line" @onclick="() => AddDebit(a.Id)"><span class="msym">add</span>追加</button>
-                        </div>
-                        @foreach (var d in manualDebits)
-                        {
-                            <div class="row">
-                                <input class="name" @bind="d.Name" @bind:after="Save" placeholder="項目" />
-                                <AmountInput CssClass="amt" Value="@d.Amount" ValueChanged="v => { d.Amount = v; Svc.RequestSave(); }" />
-                                <button class="x" @onclick="() => RemoveDebit(a.Id, d.Id)">✕</button>
-                            </div>
-                        }
-                    </div>
-
-                    <div class="sec">
-                        <h4>口座間振込（送金） <button class="add-line" @onclick="() => AddTransfer(a.Id)"><span class="msym">add</span>追加</button></h4>
-                        @if (!outgoing.Any()) { <div class="none">なし</div> }
-                        @foreach (var t in outgoing)
-                        {
-                            <div class="row">
-                                <select class="name" @bind="t.To" @bind:after="Save">
-                                    @foreach (var o in others)
-                                    {
-                                        <option value="@o.Id">@o.Name へ</option>
-                                    }
-                                </select>
-                                <AmountInput CssClass="amt" Value="@t.Amount" ValueChanged="v => { t.Amount = v; Svc.RequestSave(); }" />
-                                <button class="x" @onclick="() => RemoveTransfer(t.Id)">✕</button>
-                            </div>
-                        }
-                    </div>
-
-                    @if (incoming.Any())
+                    @* 月初残高の手入力は起点月のみ（通常月は上のヒーロー補助行に畳む＝表示専用）。 *@
+                    @if (isAnchor)
                     {
-                        <div class="sec">
-                            <h4>受取（他口座より）</h4>
-                            @foreach (var t in incoming)
-                            {
-                                <div class="xfer-line">
-                                    <span>@Svc.AccountName(t.From) より</span>
-                                    <span class="in">+@MaskedYen(IsMasked,t.Amount)</span>
-                                </div>
-                            }
+                        <div class="opening-box anchor">
+                            <div class="opening-lab">
+                                <span>月初残高 <span class="opening-badge">起点</span></span>
+                                <span class="hint">初月のため手入力</span>
+                            </div>
+                            <AmountInput CssClass="num opening-input" Value="@l.Confirmed" ValueChanged="v => { l.Confirmed = v; Svc.RequestSave(); }" />
                         </div>
                     }
+
+                    @* 収入ゾーン（緑・既定=閉） *@
+                    <div class="zone zone-income">
+                        <button class="zone-head" @onclick="() => ToggleIncome(a.Id)">
+                            <span class="zone-chip zone-chip-income msym">trending_up</span>
+                            <span class="zone-name zone-name-income">収入</span>
+                            <span class="zone-count">@incomeCount 件</span>
+                            <span class="zone-spacer"></span>
+                            <span class="zone-subtotal zone-subtotal-income">@MaskedSignedYen(IsMasked,incomeTotal)</span>
+                            <span class="msym zone-chev">@(incomeOpen ? "expand_less" : "expand_more")</span>
+                        </button>
+                        @if (incomeOpen)
+                        {
+                            <div class="zone-body">
+                                <div class="field">
+                                    <label>給料</label>
+                                    <AmountInput CssClass="num" Value="@l.Salary" ValueChanged="v => { l.Salary = v; Svc.RequestSave(); }" />
+                                </div>
+                                @if (a.IsBonusAccount)
+                                {
+                                    <div class="field">
+                                        <label>ボーナス <span class="bonus-tag">受取口座</span></label>
+                                        <AmountInput CssClass="num" Value="@l.Bonus" ValueChanged="v => { l.Bonus = v; Svc.RequestSave(); }" />
+                                    </div>
+                                }
+                                @* ATM入金（資産移動のため統計には含めない） *@
+                                <div class="row atm-row">
+                                    <span class="atm-label"><span class="msym">local_atm</span> ATM入金</span>
+                                    <AmountInput CssClass="amt" Value="@l.AtmDeposit" ValueChanged="v => { l.AtmDeposit = v; Svc.RequestSave(); }" />
+                                </div>
+                                @foreach (var inc in l.Incomes)
+                                {
+                                    <div class="row">
+                                        <input class="name" @bind="inc.Name" @bind:after="Save" placeholder="収入名（例：副業・還付金）" />
+                                        <AmountInput CssClass="amt" Value="@inc.Amount" ValueChanged="v => { inc.Amount = v; Svc.RequestSave(); }" />
+                                        <button class="x" @onclick="() => RemoveIncome(a.Id, inc.Id)">✕</button>
+                                    </div>
+                                }
+                                <button class="add-line" @onclick="() => AddIncome(a.Id)"><span class="msym">add</span>収入を追加</button>
+                            </div>
+                        }
+                    </div>
+
+                    @* 支出ゾーン（赤・既定=閉）。固定費/カードは表示専用サマリ行、手入力のみ input。 *@
+                    <div class="zone zone-expense">
+                        <button class="zone-head" @onclick="() => ToggleExpense(a.Id)">
+                            <span class="zone-chip zone-chip-expense msym">trending_down</span>
+                            <span class="zone-name zone-name-expense">支出</span>
+                            <span class="zone-count">固定費・カード他</span>
+                            <span class="zone-spacer"></span>
+                            <span class="zone-subtotal zone-subtotal-expense">@MaskedSignedYen(IsMasked,-spendTotal)</span>
+                            <span class="msym zone-chev">@(expenseOpen ? "expand_less" : "expand_more")</span>
+                        </button>
+                        @if (expenseOpen)
+                        {
+                            <div class="zone-body">
+                                @* 固定費＝表示専用（折りたたみ）。金額の変更は固定費設定タブから。 *@
+                                @if (fixedDebits.Count > 0)
+                                {
+                                    <div class="fold @(fixedOpen ? "open" : "")">
+                                        <button class="fold-head" @onclick="() => ToggleFixed(a.Id)">
+                                            <span class="fold-head-lab"><span class="msym">lock</span> 固定費 @fixedDebits.Count 件</span>
+                                            <span class="fold-head-right">
+                                                <span class="fold-total">@MaskedYen(IsMasked,fixedDebits.Sum(d => d.Amount))</span>
+                                                <span class="msym fold-chev">@(fixedOpen ? "expand_less" : "expand_more")</span>
+                                            </span>
+                                        </button>
+                                        @if (fixedOpen)
+                                        {
+                                            <div class="fold-list">
+                                                @foreach (var d in fixedDebits)
+                                                {
+                                                    <div class="fixed-row">
+                                                        <span class="fixed-name">@d.Name</span>
+                                                        <span class="msym fixed-lock" title="固定費マスタから展開">lock</span>
+                                                        <span class="fixed-amt">@MaskedYen(IsMasked,d.Amount)</span>
+                                                    </div>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                                @* カード由来＝表示専用（折りたたみ）。展開で各カードへのリンク行。 *@
+                                @if (cardDebits.Count > 0)
+                                {
+                                    <div class="fold @(cardOpen ? "open" : "")">
+                                        <button class="fold-head" @onclick="() => ToggleCardBlock(a.Id)">
+                                            <span class="fold-head-lab"><span class="msym">credit_card</span> カード @cardDebits.Count 件</span>
+                                            <span class="fold-head-right">
+                                                <span class="fold-total">@MaskedYen(IsMasked,cardDebits.Sum(d => d.Amount))</span>
+                                                <span class="msym fold-chev">@(cardOpen ? "expand_less" : "expand_more")</span>
+                                            </span>
+                                        </button>
+                                        @if (cardOpen)
+                                        {
+                                            <div class="fold-list">
+                                                @foreach (var d in cardDebits)
+                                                {
+                                                    <div class="row card-row" @onclick="() => GoToCard(d.CardId)" title="カードタブで明細を編集">
+                                                        <span class="name card-name"><span class="msym">credit_card</span> @d.Name</span>
+                                                        <span class="amt card-amt">@MaskedYen(IsMasked,d.Amount)</span>
+                                                        <span class="card-arrow msym">chevron_right</span>
+                                                    </div>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                                @* ATM出金（資産移動のため統計には含めない） *@
+                                <div class="row atm-row">
+                                    <span class="atm-label"><span class="msym">local_atm</span> ATM出金</span>
+                                    <AmountInput CssClass="amt" Value="@l.AtmWithdraw" ValueChanged="v => { l.AtmWithdraw = v; Svc.RequestSave(); }" />
+                                </div>
+                                @foreach (var d in manualDebits)
+                                {
+                                    <div class="row">
+                                        <input class="name" @bind="d.Name" @bind:after="Save" placeholder="項目" />
+                                        <AmountInput CssClass="amt" Value="@d.Amount" ValueChanged="v => { d.Amount = v; Svc.RequestSave(); }" />
+                                        <button class="x" @onclick="() => RemoveDebit(a.Id, d.Id)">✕</button>
+                                    </div>
+                                }
+                                <button class="add-line" @onclick="() => AddDebit(a.Id)"><span class="msym">add</span>支出を追加</button>
+                            </div>
+                        }
+                    </div>
+
+                    @* 振込ゾーン（グレー・既定=閉）。送金（編集可）＋受取（他口座より・表示専用）。
+                       小計＝送金(流出)−受取(流入)。正＝純流出（−¥表示）／負＝純流入（+¥表示）で、収入/支出ゾーンと符号の向きを揃える。 *@
+                    var transferNet = outgoing.Sum(t => t.Amount) - incoming.Sum(t => t.Amount);
+                    <div class="zone zone-transfer">
+                        <button class="zone-head" @onclick="() => ToggleTransfer(a.Id)">
+                            <span class="zone-chip zone-chip-transfer msym">swap_horiz</span>
+                            <span class="zone-name zone-name-transfer">振込</span>
+                            <span class="zone-count">@(outgoing.Count + incoming.Count) 件</span>
+                            <span class="zone-spacer"></span>
+                            @if (outgoing.Any() || incoming.Any())
+                            {
+                                <span class="zone-subtotal zone-subtotal-transfer">@MaskedSignedYen(IsMasked,-transferNet)</span>
+                            }
+                            <span class="msym zone-chev">@(transferOpen ? "expand_less" : "expand_more")</span>
+                        </button>
+                        @if (transferOpen)
+                        {
+                            <div class="zone-body">
+                                @if (!outgoing.Any() && !incoming.Any()) { <div class="none">なし</div> }
+                                @foreach (var t in outgoing)
+                                {
+                                    <div class="row">
+                                        <select class="name" @bind="t.To" @bind:after="Save">
+                                            @foreach (var o in others)
+                                            {
+                                                <option value="@o.Id">@o.Name へ</option>
+                                            }
+                                        </select>
+                                        <AmountInput CssClass="amt" Value="@t.Amount" ValueChanged="v => { t.Amount = v; Svc.RequestSave(); }" />
+                                        <button class="x" @onclick="() => RemoveTransfer(t.Id)">✕</button>
+                                    </div>
+                                }
+                                <button class="add-line" @onclick="() => AddTransfer(a.Id)"><span class="msym">add</span>振込を追加</button>
+                                @if (incoming.Any())
+                                {
+                                    <div class="xfer-in-list">
+                                        @foreach (var t in incoming)
+                                        {
+                                            <div class="xfer-line">
+                                                <span>@Svc.AccountName(t.From) より受取</span>
+                                                <span class="in">+@MaskedYen(IsMasked,t.Amount)</span>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
 
                     <div class="close">
                         <div class="lab">月末残高</div>
@@ -269,6 +336,11 @@
     private readonly HashSet<string> _cardOpen = new();
     private readonly HashSet<string> _fixedOpen = new();
 
+    // 収入/支出/振込ゾーンの開閉（口座IDを保持）。既定はすべて閉、_xxxToggled は展開中の口座。
+    private readonly HashSet<string> _incomeToggled = new();
+    private readonly HashSet<string> _expenseToggled = new();
+    private readonly HashSet<string> _transferToggled = new();
+
     // 現在月以降は IsDeleted の口座を非表示、過去月はキープ
     private List<Account> ActiveAccountsForMonth
     {
@@ -297,6 +369,9 @@
     private void ToggleAccount(string aid) { if (!_toggled.Add(aid)) _toggled.Remove(aid); }
     private void ToggleCardBlock(string aid) { if (!_cardOpen.Add(aid)) _cardOpen.Remove(aid); }
     private void ToggleFixed(string aid) { if (!_fixedOpen.Add(aid)) _fixedOpen.Remove(aid); }
+    private void ToggleIncome(string aid) { if (!_incomeToggled.Add(aid)) _incomeToggled.Remove(aid); }
+    private void ToggleExpense(string aid) { if (!_expenseToggled.Add(aid)) _expenseToggled.Remove(aid); }
+    private void ToggleTransfer(string aid) { if (!_transferToggled.Add(aid)) _transferToggled.Remove(aid); }
 
     // 起点月（State.Months 最古）より過去へは戻れない
     private bool IsPrevDisabled =>
