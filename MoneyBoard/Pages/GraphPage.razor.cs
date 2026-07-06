@@ -14,7 +14,7 @@ public partial class GraphPage
     private string SelectedPeriod = "3";
     private Dictionary<string, string> Periods = new()
     {
-        { "3", "3ヶ月" }, { "6", "6ヶ月" }, { "12", "12ヶ月" }, { "all", "全期間" }
+        { "current", "当月" }, { "3", "3ヶ月" }, { "6", "6ヶ月" }, { "12", "12ヶ月" }, { "all", "全期間" }
     };
 
     private List<ChartPoint> MonthlyDebitData = new();
@@ -309,8 +309,10 @@ public partial class GraphPage
     private void OnCustomChanged() { _detail = null; _breakdown = null; BuildChartData(); }
 
     // 期間選択→対象 ym（昇順）。計算本体は StatsMath（純粋ロジック・テスト対象）へ委譲する。
+    // 「当月」は未来月を先行作成済みでも実際の給料サイクル(15日〜14日)を指すよう、
+    // 現在時刻に依存する起点計算だけ LedgerService（呼び出し側）から渡す。
     private List<string> GetTargetYms() =>
-        StatsMath.SelectPeriodYms(AllYmsAsc, SelectedPeriod, _customStart, _customEnd);
+        StatsMath.SelectPeriodYms(AllYmsAsc, SelectedPeriod, _customStart, _customEnd, LedgerService.CurrentCycleStartYm());
 
     // 現在の対象期間を実際の月で明記する（例: 2026年3月 〜 2026年6月（4ヶ月））
     private string RangeLabel

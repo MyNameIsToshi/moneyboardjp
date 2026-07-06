@@ -24,6 +24,32 @@ public class StatsMathTests
     }
 
     [Fact]
+    public void SelectPeriodYms_Current_ReturnsCurrentCycleMonthOnly()
+    {
+        // 「当月」（#88）＝ currentYm と一致する月のみ。
+        var r = StatsMath.SelectPeriodYms(Yms, "current", "", "", "2026-05");
+        Assert.Equal(new[] { "2026-05" }, r);
+    }
+
+    [Fact]
+    public void SelectPeriodYms_Current_IgnoresFutureMonthAlreadyCreated()
+    {
+        // 未来月（2026-06）を先行作成済みでも、給料サイクル起点(currentYm=2026-05)を
+        // ピンポイントで返す（TakeLast(1) だと最新作成月を誤って拾ってしまうため）。
+        var r = StatsMath.SelectPeriodYms(Yms, "current", "", "", "2026-05");
+        Assert.Equal(new[] { "2026-05" }, r);
+        Assert.DoesNotContain("2026-06", r);
+    }
+
+    [Fact]
+    public void SelectPeriodYms_Current_NotYetCreated_ReturnsEmpty()
+    {
+        // 当月サイクルのレコードがまだ無ければ空（該当なし）。
+        var r = StatsMath.SelectPeriodYms(Yms, "current", "", "", "2026-07");
+        Assert.Empty(r);
+    }
+
+    [Fact]
     public void SelectPeriodYms_NumericLargerThanCount_ClampsToAll()
     {
         // 直近12ヶ月を要求しても6件しか無ければ6件（TakeLast がクランプ）
