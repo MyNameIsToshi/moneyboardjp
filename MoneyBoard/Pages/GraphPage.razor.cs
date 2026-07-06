@@ -160,22 +160,29 @@ public partial class GraphPage
 
     private record DetailModal(string Title, string Color, int Count, decimal Total, List<DetailDialog.DetailRow> Rows, bool ShowCategorize);
 
-    // ── 収入/支出の項目別内訳モーダル（④・⑤から起動。期間合計で集計）──
-    private record BreakdownModal(string Title, decimal Total, List<BreakdownDialog.BreakdownItem> Items);
+    // ── 収入/支出の項目別内訳モーダル（④・⑤から起動＝期間合計。コンボ棒タップ＝タップした月のみ）──
+    private record BreakdownModal(string Title, string SubLabel, decimal Total, List<BreakdownDialog.BreakdownItem> Items);
     private BreakdownModal? _breakdown;
     private void CloseBreakdown() => _breakdown = null;
 
-    // メインコンボの収入棒→収入内訳、支出棒→支出内訳（系列0=収入, 1=支出, 2=収支線=ドリルダウンなし）
+    // メインコンボの収入棒→収入内訳、支出棒→支出内訳（系列0=収入, 1=支出, 2=収支線=ドリルダウンなし）。
+    // DataPointIndex＝タップした月（GetTargetYms() の並びと一致）で対象月を1つだけに絞る。
     private void OnIncomeVsExpenseSelected(SelectedData<ChartPoint> sel)
     {
-        if (sel.SeriesIndex == 0) OpenIncomeBreakdown();
-        else if (sel.SeriesIndex == 1) OpenExpenseBreakdown();
+        var yms = GetTargetYms();
+        if (sel.DataPointIndex < 0 || sel.DataPointIndex >= yms.Count) return;
+        var ym = yms[sel.DataPointIndex];
+        var label = LedgerService.Label(ym);
+        if (sel.SeriesIndex == 0) OpenIncomeBreakdown(new List<string> { ym }, $"{label}の収入内訳", $"{label}（1ヶ月）");
+        else if (sel.SeriesIndex == 1) OpenExpenseBreakdown(new List<string> { ym }, $"{label}の支出内訳", $"{label}（1ヶ月）");
     }
 
-    // 対象期間の収入を項目（給料/ボーナス/各臨時収入名）で合算
-    private void OpenIncomeBreakdown()
+    // ④の「収入 合計」ボタン用（対象期間全体を集計）
+    private void OpenIncomeBreakdown() => OpenIncomeBreakdown(GetTargetYms(), "収入の内訳", RangeLabel);
+
+    // 指定 yms の収入を項目（給料/ボーナス/各臨時収入名）で合算
+    private void OpenIncomeBreakdown(List<string> yms, string title, string subLabel)
     {
-        var yms = GetTargetYms();
         var items = new List<BreakdownDialog.BreakdownItem>
         {
             new("給料", yms.Sum(ym => MonthSum(ym, l => l.Salary))),
@@ -188,13 +195,15 @@ public partial class GraphPage
             .Select(g => new BreakdownDialog.BreakdownItem(g.Key, g.Sum(i => i.Amount))));
 
         items = items.Where(x => x.Amount != 0).OrderByDescending(x => x.Amount).ToList();
-        _breakdown = new("収入の内訳", items.Sum(x => x.Amount), items);
+        _breakdown = new(title, subLabel, items.Sum(x => x.Amount), items);
     }
 
-    // 対象期間の支出を項目（月次の Debit 名。カードはカード名で1項目・ATMは対象外）で合算
-    private void OpenExpenseBreakdown()
+    // ⑤の「支出 合計」ボタン用（対象期間全体を集計）
+    private void OpenExpenseBreakdown() => OpenExpenseBreakdown(GetTargetYms(), "支出の内訳", RangeLabel);
+
+    // 指定 yms の支出を項目（月次の Debit 名。カードはカード名で1項目・ATMは対象外）で合算
+    private void OpenExpenseBreakdown(List<string> yms, string title, string subLabel)
     {
-        var yms = GetTargetYms();
         var items = yms
             .SelectMany(ym => Svc.State.Months.GetValueOrDefault(ym)?.Ledgers.Values ?? Enumerable.Empty<Ledger>())
             .SelectMany(l => l.Debits)
@@ -203,7 +212,7 @@ public partial class GraphPage
             .Where(x => x.Amount != 0)
             .OrderByDescending(x => x.Amount)
             .ToList();
-        _breakdown = new("支出の内訳", items.Sum(x => x.Amount), items);
+        _breakdown = new(title, subLabel, items.Sum(x => x.Amount), items);
     }
 
     // 対象期間の固定費を項目（固定費マスタID）ごとに合算。マスタの現在値を再計算するのではなく、
@@ -221,7 +230,7 @@ public partial class GraphPage
             .Where(x => x.Amount != 0)
             .OrderByDescending(x => x.Amount)
             .ToList();
-        _breakdown = new("固定費の内訳", items.Sum(x => x.Amount), items);
+        _breakdown = new("固定費の内訳", RangeLabel, items.Sum(x => x.Amount), items);
     }
 
     private List<SpendSlice> CardSpendData = new();

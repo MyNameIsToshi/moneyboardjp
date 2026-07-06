@@ -211,7 +211,7 @@
 
     @if (_breakdown is not null)
     {
-        <BreakdownDialog Title="@_breakdown.Title" SubLabel="@RangeLabel"
+        <BreakdownDialog Title="@_breakdown.Title" SubLabel="@_breakdown.SubLabel"
                          Total="_breakdown.Total" Items="_breakdown.Items"
                          OnClose="CloseBreakdown" />
     }
