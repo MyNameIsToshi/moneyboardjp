@@ -272,6 +272,9 @@ public partial class GraphPage
 
     private List<string> AllYmsAsc => Svc.State.Months.Keys.OrderBy(x => x).ToList();
 
+    // チャート @key 用。"custom" は SelectedPeriod だけでは変化を検出できないため _customStart/_customEnd を含める。
+    private string PeriodKey => SelectedPeriod == "custom" ? $"custom-{_customStart}-{_customEnd}" : SelectedPeriod;
+
     protected override async Task OnInitializedAsync() => await Load();
 
     private async Task Load()

@@ -105,7 +105,7 @@
             </div>
             @if (IncomeData.Any())
             {
-                <ApexChart TItem="ChartPoint" Options="ComboOptions" @key="@($"combo-{SelectedPeriod}-{_maskRev}")"
+                <ApexChart TItem="ChartPoint" Options="ComboOptions" @key="@($"combo-{PeriodKey}-{_maskRev}")"
                            OnDataPointSelection="OnIncomeVsExpenseSelected">
                     <ApexPointSeries TItem="ChartPoint"
                                      Items="IncomeData"
@@ -137,7 +137,7 @@
                 <h4>収入の内訳推移</h4>
                 @if (IncomeBreakdown.Any())
                 {
-                    <ApexChart TItem="ChartPoint" Options="IncomeBreakdownOptions" @key="@($"inc-{SelectedPeriod}-{_maskRev}")">
+                    <ApexChart TItem="ChartPoint" Options="IncomeBreakdownOptions" @key="@($"inc-{PeriodKey}-{_maskRev}")">
                         @foreach (var s in IncomeBreakdown)
                         {
                             <ApexPointSeries TItem="ChartPoint"
@@ -157,7 +157,7 @@
                 <h4>口座別 月末残高推移</h4>
                 @if (BalanceSeriesData.Any())
                 {
-                    <ApexChart TItem="ChartPoint" Options="BalanceLineOptions" @key="@($"bal-{SelectedPeriod}-{_maskRev}")">
+                    <ApexChart TItem="ChartPoint" Options="BalanceLineOptions" @key="@($"bal-{PeriodKey}-{_maskRev}")">
                         @foreach (var series in BalanceSeriesData)
                         {
                             <ApexPointSeries TItem="ChartPoint"
@@ -181,7 +181,7 @@
                                 Items="CategorySpendData"
                                 Total="CategoryTotal"
                                 Options="DonutOptions"
-                                RenderKey="@($"cat-{SelectedPeriod}-{_maskRev}")"
+                                RenderKey="@($"cat-{PeriodKey}-{_maskRev}")"
                                 EmptyMessage="カード明細がありません"
                                 OnRowClick="OpenCatDetail"
                                 OnSliceSelected="OnSliceSelected" />
@@ -192,7 +192,7 @@
                                 Items="CardSpendData"
                                 Total="CardTotal"
                                 Options="CardDonutOptions"
-                                RenderKey="@($"card-{SelectedPeriod}-{_maskRev}")"
+                                RenderKey="@($"card-{PeriodKey}-{_maskRev}")"
                                 EmptyMessage="カード明細がありません"
                                 OnRowClick="OpenCardDetail"
                                 OnSliceSelected="OnCardSliceSelected" />
