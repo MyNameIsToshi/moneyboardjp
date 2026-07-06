@@ -188,8 +188,7 @@ public partial class GraphPage
             new("給料", yms.Sum(ym => MonthSum(ym, l => l.Salary))),
             new("ボーナス", yms.Sum(ym => MonthSum(ym, l => l.Bonus))),
         };
-        items.AddRange(yms
-            .SelectMany(ym => Svc.State.Months.GetValueOrDefault(ym)?.Ledgers.Values ?? Enumerable.Empty<Ledger>())
+        items.AddRange(LedgersIn(yms)
             .SelectMany(l => l.Incomes)
             .GroupBy(IncomeName)
             .Select(g => new BreakdownDialog.BreakdownItem(g.Key, g.Sum(i => i.Amount))));
@@ -204,8 +203,7 @@ public partial class GraphPage
     // 指定 yms の支出を項目（月次の Debit 名。カードはカード名で1項目・ATMは対象外）で合算
     private void OpenExpenseBreakdown(List<string> yms, string title, string subLabel)
     {
-        var items = yms
-            .SelectMany(ym => Svc.State.Months.GetValueOrDefault(ym)?.Ledgers.Values ?? Enumerable.Empty<Ledger>())
+        var items = LedgersIn(yms)
             .SelectMany(l => l.Debits)
             .GroupBy(d => string.IsNullOrWhiteSpace(d.Name) ? "（名称なし）" : d.Name)
             .Select(g => new BreakdownDialog.BreakdownItem(g.Key, g.Sum(d => d.Amount)))
@@ -221,8 +219,7 @@ public partial class GraphPage
     private void OpenFixedBreakdown()
     {
         var yms = GetTargetYms();
-        var items = yms
-            .SelectMany(ym => Svc.State.Months.GetValueOrDefault(ym)?.Ledgers.Values ?? Enumerable.Empty<Ledger>())
+        var items = LedgersIn(yms)
             .SelectMany(l => l.Debits)
             .Where(d => d.IsFixed)
             .GroupBy(d => d.FixedCostId ?? d.Name)
@@ -368,9 +365,7 @@ public partial class GraphPage
     private void BuildCategorySpend(List<string> yms)
     {
         // 月をまたいで明細を集める（ドリルダウン表示用に日付降順で保持）
-        var details = yms
-            .SelectMany(ym => Svc.State.Months.GetValueOrDefault(ym)?.CardDetails ?? Enumerable.Empty<CardDetail>())
-            .ToList();
+        var details = CardDetailsIn(yms);
 
         var groups = details.GroupBy(d => d.CategoryId ?? "").ToList();
 
@@ -407,9 +402,7 @@ public partial class GraphPage
     // 残るため名前を引けて、自身のスライスとして表示される。
     private void BuildCardSpend(List<string> yms)
     {
-        var details = yms
-            .SelectMany(ym => Svc.State.Months.GetValueOrDefault(ym)?.CardDetails ?? Enumerable.Empty<CardDetail>())
-            .ToList();
+        var details = CardDetailsIn(yms);
 
         var groups = details.GroupBy(d => d.CardId ?? "").ToList();
 
@@ -481,6 +474,12 @@ public partial class GraphPage
     // 指定月の全口座台帳にセレクタを適用して合計（月が無ければ 0）
     private decimal MonthSum(string ym, Func<Ledger, decimal> selector) =>
         Svc.State.Months.GetValueOrDefault(ym)?.Ledgers.Values.Sum(selector) ?? 0;
+
+    // 期間中の全台帳／全カード明細をまとめて列挙（月が無ければスキップ）。内訳ダイアログ・ドーナツ集計で共有する。
+    private IEnumerable<Ledger> LedgersIn(IEnumerable<string> yms) =>
+        yms.SelectMany(ym => Svc.State.Months.GetValueOrDefault(ym)?.Ledgers.Values ?? Enumerable.Empty<Ledger>());
+    private List<CardDetail> CardDetailsIn(IEnumerable<string> yms) =>
+        yms.SelectMany(ym => Svc.State.Months.GetValueOrDefault(ym)?.CardDetails ?? Enumerable.Empty<CardDetail>()).ToList();
 
     public class ChartPoint
     {
