@@ -299,7 +299,103 @@
 .acct-chip.c2 { background: var(--badbg); color: var(--bad); }
 .acct-chip.c3 { background: var(--okbg); color: var(--ok); }
 
-/* 月初残高：表示専用（淡色ボックス）。起点月のみ AmountInput を内包。 */
+/* =====================================================
+   ヒーロー（月末残高 見込み）：カード上部で主役化。
+   通常月の月初残高は表示専用としてここに畳む（補助行）。
+   ===================================================== */
+.acct-hero {
+  background: #f8f6f2;
+  border-radius: 12px;
+  padding: 13px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.acct-hero-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.acct-hero-lab {
+  font-size: 11px;
+  color: var(--sub);
+}
+
+.acct-hero-val {
+  font-size: 28px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ok);
+}
+
+.acct-hero-val.neg {
+  color: var(--bad);
+}
+
+.acct-hero-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 9px;
+  border-radius: 20px;
+  background: var(--okbg);
+  color: var(--ok);
+  flex: 0 0 auto;
+}
+
+.acct-hero-pill.bad {
+  background: var(--badbg);
+  color: var(--bad);
+}
+
+/* マスク時は黒字/赤字の色・向きを見せない中立表示 */
+.acct-hero-pill.masked {
+  background: #eceae4;
+  color: var(--sub);
+}
+
+.acct-hero-pill .msym {
+  font-size: 15px;
+}
+
+.acct-hero-bar {
+  display: flex;
+  gap: 2px;
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: #e7e3da;
+}
+
+.acct-hero-bar .bar-in {
+  background: #3f9c7f;
+}
+
+.acct-hero-bar .bar-out {
+  background: #c65b4e;
+}
+
+.acct-hero-sub {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--sub);
+}
+
+/* 月初残高が負（不足の口座から始まった月）は警告色で目立たせる */
+.acct-hero-sub .neg {
+  color: var(--bad);
+  font-weight: 600;
+}
+
+/* 月初残高：起点月のみ手入力（navy枠＋起点バッジ）。通常月はヒーロー補助行に畳むためここには出さない。 */
 .opening-box {
   display: flex;
   align-items: center;
@@ -308,7 +404,12 @@
   background: #f8f6f2;
   border-radius: 10px;
   padding: 10px 12px;
-  margin-bottom: 4px;
+  margin-bottom: 12px;
+}
+
+.opening-box.anchor {
+  background: #f7f9fc;
+  border: 1px solid var(--accent);
 }
 
 .opening-lab {
@@ -326,14 +427,156 @@
   color: var(--sub);
 }
 
-.opening-auto {
+.opening-badge {
+  font-size: 10px;
   font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
+  background: #e9eef5;
+  color: var(--accent);
+  border-radius: 20px;
+  padding: 1px 7px;
+  margin-left: 6px;
 }
 
-.opening-auto.neg {
-  color: var(--bad);
+.opening-input.num {
+  border-color: var(--accent);
+  background: #f7f9fc;
+}
+
+/* =====================================================
+   ゾーン（収入=緑 / 支出=赤 / 振込=グレー）：色面で収支の境界を分ける
+   ===================================================== */
+.zone {
+  border-radius: 12px;
+  padding: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin-top: 10px;
+}
+
+.zone-income {
+  background: #eef5f1;
+  border: 1px solid #dcebe3;
+}
+
+.zone-expense {
+  background: #fbf1ef;
+  border: 1px solid #f0ddd9;
+}
+
+.zone-transfer {
+  background: #f5f3ef;
+  border: 1px solid #eae7e1;
+}
+
+.zone-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.zone-chip {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex: 0 0 auto;
+}
+
+.zone-chip-income { background: #d6ebe0; color: var(--ok); }
+.zone-chip-expense { background: #f4dcd7; color: var(--bad); }
+.zone-chip-transfer { background: #eae7e1; color: var(--sub); }
+
+.zone-name {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+
+.zone-name-income { color: var(--ok); }
+.zone-name-expense { color: var(--bad); }
+.zone-name-transfer { color: var(--sub); }
+
+.zone-count {
+  font-size: 11px;
+  color: var(--sub);
+}
+
+.zone-spacer {
+  flex: 1;
+}
+
+.zone-subtotal {
+  font-size: 13.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.zone-subtotal-income { color: var(--ok); }
+.zone-subtotal-expense { color: var(--bad); }
+.zone-subtotal-transfer { color: var(--sub); }
+
+.zone-chev {
+  font-size: 20px;
+  color: var(--sub);
+  flex: 0 0 auto;
+}
+
+.zone-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 2px;
+}
+
+.zone-body .fold,
+.zone-body .xfer-in-list {
+  margin: 0;
+}
+
+.zone-body .none {
+  font-size: 12.5px;
+  color: var(--sub);
+}
+
+/* ゾーン内 input の枠色をゾーンの色調に合わせる（収入=緑寄り／支出=赤寄り） */
+.zone-income .field input.num,
+.zone-income .row input,
+.zone-income .row select {
+  border-color: #cfe0d7;
+}
+
+.zone-income .field input.num:focus,
+.zone-income .row input:focus,
+.zone-income .row select:focus {
+  border-color: var(--ok);
+  box-shadow: 0 0 0 3px rgba(15, 110, 86, .10);
+  background: #fff;
+}
+
+.zone-expense .field input.num,
+.zone-expense .row input,
+.zone-expense .row select {
+  border-color: #eaccc6;
+}
+
+.zone-expense .field input.num:focus,
+.zone-expense .row input:focus,
+.zone-expense .row select:focus {
+  border-color: var(--bad);
+  box-shadow: 0 0 0 3px rgba(163, 38, 31, .10);
+  background: #fff;
 }
 
 /* =====================================================
@@ -373,42 +616,6 @@ input.num:focus,
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(31, 58, 95, .08);
   background: #fff;
-}
-
-.sec {
-  margin-top: 10px;
-  border-top: 1px solid #f0eee9;
-  padding-top: 10px;
-}
-
-.sec h4 {
-  margin: 0 0 6px;
-  font-size: 11.5px;
-  color: var(--sub);
-  font-weight: 600;
-  letter-spacing: .04em;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-/* セクション見出しの右端に合計 */
-.sec-total {
-  font-weight: 600;
-  color: var(--sub);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0;
-}
-
-/* 「その他」「手入力」などの追加サブ見出し */
-.sub-line {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin: 5px 0 2px;
-  font-size: 11px;
-  color: var(--sub);
-  letter-spacing: .04em;
 }
 
 .row {
