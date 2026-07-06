@@ -27,16 +27,17 @@ public partial class GraphPage
     private List<ChartPoint> NetData = new();
 
     // ── 要約バンド（ヒーロー＋指標4枚）。既存の月別系列を期間合算した派生値（新ロジックなし）──
-    // 収入合計＝給料+ボーナス+臨時。支出合計＝変動(Debits)＋固定費（spec §2 で固定費込みと定義）。
+    // 収入合計＝給料+ボーナス+臨時。支出合計＝Debits全件（固定費は月初展開で既にDebitsに記帳済み＝固定費込み）。
+    // FixedTotal も Debits 内の IsFixed 分の合計（マスタ再計算ではない＝ExpenseTotal と同一ソースなので必ず ExpenseTotal 以下）。
+    // ExpenseTotal 内訳の表示・比率算出にのみ使い、ExpenseTotal には加算しない（二重計上防止）。
     private decimal IncomeTotal => IncomeData.Sum(p => p.Value);
-    private decimal VariableExpenseTotal => MonthlyDebitData.Sum(p => p.Value);
     private decimal FixedTotal => FixedCostData.Sum(p => p.Value);
-    private decimal ExpenseTotal => VariableExpenseTotal + FixedTotal;
+    private decimal ExpenseTotal => MonthlyDebitData.Sum(p => p.Value);
     private decimal NetTotal => IncomeTotal - ExpenseTotal;
     private bool IsSurplus => NetTotal >= 0;
     // 貯蓄率＝期間収支 / 収入合計（収入0なら null＝「—」表示）
     private double? SavingsRate => IncomeTotal == 0 ? null : (double)(NetTotal / IncomeTotal);
-    // 固定費が支出に占めるおおよその割合（補助行）
+    // 固定費が支出に占める割合（補助行）
     private int FixedPctOfExpense => ExpenseTotal == 0 ? 0 : (int)Math.Round((double)(FixedTotal / ExpenseTotal) * 100);
 
     // ③ 収入の内訳系列（給料・ボーナス・各臨時収入名）。積み上げ棒で表示。
@@ -205,22 +206,18 @@ public partial class GraphPage
         _breakdown = new("支出の内訳", items.Sum(x => x.Amount), items);
     }
 
-    // 対象期間の固定費を項目（固定費マスタ）ごとに合算（各月の有効分・ボーナス払い込み）
+    // 対象期間の固定費を項目（固定費マスタID）ごとに合算。マスタの現在値を再計算するのではなく、
+    // 各月生成時に Debits へ実際に記帳された金額（IsFixed）を合計する（月次管理の表示と一致させる。
+    // マスタ変更後は過去月の Debits は据え置きのため、再計算するとマスタ変更前後で二重計上・不整合が生じる）。
     private void OpenFixedBreakdown()
     {
         var yms = GetTargetYms();
-        var byId = new Dictionary<string, (string Name, decimal Amount)>();
-        foreach (var ym in yms)
-        {
-            var month = Ym.Parse(ym).Month;
-            foreach (var fc in Svc.State.FixedCosts.Where(fc => LedgerService.IsFixedCostActive(fc, ym)))
-            {
-                var cur = byId.GetValueOrDefault(fc.Id);
-                byId[fc.Id] = (fc.Name, cur.Amount + LedgerService.GetFixedCostAmount(fc, month));
-            }
-        }
-        var items = byId.Values
-            .Select(v => new BreakdownDialog.BreakdownItem(v.Name, v.Amount))
+        var items = yms
+            .SelectMany(ym => Svc.State.Months.GetValueOrDefault(ym)?.Ledgers.Values ?? Enumerable.Empty<Ledger>())
+            .SelectMany(l => l.Debits)
+            .Where(d => d.IsFixed)
+            .GroupBy(d => d.FixedCostId ?? d.Name)
+            .Select(g => new BreakdownDialog.BreakdownItem(g.First().Name, g.Sum(d => d.Amount)))
             .Where(x => x.Amount != 0)
             .OrderByDescending(x => x.Amount)
             .ToList();
@@ -335,13 +332,8 @@ public partial class GraphPage
         BalanceLineOptions.Colors = Svc.ActiveAccounts
             .Select((_, i) => BalancePalette[i % BalancePalette.Length]).ToList();
 
-        FixedCostData = BuildSeries(yms, ym =>
-        {
-            var month = Ym.Parse(ym).Month;
-            return Svc.State.FixedCosts
-                .Where(fc => LedgerService.IsFixedCostActive(fc, ym))
-                .Sum(fc => LedgerService.GetFixedCostAmount(fc, month));
-        });
+        // マスタの現在値ではなく実際に記帳された固定費 Debit（IsFixed）を合計（OpenFixedBreakdown と同じ理由）
+        FixedCostData = BuildSeries(yms, ym => MonthSum(ym, l => l.Debits.Where(d => d.IsFixed).Sum(d => d.Amount)));
 
         // メイン・コンボの収支線（収入−支出。支出は MonthlyDebitData と同義で棒2本に整合）
         NetData = yms.Select((ym, i) => new ChartPoint
