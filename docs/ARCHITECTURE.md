@@ -170,7 +170,8 @@ C:\Development\moneyboard\
   MoneyBoardApi\
     DataApi.cs                GET/POST /api/data（設定＋月次の集約取得 / 差分の原子的保存）
     DataApi.Access.cs         認証＋アクセス承認（partial・AuthorizeAsync・GET/POST /api/access・承認DTO）
-    DataApi.CardImage.cs      POST /api/extract-card（partial・Claude Vision でカード明細スクショ→CardDetail[]。Anthropic SDK・解析部 ParseCardImageResponse は internal でテスト可）
+    DataApi.Anthropic.cs      extract-card / classify-categories 共通の Anthropic 基盤（partial・クライアント生成・AnthropicError・SummarizeAnthropicError・構造化出力の定型呼出 CreateStructuredMessageAsync・502/503エラーハンドラ。issue #91 で両エンドポイントの重複を集約）
+    DataApi.CardImage.cs      POST /api/extract-card（partial・Claude Vision でカード明細スクショ→CardDetail[]。解析部 ParseCardImageResponse は internal でテスト可）
     DataApi.CategoryClassify.cs POST /api/classify-categories（partial・Claude Haiku(テキストのみ)で利用先一覧→カテゴリID一括分類。解析部 ParseCategoryClassifyResponse は internal でテスト可。カテゴリ一覧はリクエストボディで受け取りCosmosは叩かない）
     FirebaseAuth.cs           Firebase IDトークン(JWT/RS256)検証→uid抽出（OIDC構成キャッシュ・AuthBypass対応）
     Program.cs                DI登録 (CosmosClient・AppInsights・FirebaseAuth)
