@@ -14,7 +14,7 @@ public partial class GraphPage
     private string SelectedPeriod = "3";
     private Dictionary<string, string> Periods = new()
     {
-        { "3", "3ヶ月" }, { "6", "6ヶ月" }, { "12", "12ヶ月" }, { "all", "全期間" }
+        { "current", "当月" }, { "3", "3ヶ月" }, { "6", "6ヶ月" }, { "12", "12ヶ月" }, { "all", "全期間" }
     };
 
     private List<ChartPoint> MonthlyDebitData = new();
@@ -27,16 +27,17 @@ public partial class GraphPage
     private List<ChartPoint> NetData = new();
 
     // ── 要約バンド（ヒーロー＋指標4枚）。既存の月別系列を期間合算した派生値（新ロジックなし）──
-    // 収入合計＝給料+ボーナス+臨時。支出合計＝変動(Debits)＋固定費（spec §2 で固定費込みと定義）。
+    // 収入合計＝給料+ボーナス+臨時。支出合計＝Debits全件（固定費は月初展開で既にDebitsに記帳済み＝固定費込み）。
+    // FixedTotal も Debits 内の IsFixed 分の合計（マスタ再計算ではない＝ExpenseTotal と同一ソースなので必ず ExpenseTotal 以下）。
+    // ExpenseTotal 内訳の表示・比率算出にのみ使い、ExpenseTotal には加算しない（二重計上防止）。
     private decimal IncomeTotal => IncomeData.Sum(p => p.Value);
-    private decimal VariableExpenseTotal => MonthlyDebitData.Sum(p => p.Value);
     private decimal FixedTotal => FixedCostData.Sum(p => p.Value);
-    private decimal ExpenseTotal => VariableExpenseTotal + FixedTotal;
+    private decimal ExpenseTotal => MonthlyDebitData.Sum(p => p.Value);
     private decimal NetTotal => IncomeTotal - ExpenseTotal;
     private bool IsSurplus => NetTotal >= 0;
     // 貯蓄率＝期間収支 / 収入合計（収入0なら null＝「—」表示）
     private double? SavingsRate => IncomeTotal == 0 ? null : (double)(NetTotal / IncomeTotal);
-    // 固定費が支出に占めるおおよその割合（補助行）
+    // 固定費が支出に占める割合（補助行）
     private int FixedPctOfExpense => ExpenseTotal == 0 ? 0 : (int)Math.Round((double)(FixedTotal / ExpenseTotal) * 100);
 
     // ③ 収入の内訳系列（給料・ボーナス・各臨時収入名）。積み上げ棒で表示。
@@ -159,72 +160,74 @@ public partial class GraphPage
 
     private record DetailModal(string Title, string Color, int Count, decimal Total, List<DetailDialog.DetailRow> Rows, bool ShowCategorize);
 
-    // ── 収入/支出の項目別内訳モーダル（④・⑤から起動。期間合計で集計）──
-    private record BreakdownModal(string Title, decimal Total, List<BreakdownDialog.BreakdownItem> Items);
+    // ── 収入/支出の項目別内訳モーダル（④・⑤から起動＝期間合計。コンボ棒タップ＝タップした月のみ）──
+    private record BreakdownModal(string Title, string SubLabel, decimal Total, List<BreakdownDialog.BreakdownItem> Items);
     private BreakdownModal? _breakdown;
     private void CloseBreakdown() => _breakdown = null;
 
-    // メインコンボの収入棒→収入内訳、支出棒→支出内訳（系列0=収入, 1=支出, 2=収支線=ドリルダウンなし）
+    // メインコンボの収入棒→収入内訳、支出棒→支出内訳（系列0=収入, 1=支出, 2=収支線=ドリルダウンなし）。
+    // DataPointIndex＝タップした月（GetTargetYms() の並びと一致）で対象月を1つだけに絞る。
     private void OnIncomeVsExpenseSelected(SelectedData<ChartPoint> sel)
     {
-        if (sel.SeriesIndex == 0) OpenIncomeBreakdown();
-        else if (sel.SeriesIndex == 1) OpenExpenseBreakdown();
+        var yms = GetTargetYms();
+        if (sel.DataPointIndex < 0 || sel.DataPointIndex >= yms.Count) return;
+        var ym = yms[sel.DataPointIndex];
+        var label = LedgerService.Label(ym);
+        if (sel.SeriesIndex == 0) OpenIncomeBreakdown(new List<string> { ym }, $"{label}の収入内訳", $"{label}（1ヶ月）");
+        else if (sel.SeriesIndex == 1) OpenExpenseBreakdown(new List<string> { ym }, $"{label}の支出内訳", $"{label}（1ヶ月）");
     }
 
-    // 対象期間の収入を項目（給料/ボーナス/各臨時収入名）で合算
-    private void OpenIncomeBreakdown()
+    // ④の「収入 合計」ボタン用（対象期間全体を集計）
+    private void OpenIncomeBreakdown() => OpenIncomeBreakdown(GetTargetYms(), "収入の内訳", RangeLabel);
+
+    // 指定 yms の収入を項目（給料/ボーナス/各臨時収入名）で合算
+    private void OpenIncomeBreakdown(List<string> yms, string title, string subLabel)
     {
-        var yms = GetTargetYms();
         var items = new List<BreakdownDialog.BreakdownItem>
         {
             new("給料", yms.Sum(ym => MonthSum(ym, l => l.Salary))),
             new("ボーナス", yms.Sum(ym => MonthSum(ym, l => l.Bonus))),
         };
-        items.AddRange(yms
-            .SelectMany(ym => Svc.State.Months.GetValueOrDefault(ym)?.Ledgers.Values ?? Enumerable.Empty<Ledger>())
+        items.AddRange(LedgersIn(yms)
             .SelectMany(l => l.Incomes)
             .GroupBy(IncomeName)
             .Select(g => new BreakdownDialog.BreakdownItem(g.Key, g.Sum(i => i.Amount))));
 
         items = items.Where(x => x.Amount != 0).OrderByDescending(x => x.Amount).ToList();
-        _breakdown = new("収入の内訳", items.Sum(x => x.Amount), items);
+        _breakdown = new(title, subLabel, items.Sum(x => x.Amount), items);
     }
 
-    // 対象期間の支出を項目（月次の Debit 名。カードはカード名で1項目・ATMは対象外）で合算
-    private void OpenExpenseBreakdown()
+    // ⑤の「支出 合計」ボタン用（対象期間全体を集計）
+    private void OpenExpenseBreakdown() => OpenExpenseBreakdown(GetTargetYms(), "支出の内訳", RangeLabel);
+
+    // 指定 yms の支出を項目（月次の Debit 名。カードはカード名で1項目・ATMは対象外）で合算
+    private void OpenExpenseBreakdown(List<string> yms, string title, string subLabel)
     {
-        var yms = GetTargetYms();
-        var items = yms
-            .SelectMany(ym => Svc.State.Months.GetValueOrDefault(ym)?.Ledgers.Values ?? Enumerable.Empty<Ledger>())
+        var items = LedgersIn(yms)
             .SelectMany(l => l.Debits)
             .GroupBy(d => string.IsNullOrWhiteSpace(d.Name) ? "（名称なし）" : d.Name)
             .Select(g => new BreakdownDialog.BreakdownItem(g.Key, g.Sum(d => d.Amount)))
             .Where(x => x.Amount != 0)
             .OrderByDescending(x => x.Amount)
             .ToList();
-        _breakdown = new("支出の内訳", items.Sum(x => x.Amount), items);
+        _breakdown = new(title, subLabel, items.Sum(x => x.Amount), items);
     }
 
-    // 対象期間の固定費を項目（固定費マスタ）ごとに合算（各月の有効分・ボーナス払い込み）
+    // 対象期間の固定費を項目（固定費マスタID）ごとに合算。マスタの現在値を再計算するのではなく、
+    // 各月生成時に Debits へ実際に記帳された金額（IsFixed）を合計する（月次管理の表示と一致させる。
+    // マスタ変更後は過去月の Debits は据え置きのため、再計算するとマスタ変更前後で二重計上・不整合が生じる）。
     private void OpenFixedBreakdown()
     {
         var yms = GetTargetYms();
-        var byId = new Dictionary<string, (string Name, decimal Amount)>();
-        foreach (var ym in yms)
-        {
-            var month = Ym.Parse(ym).Month;
-            foreach (var fc in Svc.State.FixedCosts.Where(fc => LedgerService.IsFixedCostActive(fc, ym)))
-            {
-                var cur = byId.GetValueOrDefault(fc.Id);
-                byId[fc.Id] = (fc.Name, cur.Amount + LedgerService.GetFixedCostAmount(fc, month));
-            }
-        }
-        var items = byId.Values
-            .Select(v => new BreakdownDialog.BreakdownItem(v.Name, v.Amount))
+        var items = LedgersIn(yms)
+            .SelectMany(l => l.Debits)
+            .Where(d => d.IsFixed)
+            .GroupBy(d => d.FixedCostId ?? d.Name)
+            .Select(g => new BreakdownDialog.BreakdownItem(g.First().Name, g.Sum(d => d.Amount)))
             .Where(x => x.Amount != 0)
             .OrderByDescending(x => x.Amount)
             .ToList();
-        _breakdown = new("固定費の内訳", items.Sum(x => x.Amount), items);
+        _breakdown = new("固定費の内訳", RangeLabel, items.Sum(x => x.Amount), items);
     }
 
     private List<SpendSlice> CardSpendData = new();
@@ -266,6 +269,9 @@ public partial class GraphPage
 
     private List<string> AllYmsAsc => Svc.State.Months.Keys.OrderBy(x => x).ToList();
 
+    // チャート @key 用。"custom" は SelectedPeriod だけでは変化を検出できないため _customStart/_customEnd を含める。
+    private string PeriodKey => SelectedPeriod == "custom" ? $"custom-{_customStart}-{_customEnd}" : SelectedPeriod;
+
     protected override async Task OnInitializedAsync() => await Load();
 
     private async Task Load()
@@ -300,8 +306,10 @@ public partial class GraphPage
     private void OnCustomChanged() { _detail = null; _breakdown = null; BuildChartData(); }
 
     // 期間選択→対象 ym（昇順）。計算本体は StatsMath（純粋ロジック・テスト対象）へ委譲する。
+    // 「当月」は未来月を先行作成済みでも実際の給料サイクル(15日〜14日)を指すよう、
+    // 現在時刻に依存する起点計算だけ LedgerService（呼び出し側）から渡す。
     private List<string> GetTargetYms() =>
-        StatsMath.SelectPeriodYms(AllYmsAsc, SelectedPeriod, _customStart, _customEnd);
+        StatsMath.SelectPeriodYms(AllYmsAsc, SelectedPeriod, _customStart, _customEnd, LedgerService.CurrentCycleStartYm());
 
     // 現在の対象期間を実際の月で明記する（例: 2026年3月 〜 2026年6月（4ヶ月））
     private string RangeLabel
@@ -335,13 +343,8 @@ public partial class GraphPage
         BalanceLineOptions.Colors = Svc.ActiveAccounts
             .Select((_, i) => BalancePalette[i % BalancePalette.Length]).ToList();
 
-        FixedCostData = BuildSeries(yms, ym =>
-        {
-            var month = Ym.Parse(ym).Month;
-            return Svc.State.FixedCosts
-                .Where(fc => LedgerService.IsFixedCostActive(fc, ym))
-                .Sum(fc => LedgerService.GetFixedCostAmount(fc, month));
-        });
+        // マスタの現在値ではなく実際に記帳された固定費 Debit（IsFixed）を合計（OpenFixedBreakdown と同じ理由）
+        FixedCostData = BuildSeries(yms, ym => MonthSum(ym, l => l.Debits.Where(d => d.IsFixed).Sum(d => d.Amount)));
 
         // メイン・コンボの収支線（収入−支出。支出は MonthlyDebitData と同義で棒2本に整合）
         NetData = yms.Select((ym, i) => new ChartPoint
@@ -362,9 +365,7 @@ public partial class GraphPage
     private void BuildCategorySpend(List<string> yms)
     {
         // 月をまたいで明細を集める（ドリルダウン表示用に日付降順で保持）
-        var details = yms
-            .SelectMany(ym => Svc.State.Months.GetValueOrDefault(ym)?.CardDetails ?? Enumerable.Empty<CardDetail>())
-            .ToList();
+        var details = CardDetailsIn(yms);
 
         var groups = details.GroupBy(d => d.CategoryId ?? "").ToList();
 
@@ -401,9 +402,7 @@ public partial class GraphPage
     // 残るため名前を引けて、自身のスライスとして表示される。
     private void BuildCardSpend(List<string> yms)
     {
-        var details = yms
-            .SelectMany(ym => Svc.State.Months.GetValueOrDefault(ym)?.CardDetails ?? Enumerable.Empty<CardDetail>())
-            .ToList();
+        var details = CardDetailsIn(yms);
 
         var groups = details.GroupBy(d => d.CardId ?? "").ToList();
 
@@ -435,35 +434,35 @@ public partial class GraphPage
         _cardColors = CardSpendData.ToDictionary(s => s.Key, s => s.Color);
     }
 
-    // ③ 給料・ボーナスに加え、期間中に登場する臨時収入を入力名ごとの系列にする。
+    // ③ 給料・ボーナス・臨時収入（合算）の3系列固定（#89）。臨時収入は月ごとに入力名の
+    // 顔ぶれが変わり個別系列だと色が乱立して判別不能になるため合算1系列にまとめ、
+    // 内訳（名称別）は棒タップで OnIncomeBreakdownSelected → 既存の内訳ダイアログに委譲する。
     private void BuildIncomeBreakdown(List<string> yms)
     {
+        var otherIncome = BuildSeries(yms, ym => MonthSum(ym, l => l.Incomes.Sum(i => i.Amount)));
         var series = new List<IncomeSeries>
         {
             new("給料", SalaryData),
             new("ボーナス", BonusData),
+            new("臨時収入", otherIncome),
         };
-
-        // 期間中の臨時収入の入力名（空名は「その他収入」にまとめる）を出現順で収集
-        var names = yms
-            .SelectMany(ym => Svc.State.Months.GetValueOrDefault(ym)?.Ledgers.Values ?? Enumerable.Empty<Ledger>())
-            .SelectMany(l => l.Incomes)
-            .Select(IncomeName)
-            .Distinct()
-            .ToList();
-
-        foreach (var name in names)
-        {
-            series.Add(new(name, BuildSeries(yms, ym =>
-                MonthSum(ym, l => l.Incomes.Where(i => IncomeName(i) == name).Sum(i => i.Amount)))));
-        }
 
         // すべて 0 の系列しかない（=収入が一切ない）場合は空にしてプレースホルダ表示
         IncomeBreakdown = series.Any(s => s.Data.Any(p => p.Value != 0)) ? series : new();
 
-        // 色：給料=navy／ボーナス=緑／以降の臨時収入=ゴールド（spec §5）
-        IncomeBreakdownOptions.Colors = IncomeBreakdown
-            .Select((_, i) => i == 0 ? "#1f3a5f" : i == 1 ? "#0f6e56" : IncomeGold).ToList();
+        // 色：給料=navy／ボーナス=緑／臨時収入=ゴールド（系列が3本固定になったためローテ不要。spec §5）
+        IncomeBreakdownOptions.Colors = new List<string> { "#1f3a5f", "#0f6e56", IncomeGold };
+    }
+
+    // 収入内訳推移の棒タップ→その月の収入内訳（給料/ボーナス/臨時収入の各入力名）を
+    // 既存の内訳ダイアログ（OpenIncomeBreakdown）で表示する（コンボ棒タップと同じ導線）。
+    private void OnIncomeBreakdownSelected(SelectedData<ChartPoint> sel)
+    {
+        var yms = GetTargetYms();
+        if (sel.DataPointIndex < 0 || sel.DataPointIndex >= yms.Count) return;
+        var ym = yms[sel.DataPointIndex];
+        var label = LedgerService.Label(ym);
+        OpenIncomeBreakdown(new List<string> { ym }, $"{label}の収入内訳", $"{label}（1ヶ月）");
     }
 
     private static string IncomeName(IncomeItem i) => string.IsNullOrWhiteSpace(i.Name) ? "その他収入" : i.Name;
@@ -475,6 +474,12 @@ public partial class GraphPage
     // 指定月の全口座台帳にセレクタを適用して合計（月が無ければ 0）
     private decimal MonthSum(string ym, Func<Ledger, decimal> selector) =>
         Svc.State.Months.GetValueOrDefault(ym)?.Ledgers.Values.Sum(selector) ?? 0;
+
+    // 期間中の全台帳／全カード明細をまとめて列挙（月が無ければスキップ）。内訳ダイアログ・ドーナツ集計で共有する。
+    private IEnumerable<Ledger> LedgersIn(IEnumerable<string> yms) =>
+        yms.SelectMany(ym => Svc.State.Months.GetValueOrDefault(ym)?.Ledgers.Values ?? Enumerable.Empty<Ledger>());
+    private List<CardDetail> CardDetailsIn(IEnumerable<string> yms) =>
+        yms.SelectMany(ym => Svc.State.Months.GetValueOrDefault(ym)?.CardDetails ?? Enumerable.Empty<CardDetail>()).ToList();
 
     public class ChartPoint
     {

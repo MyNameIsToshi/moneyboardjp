@@ -105,7 +105,7 @@
             </div>
             @if (IncomeData.Any())
             {
-                <ApexChart TItem="ChartPoint" Options="ComboOptions" @key="@($"combo-{SelectedPeriod}-{_maskRev}")"
+                <ApexChart TItem="ChartPoint" Options="ComboOptions" @key="@($"combo-{PeriodKey}-{_maskRev}")"
                            OnDataPointSelection="OnIncomeVsExpenseSelected">
                     <ApexPointSeries TItem="ChartPoint"
                                      Items="IncomeData"
@@ -132,12 +132,16 @@
 
         <!-- 〔収入内訳｜口座残高〕の2列ブロック -->
         <div class="graph-row2">
-            <!-- 収入の内訳推移（給料・ボーナス・臨時収入を入力名ごとに積み上げ） -->
+            <!-- 収入の内訳推移（給料・ボーナス・臨時収入[月内合算]の3系列。棒タップで名称別内訳） -->
             <div class="graph-card">
-                <h4>収入の内訳推移</h4>
+                <div class="graph-card-head">
+                    <h4>収入の内訳推移</h4>
+                    <span class="graph-card-hint">棒タップで内訳</span>
+                </div>
                 @if (IncomeBreakdown.Any())
                 {
-                    <ApexChart TItem="ChartPoint" Options="IncomeBreakdownOptions" @key="@($"inc-{SelectedPeriod}-{_maskRev}")">
+                    <ApexChart TItem="ChartPoint" Options="IncomeBreakdownOptions" @key="@($"inc-{PeriodKey}-{_maskRev}")"
+                               OnDataPointSelection="OnIncomeBreakdownSelected">
                         @foreach (var s in IncomeBreakdown)
                         {
                             <ApexPointSeries TItem="ChartPoint"
@@ -157,7 +161,7 @@
                 <h4>口座別 月末残高推移</h4>
                 @if (BalanceSeriesData.Any())
                 {
-                    <ApexChart TItem="ChartPoint" Options="BalanceLineOptions" @key="@($"bal-{SelectedPeriod}-{_maskRev}")">
+                    <ApexChart TItem="ChartPoint" Options="BalanceLineOptions" @key="@($"bal-{PeriodKey}-{_maskRev}")">
                         @foreach (var series in BalanceSeriesData)
                         {
                             <ApexPointSeries TItem="ChartPoint"
@@ -181,7 +185,7 @@
                                 Items="CategorySpendData"
                                 Total="CategoryTotal"
                                 Options="DonutOptions"
-                                RenderKey="@($"cat-{SelectedPeriod}-{_maskRev}")"
+                                RenderKey="@($"cat-{PeriodKey}-{_maskRev}")"
                                 EmptyMessage="カード明細がありません"
                                 OnRowClick="OpenCatDetail"
                                 OnSliceSelected="OnSliceSelected" />
@@ -192,7 +196,7 @@
                                 Items="CardSpendData"
                                 Total="CardTotal"
                                 Options="CardDonutOptions"
-                                RenderKey="@($"card-{SelectedPeriod}-{_maskRev}")"
+                                RenderKey="@($"card-{PeriodKey}-{_maskRev}")"
                                 EmptyMessage="カード明細がありません"
                                 OnRowClick="OpenCardDetail"
                                 OnSliceSelected="OnCardSliceSelected" />
@@ -211,7 +215,7 @@
 
     @if (_breakdown is not null)
     {
-        <BreakdownDialog Title="@_breakdown.Title" SubLabel="@RangeLabel"
+        <BreakdownDialog Title="@_breakdown.Title" SubLabel="@_breakdown.SubLabel"
                          Total="_breakdown.Total" Items="_breakdown.Items"
                          OnClose="CloseBreakdown" />
     }
