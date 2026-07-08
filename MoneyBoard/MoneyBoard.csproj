@@ -6,7 +6,7 @@
     <!-- アプリのバージョン（セマンティックバージョニング）。GitHub の Releases/タグ vX.Y.Z と一致させる。
          上げるときはここを編集し、同じ番号で GitHub に Release/タグ（例 v0.9.0）を切る。
          ヘッダー右に v@AppVersion として表示される。 -->
-    <Version>2.9.0</Version>
+    <Version>2.10.0</Version>
     <!-- PWA: service-worker-assets.js（静的アセットのハッシュ一覧）を publish 時に生成する -->
     <ServiceWorkerAssetsManifest>service-worker-assets.js</ServiceWorkerAssetsManifest>
   </PropertyGroup>
