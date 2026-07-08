@@ -57,27 +57,12 @@ public partial class DataApi
         }
         catch (Anthropic.Exceptions.AnthropicApiException ex)
         {
-            var upstream = (int)ex.StatusCode;
-            logger.LogError(ex, "ClassifyCategories upstream error {Status}: {Body}", upstream, ex.ResponseBody);
-            return new ObjectResult(new ClassifyCategoriesError(upstream, SummarizeAnthropicError(ex.ResponseBody)))
-            {
-                StatusCode = StatusCodes.Status502BadGateway
-            };
+            return HandleAnthropicUpstreamError(ex, "ClassifyCategories", "classify_categories_error");
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "ClassifyCategories failed");
-            return new ObjectResult(new ClassifyCategoriesError(null, "サーバー内部エラーが発生しました。"))
-            {
-                StatusCode = StatusCodes.Status502BadGateway
-            };
+            return HandleAnthropicGenericError(ex, "ClassifyCategories", "classify_categories_error");
         }
-    }
-
-    // /api/classify-categories の失敗時にフロントへ返すエラー本文（extract-card と同形・ExtractCardError流用）。
-    private sealed record ClassifyCategoriesError(int? UpstreamStatus, string Message)
-    {
-        public string Error => "classify_categories_error";
     }
 
     private sealed class ClassifyCategoriesRequest
@@ -97,30 +82,15 @@ public partial class DataApi
     private static async Task<Dictionary<string, string>> ClassifyCategoriesAsync(
         List<string> stores, List<CategoryOption> categories)
     {
-        var schema = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(CategoryClassifySchema)!;
         var catList = string.Join("\n", categories.Select(c => $"- id:{c.Id} name:{c.Name}"));
         var storeList = string.Join("\n", stores.Select(s => $"- {s}"));
         var prompt = $"{CategoryClassifyPrompt}\n\n【カテゴリ一覧】\n{catList}\n\n【利用先一覧】\n{storeList}";
+        var content = new List<ContentBlockParam> { new TextBlockParam { Text = prompt } };
 
-        var resp = await Anthropic!.Messages.Create(new MessageCreateParams
-        {
-            Model = Model.ClaudeHaiku4_5,
-            // 最大 MaxClassifyStores(200) 件×1件あたり数十トークンでも上限に収まるよう余裕を持たせる
-            // （Haiku 4.5 の出力上限 64K 内。実際に生成した分しか課金されないので大きめで安全）。
-            // 小さすぎると構造化出力が途中で切れ、JSON 不正→空辞書になり全件分類失敗する。
-            MaxTokens = 32000,
-            OutputConfig = new OutputConfig { Format = new JsonOutputFormat { Schema = schema } },
-            Messages =
-            [
-                new()
-                {
-                    Role = Role.User,
-                    Content = new List<ContentBlockParam> { new TextBlockParam { Text = prompt } },
-                },
-            ],
-        });
-
-        var json = resp.Content.Select(b => b.Value).OfType<TextBlock>().FirstOrDefault()?.Text ?? "";
+        // 最大 MaxClassifyStores(200) 件×1件あたり数十トークンでも上限に収まるよう余裕を持たせる
+        // （Haiku 4.5 の出力上限 64K 内。実際に生成した分しか課金されないので大きめで安全）。
+        // 小さすぎると構造化出力が途中で切れ、JSON 不正→空辞書になり全件分類失敗する。
+        var json = await CreateStructuredMessageAsync(CategoryClassifySchema, 32000, content);
         var validIds = categories.Select(c => c.Id).ToHashSet();
         return ParseCategoryClassifyResponse(json, stores, validIds);
     }

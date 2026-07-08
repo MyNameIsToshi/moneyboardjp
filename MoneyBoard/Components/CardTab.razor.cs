@@ -614,17 +614,20 @@ public partial class CardTab
         var (covered, classified) = CommitPrefixRule(key, _newPrefixCat);
 
         _prefixMessageIsError = false;
-        _prefixMessage = (covered, classified) switch
-        {
-            (0, 0) => "前方一致ルールを追加しました",
-            (0, > 0) => $"前方一致ルールを追加しました（当月の明細 {classified} 件を分類しました）",
-            (> 0, 0) => $"前方一致ルールを追加しました（重複する完全一致ルール {covered} 件を整理しました）",
-            _ => $"前方一致ルールを追加しました（重複する完全一致ルール {covered} 件を整理・当月の明細 {classified} 件を分類しました）",
-        };
+        _prefixMessage = PrefixResultMessage("ルールを追加", covered, classified);
         _newPrefixText = "";
         _newPrefixCat = "";
         Save();
     }
+
+    // AddPrefixRule / RenamePrefixRule 共通の完了メッセージ生成（「ルールを追加」/「文字列を変更」部分だけ差し替え）。
+    private static string PrefixResultMessage(string action, int covered, int classified) => (covered, classified) switch
+    {
+        (0, 0) => $"前方一致{action}しました",
+        (0, > 0) => $"前方一致{action}しました（当月の明細 {classified} 件を分類しました）",
+        (> 0, 0) => $"前方一致{action}しました（重複する完全一致ルール {covered} 件を整理しました）",
+        _ => $"前方一致{action}しました（重複する完全一致ルール {covered} 件を整理・当月の明細 {classified} 件を分類しました）",
+    };
 
     // key（前方一致文字列・正規化済み）を categoryId で登録し、以下を行う共通処理（追加・改名で共有）：
     // ①この prefix に包含され同一カテゴリを指す完全一致ルールの削除（重複整理・増加抑止）
@@ -714,13 +717,7 @@ public partial class CardTab
         var (covered, classified) = CommitPrefixRule(newKey, catId);
 
         _prefixMessageIsError = false;
-        _prefixMessage = (covered, classified) switch
-        {
-            (0, 0) => "前方一致文字列を変更しました",
-            (0, > 0) => $"前方一致文字列を変更しました（当月の明細 {classified} 件を分類しました）",
-            (> 0, 0) => $"前方一致文字列を変更しました（重複する完全一致ルール {covered} 件を整理しました）",
-            _ => $"前方一致文字列を変更しました（重複する完全一致ルール {covered} 件を整理・当月の明細 {classified} 件を分類しました）",
-        };
+        _prefixMessage = PrefixResultMessage("文字列を変更", covered, classified);
         Save();
     }
 }

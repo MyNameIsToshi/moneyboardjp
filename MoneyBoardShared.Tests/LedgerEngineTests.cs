@@ -234,6 +234,113 @@ public class LedgerEngineTests
         Assert.Equal(2_000m, LedgerEngine.GetFixedCostAmount(fc, 12));   // Separate＝置換
     }
 
+    // ── EnsureMonth の固定費展開ガード（ShouldExpandFixedCosts・#87）─────
+    // 既存の過去月（isNewMonth=false かつ当月より前）を開き直しただけでは固定費を展開しない
+    // （あとから追加/変更した固定費が過去の確定済み月へ遡って混入するバグの回帰防止）。
+    [Theory]
+    [InlineData(false, false, false)]  // 既存の過去月 → 展開しない
+    [InlineData(false, true, true)]    // 既存の当月/未来月 → 展開する
+    [InlineData(true, false, true)]    // 新規作成月（バックフィル含む） → 展開する
+    [InlineData(true, true, true)]     // 新規作成月かつ当月/未来月 → 展開する
+    public void ShouldExpandFixedCosts_GuardsExistingPastMonthOnly(bool isNewMonth, bool isCurrentOrFutureCycle, bool expected)
+    {
+        Assert.Equal(expected, LedgerEngine.ShouldExpandFixedCosts(isNewMonth, isCurrentOrFutureCycle));
+    }
+
+    // ── 固定費の展開・再展開（ExpandFixedCosts / ReconcileFixedCosts・#87）─────
+    [Fact]
+    public void ExpandFixedCosts_DoesNotOverwriteExistingDebitAmount()
+    {
+        var state = FixedCostState(out var mo, isVariable: true);
+        LedgerEngine.ExpandFixedCosts(state, "202606", mo);
+        mo.Ledgers["a"].Debits.Single().Amount = 3_500m;   // 月次管理タブでの編集を模擬
+
+        LedgerEngine.ExpandFixedCosts(state, "202606", mo);   // 同月を再度展開（EnsureMonth の再呼び出し相当）
+
+        Assert.Equal(3_500m, mo.Ledgers["a"].Debits.Single().Amount);   // 上書きされない
+    }
+
+    [Fact]
+    public void ExpandFixedCosts_NewDebit_CarriesIsVariableFlag()
+    {
+        var state = FixedCostState(out var mo, isVariable: true);
+        LedgerEngine.ExpandFixedCosts(state, "202606", mo);
+
+        var debit = mo.Ledgers["a"].Debits.Single();
+        Assert.True(debit.IsFixed);
+        Assert.True(debit.IsVariable);
+        Assert.Equal(1_000m, debit.Amount);   // 初回はマスタの既定額
+    }
+
+    [Fact]
+    public void ReconcileFixedCosts_OnCurrentCycle_PreservesOverriddenAmount_ForVariableFixedCost()
+    {
+        var state = FixedCostState(out var mo, isVariable: true);
+        LedgerEngine.ExpandFixedCosts(state, "202606", mo);
+        var debit = mo.Ledgers["a"].Debits.Single();
+        debit.Amount = 3_500m;             // 月次管理タブでの編集を模擬
+        debit.AmountOverridden = true;
+
+        state.FixedCosts[0].Amount = 1_200m;               // マスタの既定額を変更
+        LedgerEngine.ReconcileFixedCosts(state, "202606", mo, isCurrentCycle: true);
+
+        Assert.Equal(3_500m, mo.Ledgers["a"].Debits.Single().Amount);   // 当月は編集値を保持（マスタ変更で上書きされない）
+    }
+
+    [Fact]
+    public void ReconcileFixedCosts_OnCurrentCycle_UsesMasterAmount_WhenNotOverridden()
+    {
+        var state = FixedCostState(out var mo, isVariable: true);
+        LedgerEngine.ExpandFixedCosts(state, "202606", mo);
+        // 編集していない（AmountOverridden=false）のまま
+
+        state.FixedCosts[0].Amount = 1_200m;
+        LedgerEngine.ReconcileFixedCosts(state, "202606", mo, isCurrentCycle: true);
+
+        Assert.Equal(1_200m, mo.Ledgers["a"].Debits.Single().Amount);   // 未編集ならマスタへ追随
+    }
+
+    [Fact]
+    public void ReconcileFixedCosts_NotCurrentCycle_AlwaysUsesMasterAmount_EvenIfOverridden()
+    {
+        // 翌月以降は編集有無に関わらず一律マスタへ追随する（非変動の固定費と同じ挙動）。
+        var state = FixedCostState(out var mo, isVariable: true);
+        LedgerEngine.ExpandFixedCosts(state, "202607", mo);
+        var debit = mo.Ledgers["a"].Debits.Single();
+        debit.Amount = 3_500m;
+        debit.AmountOverridden = true;
+
+        state.FixedCosts[0].Amount = 1_200m;
+        LedgerEngine.ReconcileFixedCosts(state, "202607", mo, isCurrentCycle: false);
+
+        Assert.Equal(1_200m, mo.Ledgers["a"].Debits.Single().Amount);
+        Assert.False(mo.Ledgers["a"].Debits.Single().AmountOverridden);
+    }
+
+    [Fact]
+    public void ReconcileFixedCosts_UsesMasterAmount_ForNonVariableFixedCost()
+    {
+        var state = FixedCostState(out var mo, isVariable: false);
+        LedgerEngine.ExpandFixedCosts(state, "202606", mo);
+
+        state.FixedCosts[0].Amount = 1_200m;               // マスタの金額変更
+        LedgerEngine.ReconcileFixedCosts(state, "202606", mo, isCurrentCycle: true);
+
+        Assert.Equal(1_200m, mo.Ledgers["a"].Debits.Single().Amount);   // 固定費は常にマスタへ追随
+    }
+
+    [Fact]
+    public void ReconcileFixedCosts_RemovesDebit_WhenFixedCostDeactivated()
+    {
+        var state = FixedCostState(out var mo, isVariable: true);
+        LedgerEngine.ExpandFixedCosts(state, "202606", mo);
+
+        state.FixedCosts[0].EndYm = "202605";   // 当月より前に終了＝非アクティブ化
+        LedgerEngine.ReconcileFixedCosts(state, "202606", mo, isCurrentCycle: true);
+
+        Assert.Empty(mo.Ledgers["a"].Debits);
+    }
+
     // ── ヘルパ ───────────────────────────────────────
     private static MonthData MonthWith(string accountId, Ledger ledger)
     {
@@ -249,6 +356,19 @@ public class LedgerEngineTests
         {
             Accounts = { new Account { Id = "a" } },
             Cards = { new Card { Id = "c1", Name = "カードC1", AccountId = "a" } },
+        };
+        mo = MonthWith("a", new Ledger());
+        state.Months["202606"] = mo;
+        return state;
+    }
+
+    // 口座a＋固定費fc1（Amount=1,000・口座a紐付け）の最小 state と、口座台帳を持つ当月 MonthData を返す。
+    private static AppState FixedCostState(out MonthData mo, bool isVariable)
+    {
+        var state = new AppState
+        {
+            Accounts = { new Account { Id = "a" } },
+            FixedCosts = { new FixedCost { Id = "fc1", Name = "水道代", AccountId = "a", Amount = 1_000m, IsVariable = isVariable } },
         };
         mo = MonthWith("a", new Ledger());
         state.Months["202606"] = mo;

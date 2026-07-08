@@ -29,6 +29,14 @@ public partial class DataApi
         CurrentPrices = doc.CurrentPrices, UsdJpyRate = doc.UsdJpyRate, PricedAt = doc.PricedAt
     };
 
+    private static PortfolioData ToData(PortfolioReadDoc doc) => new()
+    {
+        SchemaVersion = doc.SchemaVersion,
+        Holdings = doc.Holdings, Buys = doc.Buys, Sells = doc.Sells,
+        Dividends = doc.Dividends, Snapshots = doc.Snapshots,
+        CurrentPrices = doc.CurrentPrices, UsdJpyRate = doc.UsdJpyRate, PricedAt = doc.PricedAt
+    };
+
     private static PortfolioDoc ToDoc(PortfolioData d, string userId) => new()
     {
         Id = PortfolioId, UserId = userId, Type = "portfolio",
@@ -309,13 +317,7 @@ public partial class DataApi
             int recorded = 0;
             foreach (var doc in docs)
             {
-                var data = new PortfolioData
-                {
-                    SchemaVersion = doc.SchemaVersion,
-                    Holdings = doc.Holdings, Buys = doc.Buys, Sells = doc.Sells,
-                    Dividends = doc.Dividends, Snapshots = doc.Snapshots,
-                    CurrentPrices = doc.CurrentPrices, UsdJpyRate = doc.UsdJpyRate, PricedAt = doc.PricedAt
-                };
+                var data = ToData(doc);
 
                 foreach (var h in data.Holdings.Where(h => !h.IsDeleted))
                 {

@@ -155,4 +155,60 @@ public static class LedgerEngine
             _ => fc.Amount
         };
     }
+
+    // EnsureMonth が固定費展開を実行すべきかの判定（#87）。新規作成月（バックフィル）または
+    // 当月以降のみ実行する＝既存の過去月を開き直しただけでは、あとから追加/変更した固定費を
+    // 遡って混入させない（OnFixedCostChanged の IsCurrentOrFutureCycle ガードと揃える）。
+    public static bool ShouldExpandFixedCosts(bool isNewMonth, bool isCurrentOrFutureCycle) =>
+        isNewMonth || isCurrentOrFutureCycle;
+
+    // 未展開の固定費のみ追加する（既存 Debit はそのまま＝月ごとの編集値を保持）。新規月の作成（EnsureMonth）用。
+    public static void ExpandFixedCosts(AppState state, string ym, MonthData mo)
+    {
+        var month = Ym.Parse(ym).Month;
+        foreach (var fc in state.FixedCosts.Where(f => IsFixedCostActive(f, ym)))
+        {
+            if (!mo.Ledgers.TryGetValue(fc.AccountId, out var ledger)) continue;
+            if (ledger.Debits.Any(d => d.FixedCostId == fc.Id)) continue;
+            ledger.Debits.Add(NewFixedCostDebit(fc, GetFixedCostAmount(fc, month)));
+        }
+    }
+
+    // マスタ変更（追加/削除/改名/金額/口座/期間）を当月以降へ反映する再展開（#87）。
+    // 翌月以降は編集有無に関わらず常にマスタへ一律追随する（非変動の固定費と同じ挙動）。
+    // 当月（isCurrentCycle=true）に限り、変動費（IsVariable）でユーザーが手動編集済み
+    // （AmountOverridden）の分だけ編集値を保持して上書きしない。
+    public static void ReconcileFixedCosts(AppState state, string ym, MonthData mo, bool isCurrentCycle)
+    {
+        var preserved = isCurrentCycle
+            ? mo.Ledgers.Values
+                .SelectMany(l => l.Debits)
+                .Where(d => d.IsFixed && d.IsVariable && d.AmountOverridden && d.FixedCostId != null)
+                .ToDictionary(d => d.FixedCostId!, d => d.Amount)
+            : new Dictionary<string, decimal>();
+
+        foreach (var ledger in mo.Ledgers.Values)
+            ledger.Debits.RemoveAll(d => d.IsFixed);
+
+        var month = Ym.Parse(ym).Month;
+        foreach (var fc in state.FixedCosts.Where(f => IsFixedCostActive(f, ym)))
+        {
+            if (!mo.Ledgers.TryGetValue(fc.AccountId, out var ledger)) continue;
+            var kept = fc.IsVariable && preserved.TryGetValue(fc.Id, out var keptAmount) ? (decimal?)keptAmount : null;
+            var overridden = kept.HasValue;
+            var amount = kept ?? GetFixedCostAmount(fc, month);
+            var debit = NewFixedCostDebit(fc, amount);
+            debit.AmountOverridden = overridden;
+            ledger.Debits.Add(debit);
+        }
+    }
+
+    private static Debit NewFixedCostDebit(FixedCost fc, decimal amount) => new()
+    {
+        Name = fc.Name,
+        Amount = amount,
+        IsFixed = true,
+        IsVariable = fc.IsVariable,
+        FixedCostId = fc.Id
+    };
 }

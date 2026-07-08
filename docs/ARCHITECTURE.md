@@ -13,7 +13,7 @@
 - 本番URL: https://purple-stone-08eacab00.7.azurestaticapps.net
 - API ドキュメント（Swagger UI）: https://mynameistoshi.github.io/moneyboardjp/swagger/
 - ローカルパス: `C:\Development\moneyboard\`
-- **現行バージョン: `2.8.0`**（2026-07-07 本番リリース・PR #94。統計グラフの内訳表示改善（期間選択「当月」追加#88・収入内訳を給料/ボーナス/臨時収入の3系列化#89）とバグ修正（期間指定での再描画不具合#90・棒タップ内訳の集計不具合#85）)。`2.7.0`（2026-07-06 本番リリース・PR #82。月次管理タブの口座カードをヒーロー＋収入/支出/振込ゾーン構成に刷新#81）。`2.6.0`（2026-07-05 本番リリース。PWA化＝manifest・service worker・アイコン一式・ホーム画面追加・アプリ更新検知#76）。`2.5.0`（2026-07-05 本番リリース。ポートフォリオ推移スナップショットのサーバー側自動記録#37（平日クローズ後にcronからHTTP呼び出しで記録・画面を開かない日の欠測防止）・portfolio-snapshot-current に NISA 枠区分を追加#69・推移スナップショットの日付キーをUTCに統一#73）。`2.4.0`（2026-07-04 本番リリース。カード明細カテゴリのAI一括推定#27・利用先前方一致による一括分類#70・一括カテゴリ設定ダイアログのタブ型リデザイン#71）。`2.3.0`（2026-06-30 本番リリース。市場サマリ API #54・ポートフォリオ現況 API #48・Swagger UI 公開 #66）。`2.2.0`（2026-06-27 本番リリース・PR #62。金額マスク機能＝アプリ全体トグル・リロード後も反映・入力欄/ダイアログ/ドーナツにも適用）。`2.1.0`（2026-06-27 本番リリース・PR #60。マイページ口座並べ替え▲▼/D&D・設定行アイコン統一・起点月より過去へ戻れる不具合修正・追加時空データ出現不具合修正）。`2.0.0`（2026-06-26・PR #58。全画面リデザイン＆PCサイドバーナビ＝ヒーロー集約＋線アイコン統一、月次/カード/統計/資産/マイページ全画面刷新、PC左サイドバー、ポートフォリオ市場指数3列グリッド。メジャー番号＝UIの大節目・API非互換なし）。`1.5.0`（2026-06-21・PR #35。市場指標バー=NYダウ/ナスダック/S&P500/日経/KOSPI 5本・AI読取エラー可視化）。`1.4.0`（2026-06-21・PR #22。**Phase 4 土台＝Claude Vision でカード明細スクショをAI読み取り→当月へ取込**。詳細は「Phase 4」節）。`1.3.4`（2026-06-20・PR #21。CIカバレッジをPRコメント＋Job Summaryに出力）／`1.3.3`（PR #20。Step4前クリーンアップ＝テスト基盤整備・純粋ロジック抽出・巨大razor code-behind分離）／`1.3.2`=証券ポートフォリオ表示改善＋深いURL404修正／`1.3.1`=スマホ実機修正／`1.3.0`=スマホUI全面最適化／`1.2.0`=Phase 3 証券ポートフォリオ。
+- **現行バージョン: `2.9.0`**（2026-07-08 本番リリース。毎月金額が変わる「変動費」（水道・電気等）の登録#87・リファクタ（前方一致ルール完了メッセージ生成の共通化#93・RecordSnapshotsのPortfolioData集約#92・AI 2エンドポイントextract-card/classify-categoriesの重複共通化#91）)。`2.8.0`（2026-07-07 本番リリース・PR #94。統計グラフの内訳表示改善（期間選択「当月」追加#88・収入内訳を給料/ボーナス/臨時収入の3系列化#89）とバグ修正（期間指定での再描画不具合#90・棒タップ内訳の集計不具合#85）)。`2.7.0`（2026-07-06 本番リリース・PR #82。月次管理タブの口座カードをヒーロー＋収入/支出/振込ゾーン構成に刷新#81）。`2.6.0`（2026-07-05 本番リリース。PWA化＝manifest・service worker・アイコン一式・ホーム画面追加・アプリ更新検知#76）。`2.5.0`（2026-07-05 本番リリース。ポートフォリオ推移スナップショットのサーバー側自動記録#37（平日クローズ後にcronからHTTP呼び出しで記録・画面を開かない日の欠測防止）・portfolio-snapshot-current に NISA 枠区分を追加#69・推移スナップショットの日付キーをUTCに統一#73）。`2.4.0`（2026-07-04 本番リリース。カード明細カテゴリのAI一括推定#27・利用先前方一致による一括分類#70・一括カテゴリ設定ダイアログのタブ型リデザイン#71）。`2.3.0`（2026-06-30 本番リリース。市場サマリ API #54・ポートフォリオ現況 API #48・Swagger UI 公開 #66）。`2.2.0`（2026-06-27 本番リリース・PR #62。金額マスク機能＝アプリ全体トグル・リロード後も反映・入力欄/ダイアログ/ドーナツにも適用）。`2.1.0`（2026-06-27 本番リリース・PR #60。マイページ口座並べ替え▲▼/D&D・設定行アイコン統一・起点月より過去へ戻れる不具合修正・追加時空データ出現不具合修正）。`2.0.0`（2026-06-26・PR #58。全画面リデザイン＆PCサイドバーナビ＝ヒーロー集約＋線アイコン統一、月次/カード/統計/資産/マイページ全画面刷新、PC左サイドバー、ポートフォリオ市場指数3列グリッド。メジャー番号＝UIの大節目・API非互換なし）。`1.5.0`（2026-06-21・PR #35。市場指標バー=NYダウ/ナスダック/S&P500/日経/KOSPI 5本・AI読取エラー可視化）。`1.4.0`（2026-06-21・PR #22。**Phase 4 土台＝Claude Vision でカード明細スクショをAI読み取り→当月へ取込**。詳細は「Phase 4」節）。`1.3.4`（2026-06-20・PR #21。CIカバレッジをPRコメント＋Job Summaryに出力）／`1.3.3`（PR #20。Step4前クリーンアップ＝テスト基盤整備・純粋ロジック抽出・巨大razor code-behind分離）／`1.3.2`=証券ポートフォリオ表示改善＋深いURL404修正／`1.3.1`=スマホ実機修正／`1.3.0`=スマホUI全面最適化／`1.2.0`=Phase 3 証券ポートフォリオ。
 - 次の AI 機能（C案カテゴリ推定・月次コメント・FABチャット 等）は Phase 4 の土台を再利用して順次追加。
 
 ---
@@ -170,7 +170,8 @@ C:\Development\moneyboard\
   MoneyBoardApi\
     DataApi.cs                GET/POST /api/data（設定＋月次の集約取得 / 差分の原子的保存）
     DataApi.Access.cs         認証＋アクセス承認（partial・AuthorizeAsync・GET/POST /api/access・承認DTO）
-    DataApi.CardImage.cs      POST /api/extract-card（partial・Claude Vision でカード明細スクショ→CardDetail[]。Anthropic SDK・解析部 ParseCardImageResponse は internal でテスト可）
+    DataApi.Anthropic.cs      extract-card / classify-categories 共通の Anthropic 基盤（partial・クライアント生成・AnthropicError・SummarizeAnthropicError・構造化出力の定型呼出 CreateStructuredMessageAsync・502/503エラーハンドラ。issue #91 で両エンドポイントの重複を集約）
+    DataApi.CardImage.cs      POST /api/extract-card（partial・Claude Vision でカード明細スクショ→CardDetail[]。解析部 ParseCardImageResponse は internal でテスト可）
     DataApi.CategoryClassify.cs POST /api/classify-categories（partial・Claude Haiku(テキストのみ)で利用先一覧→カテゴリID一括分類。解析部 ParseCategoryClassifyResponse は internal でテスト可。カテゴリ一覧はリクエストボディで受け取りCosmosは叩かない）
     FirebaseAuth.cs           Firebase IDトークン(JWT/RS256)検証→uid抽出（OIDC構成キャッシュ・AuthBypass対応）
     Program.cs                DI登録 (CosmosClient・AppInsights・FirebaseAuth)
@@ -329,6 +330,7 @@ Transfer
 | カテゴリ自動推定（C案・`POST /api/classify-categories`。未分類の利用先を Claude Haiku 4.5 で一括分類→一括カテゴリ画面でレビュー→適用時に `CategoryRules` へキャッシュ。CSV取込・AIスクショ読取後に未分類が残っていれば一括カテゴリ画面を自動オープン＋AI分類まで自動実行、適用はユーザー操作。CategoryRules は `NormalizeStore` 正規化キーで統合し表記ゆれによる分裂を解消、SchemaMigration v3→v4 で既存データも統合） | ✅ 完了（dev・リリース待ち・#27） |
 | カテゴリ前方一致ルール（`CategoryPrefixRules`。ETC通行料金など区間ごとに店名が変わる明細を共通の接頭辞でまとめて分類。完全一致優先→前方一致は最長プレフィックス優先・大小無視。一括カテゴリ画面で一覧編集＋プレビュー件数＋最低2文字。登録時に同カテゴリの完全一致ルールを整理／完全一致保存時は前方一致で解決済みなら重複保存しない。SchemaMigration v4→v5） | ✅ 完了（dev・リリース待ち・#70） |
 | 推移スナップショットのサーバー側自動記録（`POST /api/record-snapshots`。全ユーザー横断でクロスパーティションクエリ→価格重複排除取得→`PortfolioMath.BuildSnapshot`/`UpsertSnapshot`再利用で1点ずつ記録。GitHub Actions cron `record-snapshots.yml` から平日1回呼び出し。SWA Free の Timer トリガー非対応を cron→HTTP で代替） | ✅ 完了（dev・リリース待ち・#37。要 GitHub Secrets `INTERNAL_API_SHARED_SECRET` 設定） |
+| 変動費（`FixedCost.IsVariable`。水道・電気など毎月自動計上だが金額が変わる支出。固定費設定タブでフラグON→月次管理タブでその月の金額を編集可、マスタ額は既定値/初期値。当月に限り手動編集値（`Debit.AmountOverridden`）を保持しマスタ変更で上書きしない、翌月以降は非変動の固定費と同様マスタへ一律追随。あわせて `EnsureMonth` の固定費展開を新規作成月/当月以降に限定するバグ修正（既存の過去月を開いただけで新規固定費が遡って混入しないように）。SchemaMigration v5→v6） | ✅ 完了（dev・リリース待ち・#87） |
 
 ---
 
@@ -353,6 +355,7 @@ Transfer
 - **口座カード本文は「ヒーロー＋収入/支出/振込ゾーン」構成（#81）**：
   - **ヒーロー**（`.acct-hero`）＝月末残高（見込み）を主役化。当月収支ピル（`MaskedSignedYen` で符号つき表示・黒字=`--ok`緑／赤字=`--bad`赤）＋収支バー（収入:支出の flex 比・`barIn`/`barOut` は文化依存の桁区切りが CSS に混ざらないよう invariant 文字列化）＋補助行（月初/収入/支出）。
   - **収入ゾーン**（緑）／**支出ゾーン**（赤。固定費・カード由来は表示専用の折りたたみ`.fold`、手入力のみ input）／**振込ゾーン**（グレー。送金は編集可、受取は表示専用）。**3ゾーンとも既定=閉**。各ゾーンの開閉は `_incomeToggled`/`_expenseToggled`/`_transferToggled`（展開中の口座を保持）。
+  - **固定費の折りたたみ内、変動費（`Debit.IsVariable`・#87）のみ金額を編集可**（🔄アイコン＋ `AmountInput`）。非変動の固定費は従来どおり🔒＋表示専用。
   - **月初残高は起点月のみ手入力ボックス**（navy枠＋「起点」バッジ）を表示。**通常月は自動計算のためヒーロー補助行に畳み**、独立ボックスは出さない（`OpeningOf` は起点月でも `l.Confirmed` を返すため計算はそのまま流用）。
 - 月ナビ横に ⓘ（`CycleInfo`）で当月サイクルの実期間を表示。**スマホは月切り替えを全幅バー＋ⓘ独立ボタン**（CSS のみ・マークアップ共有）。
 
@@ -360,6 +363,7 @@ Transfer
 - D&D で並び替え（`⠿`）→ `SortOrder` を連番更新。
 - 口座列ヘッダーに **Excel風フィルター**（じょうごSVG＋チェックボックス複数選択）。フィルター中は D&D 無効・全選択で自動解除。表示のみ（非永続）。
 - `＋ 追加` → ダイアログ。口座未登録時は警告ダイアログ。金額0でも追加可。
+- **変動費（`IsVariable`・#87）**：期間・ボーナス設定の展開部にチェックボックス「毎月金額が変わる」。ON にすると一覧に🔄バッジを表示し、月次管理タブでその月の金額を編集できるようになる（マスタの金額は既定値/初期値扱い）。
 
 ### マイページタブ（レイアウト/質感リデザイン済み・#50）
 - 月次（#43）・カード（#49）と同じデザイン言語。上部に**プロフィールヒーロー**（ダーク地・アバター頭文字＋名前/メール＋ローカル開発ピル or ログアウト＋口座/カード/固定費月の指標）。
@@ -449,6 +453,9 @@ Transfer
     - **前回セッションから waiting のままの SW も検知**：`updatefound` は今回のロード後に新規インストールが始まった時のみ発火するため、`register()` 直後に `registration.waiting` を確認し、既にインストール済みで待機中の SW があればその場でトーストを出す（クリック前にタブを閉じた場合に更新が握り潰されないように）。
   - **iOS 16.4 未満のスタンドアロン対応**：manifest の `display:standalone` は iOS 16.4+ でのみ有効なため、`index.html` に旧来の `apple-mobile-web-app-capable`（`content="yes"`）を追加。`apple-mobile-web-app-status-bar-style` は `black-translucent`（透過）だと `viewport-fit=cover` とヘッダー側の `env(safe-area-inset-top)` 対応が別途必要になり、本アプリは bottom 側の safe-area（botnav）のみ対応済みで top 側は未対応のため、既存レイアウトと衝突しないよう `default`（不透明）を採用。
 - **収入の内訳推移＝給料/ボーナス/臨時収入の3系列固定＋棒タップで内訳ダイアログ（#89）** … 従来は臨時収入を入力名ごとに個別系列化しており、月ごとに顔ぶれが変わる臨時収入（家賃収入・還元・単発イベント等）が増えるほど凡例・積み上げ棒とも同系色（`IncomeGold` 一色）で判別不能になっていた。検討した3案（A: 臨時収入に `DonutPalette` をローテ割当／B: 主収入と臨時収入を分離／C: 臨時収入をドーナツ等の別表現）のうち、**Bを採用**：臨時収入は月内合算の1系列（「臨時収入」・ゴールド）にまとめ、給料（navy）・ボーナス（緑）と合わせて常に3系列固定（色ローテ不要）。内訳（入力名ごとの金額）は積み上げ棒からは読み取れなくなる代わりに、棒タップで既存の `OpenIncomeBreakdown`（④収入内訳ダイアログと同一処理・対象月1ヶ月に絞って呼び出し）を開いて確認する導線（`OnIncomeBreakdownSelected`）を追加。新規ダイアログ・新規集計ロジックを増やさず、既存の「棒タップ→内訳」パターン（④収入vs支出のコンボ棒）を踏襲した。
+- **変動費のモデリング＝固定費マスタへのフラグ追加方式、再展開は非上書き（#87）** … 水道・電気のように「毎月必ず発生するが額が変わる」支出を、独立した新エンティティにせず既存 `FixedCost` へ `IsVariable` フラグを追加する方式を採用（自動展開・期間/ボーナス設定・口座紐付けなど固定費の周辺機能をそのまま再利用できるため）。展開先の `Debit` にも `IsVariable` を複製し、月次管理タブは `FixedCostId` を辿らずこのフラグだけで編集可否を判定できるようにした（固定費マスタが削除されても過去月の表示挙動が変わらない）。
+  - **再展開時に月ごとの編集値を失わないための非上書き規則**：`OnFixedCostChanged()`（`LedgerEngine.ReconcileFixedCosts`）は当月以降の `IsFixed` な `Debit` を一旦全削除して再構築する既存方式のままだが、削除前に `IsVariable` な `Debit` の金額を `FixedCostId` 別に退避し、再構築後に復元する。これにより「マスタの `Amount` は既定値/初期値」「月ごとに編集した額は再展開（口座変更・期間変更・他の固定費追加削除を含む）をまたいで保持される」を、既存の全削除→再構築パターンを崩さず実現した。非変動の固定費は従来どおりマスタへ都度追随する（1つの再展開ロジックで両方を扱う）。
+  - **統計への反映は既存ロジックのまま**：`GraphPage` の固定費集計（`FixedTotal`／固定費内訳ダイアログ）はマスタを再計算せず「各月の `Debits` に実際に記帳された `IsFixed` 分」を合算する既存方針（#84）のため、変動費も同じ `IsFixed=true` の `Debit` として記帳される以上、追加改修なしで二重計上なく反映される。
 
 > **Claude API 連携（土台）／カード画像（スクショ）読み取り** は **v1.4.0 で本番リリース済み**（下記「実装済み機能」表・「Phase 4」節を参照）。
 
@@ -666,8 +673,9 @@ Functions Isolated では `IConfiguration` ではなく
 (`__` は Linux 環境での階層区切り)
 
 ### 固定費展開タイミング
-- `EnsureMonth()` で未登録口座に固定費を自動展開
-- `OnFixedCostChanged()` で当月サイクル以降を再展開
+- `EnsureMonth()` で未登録口座に固定費を自動展開（`LedgerEngine.ExpandFixedCosts`：未展開分のみ追加し既存 `Debit` の金額は変更しない）。**ただし展開自体を実行するのは「その月を新規作成した場合（バックフィル）」または「当月以降のサイクル」に限る**（`isNewMonth || IsCurrentOrFutureCycle(ym)`）。既に存在する過去月をタブ操作で開き直しただけでは実行しない＝あとから追加/変更した固定費が過去の確定済み月へ遡って混入することはない（#87 の動作確認で発覚した既存バグを合わせて修正。以前は `EnsureMonth` にこのガードが無く、無期限＝開始年月未設定の固定費を追加すると過去月を開いた瞬間に新規Debitが混入し、月末残高の自動連鎖に影響していた）。
+- `OnFixedCostChanged()` で当月サイクル以降を再展開（`LedgerEngine.ReconcileFixedCosts`：一旦 `IsFixed` の `Debit` を全削除して再構築）。こちらは元から `IsCurrentOrFutureCycle` でガード済み。
+- **変動費（`FixedCost.IsVariable`・#87）は「当月に限り」手動編集値を保持**：マスタ変更時、**翌月以降は編集の有無に関わらず常にマスタへ一律追随**する（非変動の固定費と同じ挙動）。**当月のみ**、月次管理タブでユーザーが金額を手動編集した（`Debit.AmountOverridden=true`）分は `ReconcileFixedCosts` が保持し上書きしない。`ReconcileFixedCosts(state, ym, mo, isCurrentCycle)` の `isCurrentCycle` は `LedgerService.OnFixedCostChanged()` が `ym == CurrentCycleStartYm()` で判定して渡す（`LedgerEngine` はテスト容易性のため「今日」を直接参照しない）。翌月以降の再構築時は `AmountOverridden` を毎回 `false` にリセットする（その月が将来「当月」になった時点で改めて手動編集がなければマスタへ追随させるため）。
 
 ### disabled 属性 / ボタン無効表示 (Blazor)
 現行 Blazor では `disabled="@boolValue"` で正しく付与/省略される（Home のタブ、MonthlyTab の月ナビ ‹、GraphPage の戻るで使用）。
@@ -701,6 +709,8 @@ Functions Isolated では `IConfiguration` ではなく
   （`LedgerService.ApplyCategoryRules`）も正規化キーで統一し、再分裂を防ぐ。
 - **v5**（#70）: `CategoryPrefixRules`（前方一致カテゴリルール）を追加。加算的なフィールド追加のみで
   移行処理は不要（旧データは空の辞書として読める）。
+- **v6**（#87）: `FixedCost.IsVariable`（変動費フラグ）・`Debit.IsVariable`/`AmountOverridden` を追加。
+  加算的なフィールド追加のみで移行処理は不要（旧データは `false`＝従来どおりの固定費として読める）。
 
 ### 月初残高の自動連鎖（OpeningOf）
 - `OpeningOf(ym, acct)` ＝ 前月の同口座台帳があれば `CloseOf(前月)`、無ければ（起点月）`Confirmed`。

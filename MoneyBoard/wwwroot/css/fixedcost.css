@@ -179,6 +179,44 @@
   background: #fff;
 }
 
+/* 変動費トグル（#87）：毎月金額が変わる固定費を月次管理タブで編集可にする */
+.fc-variable-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--sub);
+  margin-bottom: 0;
+  user-select: none;
+}
+
+/* [type="checkbox"] で詳細度を上げ、dialog.css の「.dialog-form input{width:100%}」
+   （同じ詳細度・読込順が後）に幅を上書きされないようにする（追加ダイアログでの崩れ対策）。 */
+.fc-variable-toggle input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.fc-variable-toggle span {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* 一覧行に出す変動費バッジ（毎月金額が変わることの目印） */
+.fc-variable-badge {
+  font-size: 15px;
+  color: var(--accent);
+  opacity: .75;
+  flex: 0 0 auto;
+}
+
 .bonus-list {
   display: flex;
   flex-direction: column;

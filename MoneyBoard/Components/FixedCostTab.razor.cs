@@ -115,6 +115,7 @@ public partial class FixedCostTab
     private string NewName = "";
     private string NewAccountId = "";
     private decimal NewAmount = 0;
+    private bool NewIsVariable = false;
     private string AddError = "";
 
     private bool ShowNoAccountWarn = false;
@@ -129,6 +130,7 @@ public partial class FixedCostTab
         NewName      = "";
         NewAccountId = Svc.ActiveAccounts.FirstOrDefault()?.Id ?? "";
         NewAmount    = 0;
+        NewIsVariable = false;
         AddError     = "";
         ShowAddDialog = true;
     }
@@ -142,14 +144,18 @@ public partial class FixedCostTab
 
         Svc.State.FixedCosts.Add(new FixedCost
         {
-            Name      = NewName.Trim(),
-            AccountId = NewAccountId,
-            Amount    = NewAmount,
-            SortOrder = Svc.State.FixedCosts.Count
+            Name       = NewName.Trim(),
+            AccountId  = NewAccountId,
+            Amount     = NewAmount,
+            IsVariable = NewIsVariable,
+            SortOrder  = Svc.State.FixedCosts.Count
         });
         SaveWithReload();
         ShowAddDialog = false;
     }
+
+    // 変動費フラグの切替。既存 FixedCost を直接編集して即時反映（再展開＋保存）。
+    private void SetVariable(FixedCost fc, bool value) { fc.IsVariable = value; SaveWithReload(); }
 
     // ── ドラッグ＆ドロップ並び替え ──────────────────
     private string? DragSourceId = null;

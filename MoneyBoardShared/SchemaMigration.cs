@@ -13,7 +13,9 @@ public static class SchemaMigration
     // v4: CategoryRules のキーを NormalizeStore（全角半角/空白正規化）済みに統一（#27）。
     //     OCR・CSV発行元差の表記ゆれで同一店名が別キーに分裂していた既存データを統合する。
     // v5: CategoryPrefixRules（前方一致カテゴリルール）を追加（#70）。加算的なフィールド追加のみで移行不要。
-    public const int CurrentVersion = 5;
+    // v6: FixedCost.IsVariable（変動費フラグ）・Debit.IsVariable/AmountOverridden を追加（#87）。
+    //     加算的なフィールド追加のみで移行不要。
+    public const int CurrentVersion = 6;
 
     /// <summary>最新スキーマへ移行する。実際に変更が発生した場合のみ true を返す（=保存が必要）。</summary>
     public static bool Apply(AppState state)
