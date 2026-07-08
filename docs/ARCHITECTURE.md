@@ -186,9 +186,9 @@ C:\Development\moneyboard\
     SchemaMigration.cs        スキーマ移行の足場（SchemaVersion管理）
     StorageContracts.cs       GET/POST DTO（DataEnvelope/SettingsPart/MonthPart）
     StatsMath.cs              統計（グラフ）の純粋ロジック（SelectPeriodYms=期間選択。GraphPage が委譲・v1.3.3）
-    FixedCostPeriod.cs        固定費の有効期間 StartYm/EndYm の解析・組み立て・表示整形（YearPart/MonthPart/ComposeYm/FmtBound/Summary。FixedCostTab が委譲・v1.3.3）
+    FixedCostPeriod.cs        固定費の有効期間 StartYm/EndYm の解析・組み立て・表示整形＋期限切れ判定（YearPart/MonthPart/ComposeYm/FmtBound/Summary/IsExpired。FixedCostTab が委譲・v1.3.3・IsExpiredは#100）
     Portfolio.cs / PortfolioMath.cs  証券ポートフォリオのモデルと集計計算（Phase 3）。PortfolioMath に CostBasisJpyAsOf（指定日元本・円換算）/ YahooSymbol（日本株 .T 付与）を v1.3.3 で抽出。v2.1.0（issue #57）で PnlPct・DayChangePct・GroupValuationJpy を追加（テスト 118件）。issue #36 で BuildSnapshot（スナップショット構築）を追加（テスト 125件）
-  MoneyBoardShared.Tests\     ※ xUnit(net8.0)。LedgerMath / LedgerEngine / PortfolioMath / StatsMath / FixedCostPeriod / CardCsvParser / Ym / SchemaMigration / FixedCost のユニットテスト（計130・`dotnet test`／カバレッジは `--collect:"XPlat Code Coverage"`）
+  MoneyBoardShared.Tests\     ※ xUnit(net8.0)。LedgerMath / LedgerEngine / PortfolioMath / StatsMath / FixedCostPeriod / CardCsvParser / Ym / SchemaMigration / FixedCost のユニットテスト（計168・`dotnet test`／カバレッジは `--collect:"XPlat Code Coverage"`）
 ```
 
 ### MoneyBoardShared の憲章（役割定義）
@@ -300,6 +300,7 @@ Transfer
 |------|------|
 | 月次管理タブ（収入[給料/ボーナス/ATM入金/臨時収入]・支出[カード/ATM出金/手入力]・送金） | ✅ 完了 |
 | 固定費設定タブ（口座フィルター・D&D並び替え） | ✅ 完了 |
+| 期限切れ固定費の折りたたみグループ化（既定は閉・終了年月の降順・並べ替え不可・`FixedCostPeriod.IsExpired`） | ✅ 完了（dev・リリース待ち・#100） |
 | カードタブ（明細手入力＋カードCSV取込[JCB/三井住友/PayPay/au PAY/楽天]・カードごと折りたたみ） | ✅ 完了 |
 | マイページタブ（プロフィールヒーロー＋設定カードのグリッド[PC]/折りたたみ[スマホ]・アクセス管理2列色分け・#50リデザイン） | ✅ 完了 |
 | グラフページ (7種・期間指定・sticky ヘッダー・内訳ドリルダウン) | ✅ 完了 |
@@ -364,6 +365,8 @@ Transfer
 - 口座列ヘッダーに **Excel風フィルター**（じょうごSVG＋チェックボックス複数選択）。フィルター中は D&D 無効・全選択で自動解除。表示のみ（非永続）。
 - `＋ 追加` → ダイアログ。口座未登録時は警告ダイアログ。金額0でも追加可。
 - **変動費（`IsVariable`・#87）**：期間・ボーナス設定の展開部にチェックボックス「毎月金額が変わる」。ON にすると一覧に🔄バッジを表示し、月次管理タブでその月の金額を編集できるようになる（マスタの金額は既定値/初期値扱い）。
+- **期限切れの折りたたみグループ化（#100）**：`EndBound()` が当月サイクル開始（`CurrentCycleStartYm()`）より前の固定費は、通常の一覧から分離し「期限切れ（N件）」の折りたたみグループにまとめる（既定は閉・非永続・`FixedCostPeriod.IsExpired`）。グループ内は終了年月の降順（新しく切れたものが先頭）で固定表示し、D&D／▲▼ の並べ替え対象外。背景色（`--paper`・破線ボーダー）で通常項目と区別する。口座フィルターと併用可（両条件を満たすものだけ表示）。PC/スマホ共通。
+  - **編集ロック**：期限切れ中は終了年月以外（名前・口座・金額・変動費チェック・開始年月・ボーナス払い）を disabled にして編集不可。終了年月のみ延長できる。延長して期限切れでなくなると、その場で（シートを閉じずに）編集可能へ戻り、一覧上も通常グループへ自動的に移動する。
 
 ### マイページタブ（レイアウト/質感リデザイン済み・#50）
 - 月次（#43）・カード（#49）と同じデザイン言語。上部に**プロフィールヒーロー**（ダーク地・アバター頭文字＋名前/メール＋ローカル開発ピル or ログアウト＋口座/カード/固定費月の指標）。

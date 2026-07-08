@@ -89,6 +89,62 @@
   opacity: .85;
 }
 
+/* 期限切れ項目（背景色で既存と区別。並べ替え不可のためドラッグハンドル/▲▼は非表示） */
+.fc-item.fc-expired {
+  background: var(--paper);
+  border-style: dashed;
+}
+
+.list-card-wrap.fc-expired .list-card {
+  background: var(--paper);
+  border-style: dashed;
+}
+
+/* ── 期限切れグループ（折りたたみ・終了年月の降順・並べ替え不可） ── */
+.fc-expired-group {
+  margin-top: 10px;
+}
+
+.fc-expired-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--sub);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 6px 2px;
+}
+
+.fc-expired-toggle .msym {
+  font-size: 18px;
+}
+
+.fc-list-expired {
+  margin-top: 6px;
+}
+
+/* 期限切れ中：終了年月以外は編集不可（終了年月を延長すると再び編集可能） */
+.fc-item.fc-expired input:disabled,
+.fc-item.fc-expired select:disabled,
+.fc-item.fc-expired button:disabled,
+.sheet-field input:disabled,
+.sheet-field select:disabled,
+.sheet-field button:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+  background: var(--paper);
+}
+
+.fc-expired-hint {
+  color: var(--accent);
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
 .fc-row {
   display: flex;
   align-items: center;
