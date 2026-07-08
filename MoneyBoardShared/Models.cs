@@ -52,6 +52,11 @@ public class Account
     public int SortOrder { get; set; }
     public bool IsDeleted { get; set; }
     public bool IsBonusAccount { get; set; }
+    // 現金の手元残高・使い道を追跡する特殊口座（#77）。アクティブ（!IsDeleted）は同時に1個のみ。
+    public bool IsWallet { get; set; }
+    // 財布を作成した月（yyyyMM）。他の口座と異なり、財布は「作成した月」を恒久的な起点（開始残高の入力月）
+    // とするため、この月より前へは月次展開（EnsureMonth）で遡って台帳を作らない（#77 フォローアップ）。
+    public string? WalletStartYm { get; set; }
 }
 
 // ── 固定費マスタ ──────────────────────────────────
@@ -126,6 +131,17 @@ public class Ledger
     public List<IncomeItem> Incomes { get; set; } = new();   // 臨時収入（給料/ボーナスとは別。統計の収入総額には別系列で反映）
     public decimal AtmDeposit { get; set; }                  // ATM入金（口座増・資産移動のため統計には含めない）
     public decimal AtmWithdraw { get; set; }                 // ATM出金（口座減・資産移動のため統計には含めない）
+    // 財布→口座のATM入金明細（財布台帳でのみ使用・#77）。LedgerEngine.ExpandWallet が
+    // 全件合算して財布自身の AtmWithdraw と、対象口座ごとの AtmDeposit へ実体化（materialize）する。
+    public List<WalletAtmDeposit> WalletAtmDeposits { get; set; } = new();
+}
+
+// 財布→口座のATM入金1件（対象口座と金額）。#77。
+public class WalletAtmDeposit
+{
+    public string Id { get; set; } = Util.NewId();
+    public string AccountId { get; set; } = "";
+    public decimal Amount { get; set; }
 }
 
 // 臨時収入の明細（給料・ボーナス以外の収入。入力名ごとに統計へ内訳表示）
@@ -147,6 +163,9 @@ public class Debit
                                                  // 当月のみ、true ならマスタ変更の再展開で上書きしない（翌月以降は編集有無に関わらず常にマスタへ追随）。
     public string? FixedCostId { get; set; }
     public string? CardId { get; set; }   // カード由来 Debit の目印（明細合計を反映・読み取り専用）
+    // 財布の現金支出（#77）のみ手入力で設定。他の Debit（固定費・カード・通常口座の手入力支出）は
+    // 未設定のまま＝統計のカテゴリ別集計（GraphPage.BuildCategorySpend）には混入しない。
+    public string? CategoryId { get; set; }
 }
 
 public class Transfer

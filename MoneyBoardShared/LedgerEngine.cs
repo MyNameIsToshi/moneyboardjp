@@ -55,6 +55,46 @@ public static class LedgerEngine
         }
     }
 
+    // ── 財布（現金）── ATM入出金の対称実体化（materialize・#77）──────
+    // アクティブな財布（IsWallet && !IsDeleted）は同時に1個のみ。無ければ何もしない
+    // （既存の口座ATM入出金フィールドは従来どおり手入力のまま）。
+    public static Account? ActiveWallet(AppState state) => state.Accounts.FirstOrDefault(a => a.IsWallet && !a.IsDeleted);
+
+    // 財布は作成月（WalletStartYm）より前の月へ台帳を遡って作らない（#77 フォローアップ）。他の口座と異なり
+    // 起点月（開始残高の入力月）を作成月に固定し、過去月を開いても起点が移動しないようにするための判定。
+    public static bool ShouldCreateLedgerFor(Account a, string ym) =>
+        !a.IsWallet || a.WalletStartYm == null || string.CompareOrdinal(ym, a.WalletStartYm) >= 0;
+
+    // 口座⇄財布のATM入出金を対称に実体化する。派生値は保存するため、残高計算（LedgerMath.Close）は
+    // 無改修で乗り、財布削除後も過去月に凍結保存される。ym を跨がず「この月」のみを対象にする
+    // （固定費/カードの「当月以降のみ」とは異なり、過去月編集でもその月を再計算＝EnsureMonth から毎回呼ぶ）。
+    public static void ExpandWallet(AppState state, MonthData mo)
+    {
+        var wallet = ActiveWallet(state);
+        if (wallet == null) return;
+        if (!mo.Ledgers.TryGetValue(wallet.Id, out var walletLedger)) return;
+
+        var otherAccountIds = state.Accounts
+            .Where(a => !a.IsDeleted && a.Id != wallet.Id)   // 財布自身は自己ループ防止のため除外
+            .Select(a => a.Id)
+            .ToList();
+
+        // 口座→財布（自動）：各非財布口座の既存 AtmWithdraw（手入力）を合算し、財布の AtmDeposit へ。
+        walletLedger.AtmDeposit = otherAccountIds
+            .Sum(id => mo.Ledgers.TryGetValue(id, out var l) ? l.AtmWithdraw : 0);
+
+        // 財布→口座（要口座選択）：財布の明細を全件合算して財布の AtmWithdraw へ。
+        walletLedger.AtmWithdraw = walletLedger.WalletAtmDeposits.Sum(e => e.Amount);
+
+        // 対象口座ごとに合算して各口座の AtmDeposit へ（財布有効時は口座側の手入力欄を無効化し
+        // materialize に一本化するため、対象が無い口座も 0 で確定する）。
+        foreach (var id in otherAccountIds)
+        {
+            if (!mo.Ledgers.TryGetValue(id, out var l)) continue;
+            l.AtmDeposit = walletLedger.WalletAtmDeposits.Where(e => e.AccountId == id).Sum(e => e.Amount);
+        }
+    }
+
     // ── 取込明細の重複除外（リボ/分割の再掲対策）──────────
     // 取込明細のうち、同一カードでより早い月に既出（利用日・請求先(正規化)・金額が一致）の行を除外する。
     // 照合は ym より前の月のみ（＝最初の出現を残す。月をまたぐ取込は時系列順が前提）。

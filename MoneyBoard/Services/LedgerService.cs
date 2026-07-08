@@ -59,7 +59,8 @@ public class LedgerService(AppStateStore store)
         var activeAccounts = State.Accounts.Where(a => !a.IsDeleted).OrderBy(a => a.SortOrder).ToList();
         foreach (var a in activeAccounts)
         {
-            if (!mo.Ledgers.ContainsKey(a.Id))
+            // 財布は作成月（WalletStartYm）より前へ遡って台帳を作らない（#77 フォローアップ）。
+            if (!mo.Ledgers.ContainsKey(a.Id) && LedgerEngine.ShouldCreateLedgerFor(a, ym))
                 // 前月ありは前月末から自動連鎖（Confirmed は参照されない）。起点月は開始残高0で作成。
                 mo.Ledgers[a.Id] = new Ledger { Confirmed = hasPrev ? CloseOf(prev, a.Id) : 0 };
         }
@@ -67,6 +68,7 @@ public class LedgerService(AppStateStore store)
         if (LedgerEngine.ShouldExpandFixedCosts(isNewMonth, IsCurrentOrFutureCycle(ym)))
             ExpandFixedCosts(ym, mo);
         ExpandCards(ym, mo);
+        ExpandWallet(mo);
         return mo;
     }
 
@@ -143,6 +145,19 @@ public class LedgerService(AppStateStore store)
         if (State.Months.TryGetValue(ym, out var mo)) ExpandCards(ym, mo);
     }
 
+    // ── 財布（現金）── ATM入出金の実体化（#77）────────────
+    // 計算本体は LedgerEngine.ExpandWallet（純粋ロジック・テスト対象）へ委譲する。
+    private void ExpandWallet(MonthData mo) => LedgerEngine.ExpandWallet(State, mo);
+
+    // 口座のATM出金／財布のATM入金明細を編集した月を再計算する（当月に限らず、編集された月そのものを対象にする）。
+    public void RecalcWallet(string ym)
+    {
+        if (State.Months.TryGetValue(ym, out var mo)) ExpandWallet(mo);
+    }
+
+    public Account? ActiveWallet => LedgerEngine.ActiveWallet(State);
+    public bool HasActiveWallet => ActiveWallet != null;
+
     // 店名→カテゴリの記憶ルールを明細に適用する（取込時の自動分類）。
     // 完全一致（CategoryRules）を優先し、該当しなければ前方一致（CategoryPrefixRules・#70）を
     // 最長プレフィックス優先で判定する。判定本体は LedgerEngine.ResolveCategory（純粋ロジック）へ委譲する。
@@ -185,8 +200,12 @@ public class LedgerService(AppStateStore store)
     // ── 口座/固定費の参照・操作 ──────────────────────
     public string? AccountName(string id) => State.Accounts.FirstOrDefault(a => a.Id == id)?.Name;
 
+    // 財布は他の口座と異なる特殊枠のため常に先頭に固定表示（並び替え対象外・#77 フォローアップ）。
     public List<Account> ActiveAccounts =>
-        State.Accounts.Where(a => !a.IsDeleted).OrderBy(a => a.SortOrder).ToList();
+        State.Accounts.Where(a => !a.IsDeleted)
+            .OrderByDescending(a => a.IsWallet)
+            .ThenBy(a => a.SortOrder)
+            .ToList();
 
     public List<string> GetFixedCostsUsingAccount(string accountId) =>
         State.FixedCosts.Where(f => f.AccountId == accountId).Select(f => f.Name).ToList();
@@ -194,8 +213,11 @@ public class LedgerService(AppStateStore store)
     public List<string> GetCardsUsingAccount(string accountId) =>
         State.Cards.Where(c => !c.IsDeleted && c.AccountId == accountId).Select(c => c.Name).ToList();
 
+    // 財布は「使用中だから消せない」対象外（#77）。現金支出（Debits）が記帳済みでも、財布OFFは
+    // カード削除(#49)と同じ「当月以降を掃除・過去は凍結」で正常に完了する設計のため、このガードを適用しない。
     public List<string> GetFutureMonthsUsingAccount(string accountId)
     {
+        if (State.Accounts.FirstOrDefault(a => a.Id == accountId)?.IsWallet == true) return new();
         var cycleStart = CurrentCycleStartYm();
         return State.Months
             .Where(kvp => string.CompareOrdinal(kvp.Key, cycleStart) >= 0)
@@ -214,6 +236,35 @@ public class LedgerService(AppStateStore store)
     public void DeleteAccount(string accountId)
     {
         var a = State.Accounts.FirstOrDefault(x => x.Id == accountId);
-        if (a != null) a.IsDeleted = true;
+        if (a == null) return;
+        a.IsDeleted = true;
+        if (a.IsWallet) CleanupWalletOff(accountId);
+        else RecalcWalletCurrentAndFuture();   // 非財布口座の削除で当該口座のATM出金が財布へ実体化されなくなるため、当月以降の財布を再計算する（#77）。
+    }
+
+    // 財布が有効な間、当月以降のすべての月を ExpandWallet で再計算する（財布が無ければ何もしない）。
+    private void RecalcWalletCurrentAndFuture()
+    {
+        foreach (var ym in State.Months.Keys.Where(IsCurrentOrFutureCycle).ToList())
+            ExpandWallet(State.Months[ym]);
+    }
+
+    // 財布OFF（ソフト削除）：カード削除に倣い当月以降を掃除し過去は凍結する。materialize を即時停止し、
+    // 財布自身の実体化済み値・ATM入金明細、および財布由来で口座に実体化された AtmDeposit をクリアして
+    // 各口座側の「ATM入金（手入力）」欄を復活させる（#77）。
+    private void CleanupWalletOff(string walletId)
+    {
+        foreach (var ym in State.Months.Keys.Where(IsCurrentOrFutureCycle).ToList())
+        {
+            var mo = State.Months[ym];
+            if (mo.Ledgers.TryGetValue(walletId, out var walletLedger))
+            {
+                walletLedger.AtmDeposit = 0;
+                walletLedger.AtmWithdraw = 0;
+                walletLedger.WalletAtmDeposits.Clear();
+            }
+            foreach (var (aid, ledger) in mo.Ledgers)
+                if (aid != walletId) ledger.AtmDeposit = 0;
+        }
     }
 }

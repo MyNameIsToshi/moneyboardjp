@@ -346,6 +346,20 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* 財布は名前変更不可のため入力欄ではなく表示専用テキストにする（#77フォローアップ）。
+   編集できないことが一目で分かるよう、無効化した入力欄のような質感（薄い背景＋not-allowedカーソル）にする。 */
+.wallet-name-fixed {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  padding: 8px 12px;
+  border: 1px solid #ddd9d2;
+  border-radius: 9px;
+  background: #f2f0ea;
+  color: var(--sub);
+  cursor: not-allowed;
+}
+
 /* select：appearance なし＋自前の expand_more */
 .set-select-wrap {
   position: relative;

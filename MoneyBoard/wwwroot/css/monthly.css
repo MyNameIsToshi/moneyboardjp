@@ -679,6 +679,26 @@ input.num:focus,
   font-size: 18px;
 }
 
+/* ATM実体化（materialize）の表示専用値：財布の自動受取／財布有効時の口座側ATM入金（#77） */
+.atm-auto {
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--sub);
+}
+
+/* 財布の現金支出：カテゴリ選択（#77） */
+.row select.cat {
+  width: 108px;
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 5px 6px;
+  font: inherit;
+  font-size: 12.5px;
+  background: #fcfbf9;
+}
+
 /* カード由来＝表示専用リンク行（input にしない） */
 .card-row {
   cursor: pointer;
