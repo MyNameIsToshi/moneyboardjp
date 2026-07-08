@@ -15,7 +15,9 @@ public static class SchemaMigration
     // v5: CategoryPrefixRules（前方一致カテゴリルール）を追加（#70）。加算的なフィールド追加のみで移行不要。
     // v6: FixedCost.IsVariable（変動費フラグ）・Debit.IsVariable/AmountOverridden を追加（#87）。
     //     加算的なフィールド追加のみで移行不要。
-    public const int CurrentVersion = 6;
+    // v7: 財布（現金）機能（#77）。Account.IsWallet・Ledger.WalletAtmDeposits・Debit.CategoryId を追加。
+    //     いずれも安全な default（false / 空リスト / null）を持つ加算的なフィールド追加のみで移行不要。
+    public const int CurrentVersion = 7;
 
     /// <summary>最新スキーマへ移行する。実際に変更が発生した場合のみ true を返す（=保存が必要）。</summary>
     public static bool Apply(AppState state)

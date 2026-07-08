@@ -361,38 +361,53 @@ public partial class GraphPage
     // cardId → ドーナツ/バッジで使う色（BuildCardSpend で確定）
     private Dictionary<string, string> _cardColors = new();
 
-    // 期間中の全カード明細を CategoryId で集計（未分類はまとめて末尾の色なし扱い）
+    // 期間中の全カード明細＋財布の現金支出（カテゴリ付き Debit・#77）を CategoryId で集計
+    // （未分類＝カードの CategoryId 空欄はまとめて末尾の色なし扱い。カテゴリ未設定の現金支出は
+    //  CategoryId が null のため CashDebitsIn に含まれず、そもそも集計に混ざらない＝二重計上なし）。
     private void BuildCategorySpend(List<string> yms)
     {
         // 月をまたいで明細を集める（ドリルダウン表示用に日付降順で保持）
-        var details = CardDetailsIn(yms);
+        var cardDetails = CardDetailsIn(yms);
+        var cashDebits = CashDebitsIn(yms).ToList();
 
-        var groups = details.GroupBy(d => d.CategoryId ?? "").ToList();
+        var cardGroups = cardDetails.GroupBy(d => d.CategoryId ?? "").ToDictionary(g => g.Key, g => g.ToList());
+        var cashGroups = cashDebits.GroupBy(x => x.Debit.CategoryId!).ToDictionary(g => g.Key, g => g.ToList());
+        var allKeys = cardGroups.Keys.Union(cashGroups.Keys).ToList();
 
-        CategorySpendData = groups
-            .Select(g =>
+        CategorySpendData = allKeys
+            .Select(key =>
             {
-                var cat = Svc.CategoryById(g.Key);
+                var cat = Svc.CategoryById(key);
+                var cardList = cardGroups.GetValueOrDefault(key, new());
+                var cashList = cashGroups.GetValueOrDefault(key, new());
                 return new SpendSlice
                 {
-                    Key = g.Key,
+                    Key = key,
                     Label = cat?.Name ?? "未分類",
-                    Value = g.Sum(d => d.Amount),
+                    Value = cardList.Sum(d => d.Amount) + cashList.Sum(x => x.Debit.Amount),
                     Color = cat?.Color ?? "#bdbdbd",
-                    Count = g.Count()
+                    Count = cardList.Count + cashList.Count
                 };
             })
             .OrderByDescending(s => s.Value)
             .ToList();
 
-        // ドリルダウン用：カテゴリごとの明細（日付降順）。補足列＝カード名・色はカードドーナツと共有
-        CategoryDetails = groups.ToDictionary(
-            g => g.Key,
-            g => g.OrderByDescending(d => d.Date)
-                  .Select(d => new DetailDialog.DetailRow(
-                      d.Date, d.Name, Svc.CardById(d.CardId)?.Name ?? "", d.Amount,
-                      _cardColors.GetValueOrDefault(d.CardId ?? "", "#bdbdbd")))
-                  .ToList());
+        // ドリルダウン用：カテゴリごとの明細（日付降順）。補足列＝カード名/口座名・色はカードドーナツと共有
+        // （現金支出は利用日を持たないため ym を代用し、月単位で日付降順に近い並びにする）。
+        CategoryDetails = allKeys.ToDictionary(
+            key => key,
+            key =>
+            {
+                var cardRows = cardGroups.GetValueOrDefault(key, new())
+                    .Select(d => new DetailDialog.DetailRow(
+                        d.Date, d.Name, Svc.CardById(d.CardId)?.Name ?? "", d.Amount,
+                        _cardColors.GetValueOrDefault(d.CardId ?? "", "#bdbdbd")));
+                var cashRows = cashGroups.GetValueOrDefault(key, new())
+                    .Select(x => new DetailDialog.DetailRow(
+                        x.Ym, string.IsNullOrWhiteSpace(x.Debit.Name) ? "（名称なし）" : x.Debit.Name,
+                        Svc.AccountName(x.AccountId) ?? "現金", x.Debit.Amount, "#bdbdbd"));
+                return cardRows.Concat(cashRows).OrderByDescending(r => r.Date).ToList();
+            });
 
         // スライス色をカテゴリ設定色に合わせる（データ並びと同順）
         DonutOptions.Colors = CategorySpendData.Select(s => s.Color).ToList();
@@ -480,6 +495,16 @@ public partial class GraphPage
         yms.SelectMany(ym => Svc.State.Months.GetValueOrDefault(ym)?.Ledgers.Values ?? Enumerable.Empty<Ledger>());
     private List<CardDetail> CardDetailsIn(IEnumerable<string> yms) =>
         yms.SelectMany(ym => Svc.State.Months.GetValueOrDefault(ym)?.CardDetails ?? Enumerable.Empty<CardDetail>()).ToList();
+
+    // カテゴリ付きの現金支出（財布の Debit・#77）を ym・口座つきで列挙する。CategoryId が
+    // 未設定（null）または「未分類」選択（""）の Debit はカテゴリ別集計に混ざらないよう除外する
+    // （固定費・カード由来・通常口座の手入力支出は常に null のまま＝同様に除外される）。
+    private IEnumerable<(string Ym, string AccountId, Debit Debit)> CashDebitsIn(IEnumerable<string> yms) =>
+        yms.SelectMany(ym => Svc.State.Months.GetValueOrDefault(ym)?.Ledgers
+            .SelectMany(kv => kv.Value.Debits
+                .Where(d => !string.IsNullOrEmpty(d.CategoryId))
+                .Select(d => (Ym: ym, AccountId: kv.Key, Debit: d)))
+            ?? Enumerable.Empty<(string, string, Debit)>());
 
     public class ChartPoint
     {

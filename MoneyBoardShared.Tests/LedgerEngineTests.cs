@@ -341,6 +341,131 @@ public class LedgerEngineTests
         Assert.Empty(mo.Ledgers["a"].Debits);
     }
 
+    // ── 財布（現金）── ATM入出金の対称実体化（ExpandWallet・#77）─────
+    [Fact]
+    public void ExpandWallet_NoActiveWallet_DoesNothing()
+    {
+        var state = new AppState { Accounts = { new Account { Id = "a" }, new Account { Id = "w" } } };
+        var mo = new MonthData();
+        mo.Ledgers["a"] = new Ledger { AtmWithdraw = 1_000m };
+        mo.Ledgers["w"] = new Ledger();
+
+        LedgerEngine.ExpandWallet(state, mo);
+
+        Assert.Equal(0m, mo.Ledgers["w"].AtmDeposit);   // 財布フラグが無ければ何も実体化しない
+        Assert.Equal(1_000m, mo.Ledgers["a"].AtmWithdraw);
+    }
+
+    [Fact]
+    public void ExpandWallet_SumsNonWalletAtmWithdraw_IntoWalletAtmDeposit_ExcludingWalletItself()
+    {
+        var state = WalletState(out var mo, out _);
+        mo.Ledgers["a"].AtmWithdraw = 3_000m;
+        mo.Ledgers["b"].AtmWithdraw = 2_000m;
+        mo.Ledgers["w"].AtmWithdraw = 999m;   // 財布自身の値は自己ループ防止で無視される
+
+        LedgerEngine.ExpandWallet(state, mo);
+
+        Assert.Equal(5_000m, mo.Ledgers["w"].AtmDeposit);
+    }
+
+    [Fact]
+    public void ExpandWallet_MaterializesWalletDepositsToTargetAccounts_AndSumsIntoWalletWithdraw()
+    {
+        var state = WalletState(out var mo, out var wallet);
+        mo.Ledgers["w"].WalletAtmDeposits.Add(new WalletAtmDeposit { AccountId = "a", Amount = 1_500m });
+        mo.Ledgers["w"].WalletAtmDeposits.Add(new WalletAtmDeposit { AccountId = "a", Amount = 500m });   // 同一口座は合算
+        mo.Ledgers["w"].WalletAtmDeposits.Add(new WalletAtmDeposit { AccountId = "b", Amount = 700m });
+
+        LedgerEngine.ExpandWallet(state, mo);
+
+        Assert.Equal(2_000m, mo.Ledgers["a"].AtmDeposit);
+        Assert.Equal(700m, mo.Ledgers["b"].AtmDeposit);
+        Assert.Equal(2_700m, mo.Ledgers["w"].AtmWithdraw);   // 全件合算
+    }
+
+    [Fact]
+    public void ExpandWallet_ClearsAtmDeposit_ForAccountsWithNoMatchingEntry()
+    {
+        // 財布有効時は口座側の手入力を無効化し materialize に一本化するため、対象外の口座は 0 に確定する。
+        var state = WalletState(out var mo, out _);
+        mo.Ledgers["a"].AtmDeposit = 9_999m;   // 財布導入前の手入力残り
+
+        LedgerEngine.ExpandWallet(state, mo);
+
+        Assert.Equal(0m, mo.Ledgers["a"].AtmDeposit);
+    }
+
+    [Fact]
+    public void ExpandWallet_IsIdempotent_OnRerun()
+    {
+        var state = WalletState(out var mo, out _);
+        mo.Ledgers["a"].AtmWithdraw = 1_000m;
+        mo.Ledgers["w"].WalletAtmDeposits.Add(new WalletAtmDeposit { AccountId = "b", Amount = 500m });
+
+        LedgerEngine.ExpandWallet(state, mo);
+        LedgerEngine.ExpandWallet(state, mo);   // 再実行しても値が変わらない（派生値の全再計算のため二重計上しない）
+
+        Assert.Equal(1_000m, mo.Ledgers["w"].AtmDeposit);
+        Assert.Equal(500m, mo.Ledgers["w"].AtmWithdraw);
+        Assert.Equal(500m, mo.Ledgers["b"].AtmDeposit);
+    }
+
+    [Fact]
+    public void ExpandWallet_SkipsSoftDeletedNonWalletAccounts()
+    {
+        var state = WalletState(out var mo, out _);
+        state.Accounts.Single(x => x.Id == "a").IsDeleted = true;
+        mo.Ledgers["a"].AtmWithdraw = 1_000m;
+        mo.Ledgers["b"].AtmWithdraw = 500m;
+
+        LedgerEngine.ExpandWallet(state, mo);
+
+        Assert.Equal(500m, mo.Ledgers["w"].AtmDeposit);   // 削除済み口座は合算対象外
+    }
+
+    // ── 財布の起点固定（ShouldCreateLedgerFor・#77フォローアップ）─────
+    [Fact]
+    public void ShouldCreateLedgerFor_NonWalletAccount_AlwaysTrue()
+    {
+        var a = new Account { IsWallet = false };
+        Assert.True(LedgerEngine.ShouldCreateLedgerFor(a, "202601"));
+    }
+
+    [Fact]
+    public void ShouldCreateLedgerFor_WalletWithoutStartYm_AlwaysTrue()
+    {
+        // 旧データ・移行直後などで WalletStartYm 未設定の場合は制限しない（後方互換）。
+        var a = new Account { IsWallet = true, WalletStartYm = null };
+        Assert.True(LedgerEngine.ShouldCreateLedgerFor(a, "202601"));
+    }
+
+    [Theory]
+    [InlineData("202605", false)]  // 作成月より前 → 作らない
+    [InlineData("202606", true)]   // 作成月 → 作る（起点）
+    [InlineData("202607", true)]   // 作成月より後 → 作る
+    public void ShouldCreateLedgerFor_Wallet_RespectsStartYm(string ym, bool expected)
+    {
+        var a = new Account { IsWallet = true, WalletStartYm = "202606" };
+        Assert.Equal(expected, LedgerEngine.ShouldCreateLedgerFor(a, ym));
+    }
+
+    // 口座a・口座b・財布wの最小 state と、3口座すべての台帳を持つ当月 MonthData を返す。
+    private static AppState WalletState(out MonthData mo, out Account wallet)
+    {
+        wallet = new Account { Id = "w", IsWallet = true };
+        var state = new AppState
+        {
+            Accounts = { new Account { Id = "a" }, new Account { Id = "b" }, wallet }
+        };
+        mo = new MonthData();
+        mo.Ledgers["a"] = new Ledger();
+        mo.Ledgers["b"] = new Ledger();
+        mo.Ledgers["w"] = new Ledger();
+        state.Months["202606"] = mo;
+        return state;
+    }
+
     // ── ヘルパ ───────────────────────────────────────
     private static MonthData MonthWith(string accountId, Ledger ledger)
     {
