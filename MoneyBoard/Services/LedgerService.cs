@@ -51,11 +51,9 @@ public class LedgerService(AppStateStore store)
     // ── 月次展開 ─────────────────────────────────────
     public MonthData EnsureMonth(string ym)
     {
-        if (!State.Months.TryGetValue(ym, out var mo))
-        {
-            mo = new MonthData();
-            State.Months[ym] = mo;
-        }
+        bool isNewMonth = !State.Months.TryGetValue(ym, out var existing);
+        var mo = existing ?? new MonthData();
+        if (isNewMonth) State.Months[ym] = mo;
         var prev = PrevYm(ym);
         bool hasPrev = State.Months.ContainsKey(prev);
         var activeAccounts = State.Accounts.Where(a => !a.IsDeleted).OrderBy(a => a.SortOrder).ToList();
@@ -65,38 +63,24 @@ public class LedgerService(AppStateStore store)
                 // 前月ありは前月末から自動連鎖（Confirmed は参照されない）。起点月は開始残高0で作成。
                 mo.Ledgers[a.Id] = new Ledger { Confirmed = hasPrev ? CloseOf(prev, a.Id) : 0 };
         }
-        ExpandFixedCosts(ym, mo);
+        // 固定費展開の可否判定は LedgerEngine.ShouldExpandFixedCosts（純粋ロジック・テスト対象）へ委譲する。
+        if (LedgerEngine.ShouldExpandFixedCosts(isNewMonth, IsCurrentOrFutureCycle(ym)))
+            ExpandFixedCosts(ym, mo);
         ExpandCards(ym, mo);
         return mo;
     }
 
-    private void ExpandFixedCosts(string ym, MonthData mo)
-    {
-        var month = Ym.Parse(ym).Month;
-        foreach (var fc in State.FixedCosts.Where(f => IsFixedCostActive(f, ym)))
-        {
-            if (!mo.Ledgers.TryGetValue(fc.AccountId, out var ledger)) continue;
-            if (ledger.Debits.Any(d => d.FixedCostId == fc.Id)) continue;
-            ledger.Debits.Add(new Debit
-            {
-                Name = fc.Name,
-                Amount = GetFixedCostAmount(fc, month),
-                IsFixed = true,
-                FixedCostId = fc.Id
-            });
-        }
-    }
+    // 未展開分のみ追加する。計算本体は LedgerEngine.ExpandFixedCosts（純粋ロジック・テスト対象）へ委譲する。
+    private void ExpandFixedCosts(string ym, MonthData mo) => LedgerEngine.ExpandFixedCosts(State, ym, mo);
 
+    // マスタ変更を当月以降へ反映する再展開。計算本体は LedgerEngine.ReconcileFixedCosts（純粋ロジック・
+    // テスト対象）へ委譲する。変動費（#87）は当月に限り手動編集済みの金額を上書きしない
+    // （翌月以降は非変動の固定費と同様、常にマスタへ一律追随する）。
     public void OnFixedCostChanged()
     {
-        var targets = State.Months.Keys.Where(IsCurrentOrFutureCycle).ToList();
-        foreach (var ym in targets)
-        {
-            var mo = State.Months[ym];
-            foreach (var ledger in mo.Ledgers.Values)
-                ledger.Debits.RemoveAll(d => d.IsFixed);
-            ExpandFixedCosts(ym, mo);
-        }
+        var currentCycleYm = CurrentCycleStartYm();
+        foreach (var ym in State.Months.Keys.Where(IsCurrentOrFutureCycle).ToList())
+            LedgerEngine.ReconcileFixedCosts(State, ym, State.Months[ym], isCurrentCycle: ym == currentCycleYm);
     }
 
     // ── カード明細 → 月次 Debit 反映 ──────────────────

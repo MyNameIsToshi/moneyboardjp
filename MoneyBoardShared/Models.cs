@@ -65,6 +65,8 @@ public class FixedCost
     public string? EndYm { get; set; }     // null / "yyyy"（年のみ）/ "yyyyMM"
     public List<BonusSetting> BonusSettings { get; set; } = new();
     public int SortOrder { get; set; }
+    // 変動費（#87）：true の場合 Amount は既定値/初期値に過ぎず、月次管理タブで月ごとに編集した額が優先される。
+    public bool IsVariable { get; set; }
 
     // 有効期間の下限・上限を Ym として返す。年のみ指定は開始=1月 / 終了=12月 とみなす。
     public Ym? StartBound() => ParseBound(StartYm, 1);
@@ -140,6 +142,9 @@ public class Debit
     public string Name { get; set; } = "";
     public decimal Amount { get; set; }
     public bool IsFixed { get; set; }
+    public bool IsVariable { get; set; }  // 変動費（#87）由来：固定費と異なり月次管理タブで金額編集可
+    public bool AmountOverridden { get; set; }  // 変動費（#87）：ユーザーが金額を手動編集済みか。
+                                                 // 当月のみ、true ならマスタ変更の再展開で上書きしない（翌月以降は編集有無に関わらず常にマスタへ追随）。
     public string? FixedCostId { get; set; }
     public string? CardId { get; set; }   // カード由来 Debit の目印（明細合計を反映・読み取り専用）
 }

@@ -798,6 +798,19 @@ input.num:focus,
   font-weight: 600;
 }
 
+/* 変動費（#87）：固定費と違い月ごとに金額を編集できる */
+.fixed-row input.fixed-amt-input {
+  width: 96px;
+  flex: 0 0 auto;
+  text-align: right;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 5px 8px;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  background: #fcfbf9;
+}
+
 .xfer-line {
   display: flex;
   justify-content: space-between;

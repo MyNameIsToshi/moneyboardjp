@@ -72,6 +72,10 @@
                             <div class="list-card-main with-chip">
                                 <span class="acct-row-chip c-fixed msym">receipt_long</span>
                                 <span class="list-card-name">@fc.Name</span>
+                                @if (fc.IsVariable)
+                                {
+                                    <span class="msym fc-variable-badge" title="変動費（毎月金額が変わる）">sync</span>
+                                }
                                 <span class="list-card-amount">@MaskedYen(IsMasked, fc.Amount)</span>
                             </div>
                             <div class="list-card-sub">
@@ -119,6 +123,10 @@
                                 </select>
                                 <span class="msym set-select-chev">expand_more</span>
                             </div>
+                            @if (fc.IsVariable)
+                            {
+                                <span class="msym fc-variable-badge" title="変動費（毎月金額が変わる）">sync</span>
+                            }
                             <AmountInput CssClass="set-input ra" Value="@fc.Amount" ValueChanged="v => { fc.Amount = v; RequestSaveWithReload(); }" />
                             <button class="set-del" @onclick="() => RemoveFixedCost(fc.Id)" title="削除"><span class="msym">close</span></button>
                         </div>
@@ -130,6 +138,14 @@
                         @if (expanded)
                         {
                             <div class="fc-detail">
+                                <div class="detail-row">
+                                    <span class="detail-lab">変動費</span>
+                                    <label class="fc-variable-toggle">
+                                        <input type="checkbox" checked="@fc.IsVariable"
+                                               @onchange="e => SetVariable(fc, (bool)(e.Value ?? false))" />
+                                        <span>毎月金額が変わる（水道・電気など）。月次管理タブでその月の金額を編集できます。</span>
+                                    </label>
+                                </div>
                                 <div class="detail-row">
                                     <span class="detail-lab">開始年月</span>
                                     <select value="@StartYear(fc)" @onchange="e => SetStartYear(fc, e.Value?.ToString())">
@@ -235,6 +251,10 @@
                 </select>
                 <label>金額</label>
                 <AmountInput CssClass="ra" Value="@NewAmount" ValueChanged="v => NewAmount = v" />
+                <label class="fc-variable-toggle">
+                    <input type="checkbox" @bind="NewIsVariable" />
+                    <span>毎月金額が変わる（変動費・水道電気など）</span>
+                </label>
             </div>
             @if (!string.IsNullOrEmpty(AddError))
             {
@@ -275,8 +295,15 @@
                 </select>
             </div>
             <div class="sheet-field">
-                <label>通常月金額</label>
+                <label>@(Editing.IsVariable ? "既定額（初期値）" : "通常月金額")</label>
                 <AmountInput CssClass="ra" Value="@Editing.Amount" ValueChanged="v => { Editing.Amount = v; RequestSaveWithReload(); }" />
+            </div>
+            <div class="sheet-field">
+                <label class="sheet-check">
+                    <input type="checkbox" checked="@Editing.IsVariable"
+                           @onchange="e => SetVariable(Editing, (bool)(e.Value ?? false))" />
+                    変動費にする（毎月金額が変わる。月次管理タブでその月の金額を編集できます）
+                </label>
             </div>
             <div class="sheet-field">
                 <label>開始年月</label>

@@ -64,7 +64,7 @@ public class SchemaMigrationTests
         var changed = SchemaMigration.Apply(state);
 
         Assert.True(changed);
-        Assert.Equal(5, state.SchemaVersion);
+        Assert.Equal(SchemaMigration.CurrentVersion, state.SchemaVersion);
         Assert.Equal("cat-food", state.CategoryRules["スーパー"]);
         Assert.Empty(state.CategoryPrefixRules);
     }

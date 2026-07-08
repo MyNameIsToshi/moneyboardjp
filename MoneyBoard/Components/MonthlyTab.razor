@@ -206,8 +206,16 @@
                                                 {
                                                     <div class="fixed-row">
                                                         <span class="fixed-name">@d.Name</span>
-                                                        <span class="msym fixed-lock" title="固定費マスタから展開">lock</span>
-                                                        <span class="fixed-amt">@MaskedYen(IsMasked,d.Amount)</span>
+                                                        @if (d.IsVariable)
+                                                        {
+                                                            <span class="msym fixed-lock" title="変動費：この月の金額を編集できます">sync</span>
+                                                            <AmountInput CssClass="fixed-amt-input" Value="@d.Amount" ValueChanged="v => { d.Amount = v; d.AmountOverridden = IsCurrentCycleMonth; Svc.RequestSave(); }" />
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="msym fixed-lock" title="固定費マスタから展開">lock</span>
+                                                            <span class="fixed-amt">@MaskedYen(IsMasked,d.Amount)</span>
+                                                        }
                                                     </div>
                                                 }
                                             </div>
@@ -318,7 +326,7 @@
 
     <div class="foot">
         月初残高は前月末から自動計算されます（起点の月のみ「開始残高」を入力）。<br />
-        固定費は表示専用です（金額の変更は固定費設定タブから）。カード由来はカードタブで管理し、ここでは合計を表示します。<br />
+        固定費は表示専用です（金額の変更は固定費設定タブから）。変動費（<span class="msym" style="font-size:13px;vertical-align:-2px">sync</span>）はここで月ごとに金額を編集できます。カード由来はカードタブで管理し、ここでは合計を表示します。<br />
         口座間振込は送金元で設定し、振込先に「受取」として自動反映されます。
     </div>
 </div>
@@ -355,6 +363,11 @@
             return Svc.ActiveAccounts;
         }
     }
+
+    // 変動費の編集値保護（AmountOverridden）は当月に限る（翌月以降は常にマスタへ一律追随・#87）。
+    // 未来月で編集した値がそのまま「当月になった時点で保護対象」として残留しないよう、
+    // 表示中の月が実際に当月サイクルの場合のみ true をセットする。
+    private bool IsCurrentCycleMonth => Svc.CurrentMonth == LedgerService.CurrentCycleStartYm();
 
     private decimal Total => ActiveAccountsForMonth.Sum(a => Svc.CloseOf(Svc.CurrentMonth, a.Id));
     private int Short => ActiveAccountsForMonth.Count(a => Svc.CloseOf(Svc.CurrentMonth, a.Id) < 0);
