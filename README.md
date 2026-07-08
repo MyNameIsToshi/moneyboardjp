@@ -25,11 +25,12 @@
 |---|---|
 | 🏦 口座別 引き落とし管理 | 「確認時点の残高 ＋ 給料 − 引き落とし − 送金 ＋ 受取」で月末残高を予測し、残高不足の口座を警告。前月末残高を翌月へ自動連鎖。 |
 | 💳 クレジットカード明細管理 | CSV 取込（重複明細の自動除外）、リボ請求額（CardBilled）対応、「利用」と「請求」の分離管理。 |
-| 🤖 AI でカード明細を読み取り | カード明細のスクショを **Claude（Haiku 4.5 Vision）** で読み取り、構造化出力で明細を自動入力。複数枚・PC は Ctrl+V 貼り付け対応。 |
-| 📊 支出グラフ・カテゴリ内訳 | 月次の支出をカテゴリ別に集計し、内訳をドーナツ／グラフで可視化。 |
-| 📈 証券ポートフォリオ | 株式・投資信託・為替を一元管理。NISA 枠分割、配当再投資、約定為替、前日比・現在価格表示、資産構成ドーナツ、資産推移グラフ（期間切替）。価格は Yahoo Finance（株・為替）と投資信託協会（協会コード）から取得。 |
-| 🔧 固定費管理 | 期間（開始〜終了）対応の固定費を管理し、月次計算に反映。 |
-| 📱 モバイル UI 最適化 | PC／スマホをハイブリッド対応。スマホは下部タブナビ・ボトムシート編集・タッチ並べ替えに最適化。 |
+| 🤖 AI でカード明細を読み取り／分類 | カード明細のスクショを **Claude（Haiku 4.5 Vision）** で読み取り、構造化出力で明細を自動入力。複数枚・PC は Ctrl+V 貼り付け対応。カテゴリの AI 一括推定・利用先前方一致による一括分類にも対応。 |
+| 📊 支出グラフ・カテゴリ内訳 | 月次の支出をカテゴリ別に集計し、内訳をドーナツ／グラフで可視化。期間切替や棒タップでの内訳表示に対応。 |
+| 📈 証券ポートフォリオ | 株式・投資信託・為替を一元管理。NISA 枠分割、配当再投資、約定為替、前日比・現在価格表示、資産構成ドーナツ、資産推移グラフ（期間切替）。価格は Yahoo Finance（株・為替）と投資信託協会（協会コード）から取得し、推移スナップショットはサーバー側で自動記録。 |
+| 🔧 固定費・変動費管理 | 期間（開始〜終了）対応の固定費に加え、毎月金額が変わる変動費（水道・電気等）も登録可能。月次計算に反映。 |
+| 📱 モバイル UI 最適化 ／ PWA | PC／スマホをハイブリッド対応。スマホは下部タブナビ・ボトムシート編集・タッチ並べ替えに最適化。PWA 化によりホーム画面追加・アプリ更新検知にも対応。 |
+| 🔒 金額マスク | アプリ全体トグルで金額表示をマスク可能（入力欄・ダイアログ・グラフにも適用、リロード後も維持）。 |
 
 ---
 
@@ -37,30 +38,33 @@
 
 > 📐 **基本・概要設計の詳細は [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) を参照。** 機能ごとの作業は [GitHub Issues](https://github.com/MyNameIsToshi/moneyboardjp/issues) / [Milestones](https://github.com/MyNameIsToshi/moneyboardjp/milestones) で管理しています。
 
-```
-┌──────────────────────────────┐        ┌───────────────────────────────┐
-│  MoneyBoard (Blazor WASM)    │        │  MoneyBoardApi                │
-│  .NET 10 / SPA フロントエンド │  HTTPS │  (.NET 8 / Azure Functions    │
-│                              │ ─────▶ │   Isolated Worker)            │
-│  - 画面 (Razor Components)   │  JWT   │  - REST API (CRUD)            │
-│  - ApexCharts でグラフ描画   │        │  - Firebase IDトークン検証    │
-│  - API 経由でデータ永続化     │        │  - 承認制アクセスゲート       │
-└──────────────┬───────────────┘        │  - Claude API（明細読取）     │
-               │                        │  - 価格取得（Yahoo / 投信協会）│
-               │                        └───────────────┬───────────────┘
-               │                                        │
-        ┌──────▼───────┐                        ┌───────▼────────┐
-        │ Firebase Auth │                        │  Cosmos DB     │
-        │ (Google ログイン)                       │ (ユーザー別データ)
-        └──────────────┘                        └────────────────┘
+```mermaid
+flowchart LR
+    subgraph Client["🖥️ クライアント"]
+        FE["MoneyBoard\nBlazor WebAssembly（.NET 10）\nRazor Components / ApexCharts"]
+    end
 
-         ┌──────────────────────────────────────────────┐
-         │  MoneyBoardShared (.NET 8 共有ライブラリ)       │
-         │  UI / 永続化に依存しない純粋ドメインロジック    │
-         │  LedgerEngine / PortfolioMath / CardCsvParser  │
-         │  / FixedCostPeriod / SchemaMigration / Ym ...  │
-         │  → フロント・API の両方から参照、単体テスト対象 │
-         └──────────────────────────────────────────────┘
+    subgraph Azure["☁️ Azure"]
+        API["MoneyBoardApi\nAzure Functions Isolated（.NET 8）\nREST API・JWT検証・承認制アクセスゲート"]
+        DB[("Cosmos DB\nユーザー別データ")]
+        API --> DB
+    end
+
+    subgraph Ext["🌐 外部サービス"]
+        Auth["Firebase Auth\n(Google ログイン)"]
+        Claude["Anthropic Claude API\n(Haiku 4.5 Vision・明細読取)"]
+        Price["Yahoo Finance / 投資信託協会\n(株・為替・投信価格)"]
+    end
+
+    FE -- "HTTPS + JWT" --> API
+    FE -- "ログイン" --> Auth
+    Auth -- "IDトークン検証" --> API
+    API --> Claude
+    API --> Price
+
+    Shared["MoneyBoardShared（.NET 8）\nUI・永続化に依存しない純粋ドメインロジック\nLedgerEngine / PortfolioMath / CardCsvParser / FixedCostPeriod ..."]
+    FE -. "参照（単体テスト対象）" .-> Shared
+    API -. "参照（単体テスト対象）" .-> Shared
 ```
 
 ### プロジェクト構成
@@ -111,7 +115,7 @@
 ## ✅ テストと CI/CD
 
 品質と保守性を重視し、純粋ロジックを `MoneyBoardShared` に切り出して
-**単体テスト計 122 件**（`MoneyBoardShared` 102 件／`MoneyBoardApi` 20 件）でカバーしています。
+**単体テスト計 187 件**（`MoneyBoardShared` 152 件／`MoneyBoardApi` 35 件）でカバーしています。
 
 - **テストフレームワーク**: xUnit + coverlet（カバレッジ計測）
 - **CI**: `dev` への push と `main` への PR で GitHub Actions が自動でテスト実行
@@ -168,16 +172,17 @@ API を含めて動かす場合は `MoneyBoardApi/local.settings.json` に各種
 moneyboard/
 ├── MoneyBoard/              # フロントエンド (Blazor WASM)
 │   ├── Components/          # 画面コンポーネント (Razor)
-│   ├── Pages/              # ページ
-│   ├── Services/           # 状態管理・API/Storage クライアント・認証
-│   └── wwwroot/            # 静的アセット・JS Interop
-├── MoneyBoardApi/          # バックエンド (Azure Functions)
-│   ├── DataApi*.cs         # 機能別 API（Access / CardImage / Portfolio / Quote）
-│   └── FirebaseAuth.cs     # ID トークン検証
-├── MoneyBoardShared/       # 共有純粋ロジック・モデル
-├── MoneyBoardShared.Tests/ # 単体テスト
-├── MoneyBoardApi.Tests/    # 単体テスト
-└── .github/workflows/      # CI/CD（テスト・デプロイ）
+│   ├── Pages/               # ページ
+│   ├── Services/            # 状態管理・API/Storage クライアント・認証
+│   └── wwwroot/             # 静的アセット・JS Interop・PWA (manifest / service-worker)
+├── MoneyBoardApi/           # バックエンド (Azure Functions)
+│   ├── DataApi*.cs          # 機能別 API（Access / CardImage / CategoryClassify / Portfolio / Quote / Anthropic）
+│   └── FirebaseAuth.cs      # ID トークン検証
+├── MoneyBoardShared/        # 共有純粋ロジック・モデル
+├── MoneyBoardShared.Tests/  # 単体テスト
+├── MoneyBoardApi.Tests/     # 単体テスト
+├── docs/                    # 設計資料 (ARCHITECTURE.md) ・Swagger
+└── .github/workflows/       # CI/CD（テスト・デプロイ）
 ```
 
 ---
