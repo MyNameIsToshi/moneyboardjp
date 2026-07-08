@@ -20,6 +20,9 @@ public partial class FixedCostTab
     private FixedCost? Editing => _isNew ? _draft : (_editId is null ? null : Svc.State.FixedCosts.FirstOrDefault(f => f.Id == _editId));
     private void OpenEdit(string id) { _editId = id; _isNew = false; _draft = null; }
 
+    // 期限切れ中は名前・口座・金額を編集不可（期間を復活させると自動的に編集可能へ戻る）。
+    private bool EditingExpired => Editing is { } fc && FixedCostPeriod.IsExpired(fc, CurrentCycleStart);
+
     private void CloseEdit()
     {
         // ＋追加のドラフトは「決定」時にだけコミット。項目名が空なら破棄（State には何も作らない）。
@@ -84,10 +87,26 @@ public partial class FixedCostTab
 
     private void ClearFilter() { _checked = null; _filterOpen = false; }
 
-    private IEnumerable<FixedCost> DisplayedFixedCosts =>
+    // 期限切れ（EndYm が当月サイクルより前）は折りたたみグループに分離（#100）。既定は閉じた状態・非永続。
+    private bool _expiredOpen = false;
+    private void ToggleExpiredGroup() => _expiredOpen = !_expiredOpen;
+
+    private static Ym CurrentCycleStart => Ym.Parse(LedgerService.CurrentCycleStartYm());
+
+    private IEnumerable<FixedCost> FilteredByAccount =>
         _checked == null
             ? Svc.State.FixedCosts                                        // 全表示（手動順）
             : Svc.State.FixedCosts.Where(f => _checked.Contains(f.AccountId));
+
+    // 有効な固定費（口座フィルター適用・手動順のまま）。D&D／▲▼ 並べ替えの対象。
+    private IEnumerable<FixedCost> DisplayedFixedCosts =>
+        FilteredByAccount.Where(f => !FixedCostPeriod.IsExpired(f, CurrentCycleStart));
+
+    // 期限切れの固定費。終了年月の降順（新しく切れたものが先頭）で表示。並べ替え不可。
+    private List<FixedCost> ExpiredFixedCosts =>
+        FilteredByAccount.Where(f => FixedCostPeriod.IsExpired(f, CurrentCycleStart))
+            .OrderByDescending(f => f.EndBound())
+            .ToList();
 
     private HashSet<string> ExpandedIds = new();
     private void Save() => _ = Svc.SaveAsync();
@@ -98,13 +117,18 @@ public partial class FixedCostTab
     private void RequestSaveWithReload() { if (_isNew) return; Svc.OnFixedCostChanged(); Svc.RequestSave(); }
     private void ToggleExpand(string id) { if (!ExpandedIds.Remove(id)) ExpandedIds.Add(id); }
 
-    // スマホ：▲▼ で並べ替え（フィルター無し時のみ＝IsManualOrder）。SortOrder を 0..n に振り直す。
+    // スマホ：▲▼ で並べ替え（フィルター無し時のみ＝IsManualOrder）。表示中（有効）の固定費同士で
+    // 隣を入れ替える（期限切れは並べ替え対象外のため、間に挟まっていても無視して隣接を判定する）。
     private void Move(FixedCost fc, int dir)
     {
+        var active = DisplayedFixedCosts.ToList();
+        int ai = active.IndexOf(fc);
+        int aj = ai + dir;
+        if (ai < 0 || aj < 0 || aj >= active.Count) return;
+
         var list = Svc.State.FixedCosts;
-        int i = list.IndexOf(fc);
-        int j = i + dir;
-        if (i < 0 || j < 0 || j >= list.Count) return;
+        int i = list.IndexOf(active[ai]);
+        int j = list.IndexOf(active[aj]);
         (list[i], list[j]) = (list[j], list[i]);
         for (int k = 0; k < list.Count; k++) list[k].SortOrder = k;
         SaveWithReload();

@@ -27,6 +27,10 @@ public static class FixedCostPeriod
         return month != "" ? $"{YearPart(ym)}年{month}月" : $"{YearPart(ym)}年";
     }
 
+    /// <summary>期限切れ判定：EndBound が基準月（当月サイクル開始等）より前なら true（無期限/未設定は false）。</summary>
+    public static bool IsExpired(FixedCost fc, Ym asOf) =>
+        fc.EndBound() is { } end && end < asOf;
+
     /// <summary>有効期間＋ボーナス件数のサマリー文（例: 2026年4月〜無期限・ボーナス1件）。</summary>
     public static string Summary(FixedCost fc)
     {

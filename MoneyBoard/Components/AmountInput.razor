@@ -16,6 +16,7 @@ else
            inputmode="@(Decimals > 0 ? "decimal" : "numeric")"
            placeholder="@Placeholder"
            value="@DisplayValue"
+           disabled="@Disabled"
            @onfocus="OnFocus"
            @oninput="OnInput"
            @onblur="OnBlur" />
@@ -30,6 +31,7 @@ else
     [Parameter] public string Placeholder { get; set; } = "0";
     // 0=整数（円など・従来動作）／1以上=小数を許可・表示（数量・単価など）。
     [Parameter] public int Decimals { get; set; } = 0;
+    [Parameter] public bool Disabled { get; set; } = false;
 
     private bool _focused;
     private string _editing = "";

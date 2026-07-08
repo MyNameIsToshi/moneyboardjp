@@ -432,7 +432,7 @@
                         }
                         @foreach (var g in DisplayedBulkGroups)
                         {
-                            <div class="bulk-row">
+                            <div class="bulk-row" @key="g.Store">
                                 <span class="bulk-check"><input type="checkbox" checked="@_bulkChecked.Contains(g.Store)" @onchange="() => ToggleBulkCheck(g.Store)" /></span>
                                 <span class="bulk-store" title="@g.Store">@g.Store</span>
                                 <span class="bulk-count">@g.Count 件</span>

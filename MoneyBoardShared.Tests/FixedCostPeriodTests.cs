@@ -47,6 +47,43 @@ public class FixedCostPeriodTests
     public void FmtBound_FormatsYearMonthOrYear(string ym, string expected) =>
         Assert.Equal(expected, FixedCostPeriod.FmtBound(ym));
 
+    // ── IsExpired ──
+    [Fact]
+    public void IsExpired_EndBeforeAsOf_True()
+    {
+        var fc = new FixedCost { EndYm = "202603" };
+        Assert.True(FixedCostPeriod.IsExpired(fc, new Ym(2026, 4)));
+    }
+
+    [Fact]
+    public void IsExpired_EndEqualsAsOf_False()
+    {
+        var fc = new FixedCost { EndYm = "202604" };
+        Assert.False(FixedCostPeriod.IsExpired(fc, new Ym(2026, 4)));
+    }
+
+    [Fact]
+    public void IsExpired_EndAfterAsOf_False()
+    {
+        var fc = new FixedCost { EndYm = "202605" };
+        Assert.False(FixedCostPeriod.IsExpired(fc, new Ym(2026, 4)));
+    }
+
+    [Fact]
+    public void IsExpired_NoEnd_NeverExpires()
+    {
+        var fc = new FixedCost { EndYm = null };
+        Assert.False(FixedCostPeriod.IsExpired(fc, new Ym(9999, 12)));
+    }
+
+    [Fact]
+    public void IsExpired_YearOnlyEnd_TreatsAsDecember()
+    {
+        var fc = new FixedCost { EndYm = "2026" };
+        Assert.False(FixedCostPeriod.IsExpired(fc, new Ym(2026, 12)));
+        Assert.True(FixedCostPeriod.IsExpired(fc, new Ym(2027, 1)));
+    }
+
     // ── Summary ──
     [Fact]
     public void Summary_OpenStart_AndUnlimitedEnd_NoBonus()
