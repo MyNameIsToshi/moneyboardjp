@@ -1,0 +1,27 @@
+@using MoneyBoard.Services
+
+@* 更新後の初回表示で、未読分のお知らせ（新しい順・全件）を提示するモーダル（What's New）。 *@
+<div class="dialog-overlay" @onclick="Close">
+    <div class="dialog-box ann-dialog-box" @onclick:stopPropagation="true">
+        <div class="ann-dialog-head">
+            <h4>@(Items.Count > 1 ? $"新着のお知らせ（{Items.Count}件）" : "最新のお知らせ")</h4>
+            <button class="ann-close-btn" @onclick="Close" aria-label="閉じる"><span class="msym">close</span></button>
+        </div>
+        <div class="ann-list">
+            @foreach (var item in Items)
+            {
+                <AnnouncementCard Item="item" />
+            }
+        </div>
+        <div class="dialog-btns">
+            <button class="btn primary" @onclick="Close">閉じる</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public IReadOnlyList<Announcement> Items { get; set; } = Array.Empty<Announcement>();
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private Task Close() => OnClose.InvokeAsync();
+}

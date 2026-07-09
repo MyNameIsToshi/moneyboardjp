@@ -1,0 +1,29 @@
+@using Markdig
+@using MoneyBoard.Services
+
+@* お知らせ1件の表示（バッジ＋日付/版＋タイトル＋本文）。一覧・What's Newダイアログで共用。
+   本文は Markdown → HTML 変換だが、自前の信頼コンテンツ前提とはいえ念のため生HTMLは無効化する。 *@
+<div class="ann-card">
+    <div class="ann-head">
+        <span class="ann-badge ann-badge-@Item.Type">@TypeLabel</span>
+        <span class="ann-date">@Item.Date@(string.IsNullOrEmpty(Item.Version) ? "" : $" ・ v{Item.Version}")</span>
+    </div>
+    <h5 class="ann-title">@Item.Title</h5>
+    <div class="ann-body">@Html</div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Announcement Item { get; set; } = null!;
+
+    private static readonly MarkdownPipeline Pipeline =
+        new MarkdownPipelineBuilder().DisableHtml().Build();
+
+    private string TypeLabel => Item.Type switch
+    {
+        "release" => "リリース",
+        "maintenance" => "メンテナンス",
+        _ => "お知らせ",
+    };
+
+    private MarkupString Html => new(Markdown.ToHtml(Item.Body, Pipeline));
+}

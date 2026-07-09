@@ -1,0 +1,31 @@
+@using MoneyBoard.Services
+
+@* お知らせ一覧（ベル押下で表示・新しい順）。 *@
+<div class="dialog-overlay" @onclick="Close">
+    <div class="dialog-box ann-dialog-box" @onclick:stopPropagation="true">
+        <div class="ann-dialog-head">
+            <h4>お知らせ</h4>
+            <button class="ann-close-btn" @onclick="Close" aria-label="閉じる"><span class="msym">close</span></button>
+        </div>
+        @if (Items.Count == 0)
+        {
+            <p class="ann-empty">お知らせはありません。</p>
+        }
+        else
+        {
+            <div class="ann-list">
+                @foreach (var item in Items)
+                {
+                    <AnnouncementCard Item="item" />
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public IReadOnlyList<Announcement> Items { get; set; } = Array.Empty<Announcement>();
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private Task Close() => OnClose.InvokeAsync();
+}

@@ -1,6 +1,7 @@
 @inherits LayoutComponentBase
 @inject ViewportService Viewport
 @inject AmountMaskService MaskSvc
+@inject AnnouncementService AnnounceSvc
 @inject NavigationManager Nav
 @inject IJSRuntime JS
 @inject LedgerService Svc
@@ -23,6 +24,18 @@
             <BottomNav />
         }
     </div>
+
+    @* お知らせダイアログは app-shell の直下（sidenav の position:sticky が作る独立した
+       重ね合わせコンテキストの外）でレンダーする。sidenav 配下に置くと、本文側の select 等が
+       ダイアログより手前に描画されてしまうため（AppTitle 側は🔔ボタンのみ・#38）。 *@
+    @if (AnnounceSvc.ShowList)
+    {
+        <AnnouncementListDialog Items="AnnounceSvc.Items" OnClose="AnnounceSvc.CloseList" />
+    }
+    @if (AnnounceSvc.UnreadItems.Count > 0)
+    {
+        <AnnouncementWhatsNewDialog Items="AnnounceSvc.UnreadItems" OnClose="() => AnnounceSvc.DismissWhatsNewAsync()" />
+    }
 </CascadingValue>
 </CascadingValue>
 
@@ -31,6 +44,7 @@
     {
         Viewport.Changed += OnViewportChanged;
         MaskSvc.Changed += OnMaskChanged;
+        AnnounceSvc.Changed += OnAnnounceChanged;
         Nav.LocationChanged += OnLocationChanged;
         await Viewport.InitAsync();
         await MaskSvc.InitAsync();
@@ -39,6 +53,20 @@
 
     private void OnViewportChanged() => InvokeAsync(StateHasChanged);
     private void OnMaskChanged() => InvokeAsync(StateHasChanged);
+    private void OnAnnounceChanged() => InvokeAsync(StateHasChanged);
+
+    // お知らせダイアログ表示中は背面スクロールをロック（Portfolio と同じ setBodyScrollLock パターン）。
+    private bool AnyAnnounceDialogOpen => AnnounceSvc.ShowList || AnnounceSvc.UnreadItems.Count > 0;
+    private bool _scrollLocked;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (AnyAnnounceDialogOpen != _scrollLocked)
+        {
+            _scrollLocked = AnyAnnounceDialogOpen;
+            await JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", _scrollLocked);
+        }
+    }
 
     // スマホはタブ/ページ遷移ごとに内部スクロールを先頭へ戻す（位置の持ち越しを防ぐ）。
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
@@ -58,6 +86,9 @@
     {
         Viewport.Changed -= OnViewportChanged;
         MaskSvc.Changed -= OnMaskChanged;
+        AnnounceSvc.Changed -= OnAnnounceChanged;
         Nav.LocationChanged -= OnLocationChanged;
+        // MainLayout自体は通常アプリ終了までDisposeされないが、ロックが残らないよう保険で解除。
+        if (_scrollLocked) _ = JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", false);
     }
 }
