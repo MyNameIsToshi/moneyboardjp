@@ -362,16 +362,20 @@ public partial class GraphPage
     private Dictionary<string, string> _cardColors = new();
 
     // 期間中の全カード明細＋財布の現金支出（カテゴリ付き Debit・#77）を CategoryId で集計
-    // （未分類＝カードの CategoryId 空欄はまとめて末尾の色なし扱い。カテゴリ未設定の現金支出は
+    // （未分類＝カードの CategoryId 空欄、および参照切れ（削除済み等で解決できない CategoryId）は
+    //  すべて空キー "" に正規化して1つの「未分類」に集約する（#117）。カテゴリ未設定の現金支出は
     //  CategoryId が null のため CashDebitsIn に含まれず、そもそも集計に混ざらない＝二重計上なし）。
     private void BuildCategorySpend(List<string> yms)
     {
+        // 解決できない CategoryId（空・参照切れ）は "" に正規化してグルーピングキーを統一する（#117）。
+        var knownCategoryIds = Svc.State.Categories.Select(c => c.Id).ToHashSet();
+
         // 月をまたいで明細を集める（ドリルダウン表示用に日付降順で保持）
         var cardDetails = CardDetailsIn(yms);
         var cashDebits = CashDebitsIn(yms).ToList();
 
-        var cardGroups = cardDetails.GroupBy(d => d.CategoryId ?? "").ToDictionary(g => g.Key, g => g.ToList());
-        var cashGroups = cashDebits.GroupBy(x => x.Debit.CategoryId!).ToDictionary(g => g.Key, g => g.ToList());
+        var cardGroups = cardDetails.GroupBy(d => StatsMath.NormalizeCategoryKey(d.CategoryId, knownCategoryIds)).ToDictionary(g => g.Key, g => g.ToList());
+        var cashGroups = cashDebits.GroupBy(x => StatsMath.NormalizeCategoryKey(x.Debit.CategoryId, knownCategoryIds)).ToDictionary(g => g.Key, g => g.ToList());
         var allKeys = cardGroups.Keys.Union(cashGroups.Keys).ToList();
 
         CategorySpendData = allKeys

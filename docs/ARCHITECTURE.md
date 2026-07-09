@@ -185,10 +185,10 @@ C:\Development\moneyboard\
     CardCsvParser.cs          カード明細CSVを種別ごとの列マッピングでパース（JCB/三井住友/PayPay/au PAY/楽天）
     SchemaMigration.cs        スキーマ移行の足場（SchemaVersion管理）
     StorageContracts.cs       GET/POST DTO（DataEnvelope/SettingsPart/MonthPart）
-    StatsMath.cs              統計（グラフ）の純粋ロジック（SelectPeriodYms=期間選択。GraphPage が委譲・v1.3.3）
+    StatsMath.cs              統計（グラフ）の純粋ロジック（SelectPeriodYms=期間選択。GraphPage が委譲・v1.3.3。NormalizeCategoryKey=カテゴリ別集計のグルーピングキー正規化・#117で追加）
     FixedCostPeriod.cs        固定費の有効期間 StartYm/EndYm の解析・組み立て・表示整形＋期限切れ判定（YearPart/MonthPart/ComposeYm/FmtBound/Summary/IsExpired。FixedCostTab が委譲・v1.3.3・IsExpiredは#100）
     Portfolio.cs / PortfolioMath.cs  証券ポートフォリオのモデルと集計計算（Phase 3）。PortfolioMath に CostBasisJpyAsOf（指定日元本・円換算）/ YahooSymbol（日本株 .T 付与）を v1.3.3 で抽出。v2.1.0（issue #57）で PnlPct・DayChangePct・GroupValuationJpy を追加（テスト 118件）。issue #36 で BuildSnapshot（スナップショット構築）を追加（テスト 125件）
-  MoneyBoardShared.Tests\     ※ xUnit(net8.0)。LedgerMath / LedgerEngine / PortfolioMath / StatsMath / FixedCostPeriod / CardCsvParser / Ym / SchemaMigration / FixedCost / AnnouncementMath のユニットテスト（計178・`dotnet test`／カバレッジは `--collect:"XPlat Code Coverage"`）
+  MoneyBoardShared.Tests\     ※ xUnit(net8.0)。LedgerMath / LedgerEngine / PortfolioMath / StatsMath / FixedCostPeriod / CardCsvParser / Ym / SchemaMigration / FixedCost / AnnouncementMath のユニットテスト（計183・`dotnet test`／カバレッジは `--collect:"XPlat Code Coverage"`）
 ```
 
 ### MoneyBoardShared の憲章（役割定義）
@@ -396,6 +396,7 @@ Transfer
 - 期間：当月/3/6/12ヶ月・全期間＋**期間指定**（月単位）。「対象期間：yyyy年M月 〜 …（Nヶ月）」を明記。**「当月」は数値期間(count=1・TakeLast)を使わず専用の `"current"` 期間**（`StatsMath.SelectPeriodYms` が `LedgerService.CurrentCycleStartYm()` と一致する月だけをピンポイントで返す）（#88）。理由：月次管理で先の月を先行作成済みだと `TakeLast(1)` は「データがある最後の月」を拾い、実際の給料サイクル（15日〜14日起点）とズレるため（動作確認で発覚し設計変更）。
 - 7グラフ：①月別支出合計推移 ②口座別月末残高推移 ③収入の内訳推移 ④収入vs支出 ⑤月別固定費合計推移 ⑥カテゴリ別支出 ⑦カード別利用額。
 - ドリルダウン（モーダル）：⑥カテゴリ別/⑦カード別＝個別明細（行クリック or ドーナツのスライス選択）、④収入/支出の棒＝項目別期間合計、⑤固定費の棒＝固定費マスタ別合計、③収入の内訳推移の棒＝タップした月の収入内訳（④と同じダイアログ、#89）。
+- ⑥カテゴリ別支出の集計キーは `StatsMath.NormalizeCategoryKey` で正規化する：`CategoryId` が未設定、または参照先カテゴリが存在しない（削除済み等の参照切れ）場合は両方とも空文字列キーに統一し、「未分類」が複数行に分裂しないよう1グループへ集約する（#117）。
 
 ---
 
