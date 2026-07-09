@@ -136,7 +136,7 @@ C:\Development\moneyboard\
       CategorySettings.razor  カテゴリ管理（12色・追加/編集/削除・D&D並び替え）
       CardSettings.razor      カード管理（名前＋口座・追加/削除[確認ダイアログ]・D&D並び替え）
       CycleInfo.razor         月ナビ横の ⓘ ツールチップ（当月=15日サイクルの実期間を表示）
-      AmountInput.razor       金額入力共通（フォーカス中はカンマ無し・空欄許可・blurで確定）
+      AmountInput.razor       金額入力共通（フォーカス中はカンマ無し・空欄許可・blurで確定・`AllowNegative`既定false=マイナス禁止／`CardDetail.Amount`のみtrueで返金の手入力を許可・#112）
       SpendBreakdownCard.razor 統計のドーナツ＋一覧カード（⑥カテゴリ別/⑦カード別で共用）
       DetailDialog.razor      統計の明細ドリルダウンモーダル
       BreakdownDialog.razor   統計の項目別内訳モーダル

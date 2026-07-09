@@ -192,7 +192,7 @@
                                                 </select>
                                                 <span class="msym cd-cat-chev">expand_more</span>
                                             </div>
-                                            <AmountInput CssClass="cd-amt" Value="@d.Amount" ValueChanged="v => { d.Amount = v; OnAmountChanged(); }" />
+                                            <AmountInput CssClass="cd-amt" Value="@d.Amount" ValueChanged="v => { d.Amount = v; OnAmountChanged(); }" AllowNegative="true" />
                                             <button class="cd-del" @onclick="() => RemoveDetail(d.Id)" title="削除"><span class="msym">close</span></button>
                                         </div>
                                     }
@@ -581,7 +581,7 @@
             </div>
             <div class="sheet-field">
                 <label>金額</label>
-                <AmountInput CssClass="ra" Value="@d.Amount" ValueChanged="v => { d.Amount = v; OnAmountChanged(); }" />
+                <AmountInput CssClass="ra" Value="@d.Amount" ValueChanged="v => { d.Amount = v; OnAmountChanged(); }" AllowNegative="true" />
             </div>
         }
     </ChildContent>

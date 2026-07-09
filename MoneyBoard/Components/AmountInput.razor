@@ -32,6 +32,8 @@ else
     // 0=整数（円など・従来動作）／1以上=小数を許可・表示（数量・単価など）。
     [Parameter] public int Decimals { get; set; } = 0;
     [Parameter] public bool Disabled { get; set; } = false;
+    // false（既定）＝マイナス入力・保存を禁止。true＝カード明細の返金入力など、マイナスを許可する箇所のみ指定。
+    [Parameter] public bool AllowNegative { get; set; } = false;
 
     private bool _focused;
     private string _editing = "";
@@ -52,8 +54,19 @@ else
     private async Task OnInput(ChangeEventArgs e)
     {
         var raw = e.Value?.ToString()?.Replace(",", "") ?? "";
+        var rejected = !AllowNegative && raw.Contains('-');
+        if (rejected) raw = raw.Replace("-", "");
+        if (rejected && raw == _editing)
+        {
+            // 除去後の文字列が直前の描画値と同じだと Blazor が差分無しと判断し、
+            // ブラウザ実DOM に残った "-" を消しに行かない。値を一度変えて確実に再描画させる。
+            _editing = "​";
+            StateHasChanged();
+            await Task.Yield();
+        }
         _editing = raw;
         decimal.TryParse(raw, out var v);
+        if (!AllowNegative && v < 0) v = 0;
         Value = v;
         await ValueChanged.InvokeAsync(v);
     }
@@ -63,6 +76,7 @@ else
         _focused = false;
         // 空欄やパース不能は 0 に確定。
         if (!decimal.TryParse(_editing.Replace(",", ""), out var v)) v = 0;
+        if (!AllowNegative && v < 0) v = 0;
         if (v != Value)
         {
             Value = v;
