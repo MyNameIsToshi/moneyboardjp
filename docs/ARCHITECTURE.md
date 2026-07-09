@@ -532,8 +532,9 @@ Transfer
 - **認証**：ユーザー JWT ゲートとは別の**共有シークレット**（環境変数 `InternalApi__SharedSecret`・リクエストヘッダー `X-Internal-Secret`）。`/api/market-summary` と同じ仕組みを再利用。
 - **オーナー特定**：環境変数 `OwnerUserId`（Firebase uid）でオーナーの Cosmos パーティションを直接読む。マルチユーザーでも日報対象はオーナー1名で固定。
 - **処理フロー**：ポートフォリオドキュメントを読む → 全保有銘柄の価格を並行取得（Yahoo v8 / 投信協会 CSV）→ USD/JPY レート取得 → 当日スナップショットを記録（同日上書き・`PortfolioMath.BuildSnapshot` を再利用）→ Cosmos に保存 → レスポンス構築
-- **レスポンス**（`PortfolioCurrentResponse`）：`PricedAt`・`UsdJpyRate`・`TotalValuationJpy`・`CostBasisJpy`・`UnrealizedPnlJpy` / `Holdings`（銘柄ごと：名前・口座区分`AccountKind`・数量・現在価格・評価額・取得原価・含み損益。同一銘柄が成長/つみたて両枠にある場合の判別に使用 #69）/ `History`（スナップショット時系列：日時・UsdJpyRate・総資産・取得原価・評価損益）
+- **レスポンス**（`PortfolioCurrentResponse`）：`PricedAt`・`UsdJpyRate`・`TotalValuationJpy`・`CostBasisJpy`・`UnrealizedPnlJpy` / `Holdings`（銘柄ごと：名前・口座区分`AccountKind`・数量・現在価格・評価額・取得原価・含み損益・**前日終値/前日基準価額`PrevPriceNative`・前日比%`DayChangePct`・前日比評価額(円)`DayChangeValuationJpy`**（休場・データなし等は null #109）。同一銘柄が成長/つみたて両枠にある場合の判別に使用 #69）/ `History`（スナップショット時系列：日時・UsdJpyRate・総資産・取得原価・評価損益）
 - **取得原価の算出**：`PortfolioMath.CostBasisJpyAsOf`（指定日元本・円換算）を再利用。現況・各スナップショット点ともに同方式。
+- **前日比の算出（#109）**：価格取得に使う `FetchPriceAsync`/`FetchFundPriceAsync` が返す前日終値（`.Prev`）を `PortfolioData.PrevPrices`（非永続・Web UI と同じフィールド）に保存し、Web UI の `PortfolioMath.DayChangePct`／`ValuationJpy` をそのまま再利用して算出（二重実装なし）。
 - **ETag 競合の扱い**：フロント（Portfolio 画面）と同時操作で 412 が発生した場合はスキップして記録なしでも応答は返す（読み取った価格データは正しいため）。
 
 ### 推移スナップショットのサーバー側自動記録 `POST /api/record-snapshots`（#37）

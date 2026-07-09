@@ -184,11 +184,13 @@ public partial class DataApi
             {
                 var (h, p) = t.Result;
                 if (p.Price is > 0) data.CurrentPrices[h.Id] = p.Price.Value;
+                if (p.Prev is > 0) data.PrevPrices[h.Id] = p.Prev.Value;
             }
             foreach (var t in fundTasks)
             {
                 var (h, p) = t.Result;
                 if (p.Latest is > 0) data.CurrentPrices[h.Id] = p.Latest.Value;
+                if (p.Prev is > 0) data.PrevPrices[h.Id] = p.Prev.Value;
             }
             if (rateTask.Result.Price is > 0) data.UsdJpyRate = rateTask.Result.Price.Value;
 
@@ -216,6 +218,12 @@ public partial class DataApi
                 if (!vJpy.HasValue) continue;
                 var costJpy = PortfolioMath.HoldingCostBasisJpyAsOf(data, h, today2, data.UsdJpyRate);
                 totalValuation += vJpy.Value;
+
+                // 前日比（休場・データなし等で前日値が取れない銘柄は null のまま）。
+                var prevPrice = data.PrevPrices.GetValueOrDefault(h.Id);
+                var dayChangePct = PortfolioMath.DayChangePct(price, prevPrice);
+                var vPrevJpy = prevPrice > 0 ? PortfolioMath.ValuationJpy(h, sum.Quantity, prevPrice, data.UsdJpyRate) : null;
+
                 holdingInfos.Add(new HoldingCurrentInfo
                 {
                     Name = h.Name,
@@ -224,7 +232,10 @@ public partial class DataApi
                     PriceNative = price,
                     ValuationJpy = vJpy.Value,
                     CostBasisJpy = costJpy,
-                    UnrealizedPnlJpy = vJpy.Value - costJpy
+                    UnrealizedPnlJpy = vJpy.Value - costJpy,
+                    PrevPriceNative = prevPrice > 0 ? prevPrice : null,
+                    DayChangePct = dayChangePct,
+                    DayChangeValuationJpy = vPrevJpy.HasValue ? vJpy.Value - vPrevJpy.Value : null
                 });
             }
 
@@ -412,6 +423,9 @@ public class HoldingCurrentInfo
     public decimal ValuationJpy { get; set; }       // 評価額（円）
     public decimal CostBasisJpy { get; set; }       // 取得原価（円）
     public decimal UnrealizedPnlJpy { get; set; }  // 含み損益（円）
+    public decimal? PrevPriceNative { get; set; }   // 前日終値/前日基準価額（建て通貨）。取得不可は null
+    public decimal? DayChangePct { get; set; }      // 前日比（%・建て通貨ベース）。取得不可は null
+    public decimal? DayChangeValuationJpy { get; set; }  // 前日比評価額（円）。取得不可は null
 }
 
 /// <summary>スナップショット時系列の1点（評価損益付き）。</summary>
