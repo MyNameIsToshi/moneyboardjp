@@ -420,6 +420,11 @@ body {
   color: var(--accent);
 }
 
+/* お知らせナビ項目（#38）：bell-badge の絶対配置の基準をこの行内に閉じ込める */
+.sidenav-notice {
+  position: relative;
+}
+
 /* PC（サイドナビ表示時）はブランド/画面名・戻るを各ページ頭から消す（サイドナビに集約）。
    スマホは従来どおりページ頭にブランド（AppTitle）を出す。 */
 .app-shell.has-sidenav .home-head,

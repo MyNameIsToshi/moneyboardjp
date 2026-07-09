@@ -18,18 +18,25 @@
     {
         <span class="app-subtitle">@Subtitle</span>
     }
-    <button class="bell-btn" @onclick="() => AnnounceSvc.OpenListAsync()" title="お知らせ" aria-label="お知らせ">
-        <span class="msym">notifications</span>
-        @if (AnnounceSvc.UnreadCount > 0)
-        {
-            <span class="bell-badge">@(AnnounceSvc.UnreadCount > 9 ? "9+" : AnnounceSvc.UnreadCount.ToString())</span>
-        }
-    </button>
+    @if (ShowBell)
+    {
+        <button class="bell-btn" @onclick="() => AnnounceSvc.OpenListAsync()" title="お知らせ" aria-label="お知らせ">
+            <span class="msym">notifications</span>
+            @if (AnnounceSvc.UnreadCount > 0)
+            {
+                <span class="bell-badge">@(AnnounceSvc.UnreadCount > 9 ? "9+" : AnnounceSvc.UnreadCount.ToString())</span>
+            }
+        </button>
+    }
 </div>
 
 @code {
     /// <summary>画面名（タイトル右に小さく併記。未指定なら表示しない）。</summary>
     [Parameter] public string? Subtitle { get; set; }
+
+    /// <summary>お知らせベルを表示するか（既定 true）。PCサイドバーは SideNav 側に独立したナビ項目として
+    /// 出すため false を渡す（#38 フォローアップ）。</summary>
+    [Parameter] public bool ShowBell { get; set; } = true;
 
     private string AppVersion = "";
 

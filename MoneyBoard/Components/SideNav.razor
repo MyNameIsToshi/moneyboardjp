@@ -1,14 +1,18 @@
 @inject NavigationManager Nav
 @inject LedgerService Svc
 @inject AmountMaskService MaskSvc
+@inject AnnouncementService AnnounceSvc
 @implements IDisposable
 
 @* PC用の左サイドナビ。表示可否は MainLayout が PC 時のみレンダーする。
    月次/カード/マイページは Home の "/?tab=" 経由、統計/資産は専用ルート。
-   行き先とハイライト規則はスマホ下部バー（BottomNav）と対で揃える。 *@
+   行き先とハイライト規則はスマホ下部バー（BottomNav）と対で揃える。
+   お知らせ（#38）は AppTitle 内のベルではなく、金額を隠すと同じ並びの
+   独立したナビ項目として1行表示する（PCはサイドバー幅が狭くなく、
+   他のメニューと揃えたほうが視認性が高いため）。 *@
 <nav class="sidenav">
     <div class="sidenav-brand">
-        <AppTitle />
+        <AppTitle ShowBell="false" />
     </div>
     <div class="sidenav-items">
         <button class="sidenav-item @(IsHomeTab("monthly") ? "active" : "")" @onclick='() => GoTab("monthly")'>
@@ -27,6 +31,13 @@
             <span class="sn-ico msym">person</span><span class="sn-lab">マイページ</span>
         </button>
         <div class="sidenav-sep"></div>
+        <button class="sidenav-item sidenav-notice" @onclick="() => AnnounceSvc.OpenListAsync()">
+            <span class="sn-ico msym">notifications</span><span class="sn-lab">お知らせ</span>
+            @if (AnnounceSvc.UnreadCount > 0)
+            {
+                <span class="bell-badge">@(AnnounceSvc.UnreadCount > 9 ? "9+" : AnnounceSvc.UnreadCount.ToString())</span>
+            }
+        </button>
         <button class="sidenav-item sidenav-mask @(IsMasked ? "masked" : "")" @onclick="MaskSvc.ToggleAsync">
             <span class="sn-ico msym">@(IsMasked ? "visibility_off" : "visibility")</span>
             <span class="sn-lab">@(IsMasked ? "金額を表示" : "金額を隠す")</span>
@@ -37,7 +48,13 @@
 @code {
     [CascadingParameter(Name = "IsMasked")] public bool IsMasked { get; set; }
 
-    protected override void OnInitialized() => Nav.LocationChanged += OnLocationChanged;
+    protected override void OnInitialized()
+    {
+        Nav.LocationChanged += OnLocationChanged;
+        AnnounceSvc.Changed += OnAnnounceChanged;
+    }
+
+    private void OnAnnounceChanged() => InvokeAsync(StateHasChanged);
 
     private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
         => InvokeAsync(StateHasChanged);
@@ -74,5 +91,9 @@
     // 保留中のデバウンス保存をフラッシュしてから遷移（グラフ側の再読込が最新を取得できるように）。
     private async Task GoGraph() { await Svc.SaveAsync(); Nav.NavigateTo("/graph"); }
 
-    public void Dispose() => Nav.LocationChanged -= OnLocationChanged;
+    public void Dispose()
+    {
+        Nav.LocationChanged -= OnLocationChanged;
+        AnnounceSvc.Changed -= OnAnnounceChanged;
+    }
 }
