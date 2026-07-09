@@ -92,4 +92,46 @@ public class StatsMathTests
         var r = StatsMath.SelectPeriodYms(System.Array.Empty<string>(), "3", "", "");
         Assert.Empty(r);
     }
+
+    // NormalizeCategoryKey（#117）：参照切れ・未設定の CategoryId を "" に統一し、
+    // 「未分類」が複数行に分裂しないようにする。
+    private static readonly string[] KnownCategoryIds = { "cat-1", "cat-2" };
+
+    [Fact]
+    public void NormalizeCategoryKey_KnownId_ReturnsSameId()
+    {
+        var r = StatsMath.NormalizeCategoryKey("cat-1", KnownCategoryIds);
+        Assert.Equal("cat-1", r);
+    }
+
+    [Fact]
+    public void NormalizeCategoryKey_EmptyId_ReturnsEmptyKey()
+    {
+        var r = StatsMath.NormalizeCategoryKey("", KnownCategoryIds);
+        Assert.Equal("", r);
+    }
+
+    [Fact]
+    public void NormalizeCategoryKey_NullId_ReturnsEmptyKey()
+    {
+        var r = StatsMath.NormalizeCategoryKey(null, KnownCategoryIds);
+        Assert.Equal("", r);
+    }
+
+    [Fact]
+    public void NormalizeCategoryKey_DanglingReference_ReturnsEmptyKey()
+    {
+        // 削除済み等でカテゴリが存在しない CategoryId（参照切れ）も "" に正規化される
+        var r = StatsMath.NormalizeCategoryKey("deleted-cat-id", KnownCategoryIds);
+        Assert.Equal("", r);
+    }
+
+    [Fact]
+    public void NormalizeCategoryKey_EmptyAndDanglingReference_CollapseToSameKey()
+    {
+        // 未設定（空）と参照切れの両方が同じキーに集約されることを確認
+        var empty = StatsMath.NormalizeCategoryKey("", KnownCategoryIds);
+        var dangling = StatsMath.NormalizeCategoryKey("deleted-cat-id", KnownCategoryIds);
+        Assert.Equal(empty, dangling);
+    }
 }

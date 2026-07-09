@@ -27,4 +27,12 @@ public static class StatsMath
         int count = int.Parse(period);
         return allYmsAsc.TakeLast(count).ToList();
     }
+
+    /// <summary>
+    /// カテゴリ別集計のグルーピングキーを正規化する（#117）。categoryId が空、または
+    /// knownCategoryIds に存在しない（削除済み等で参照が切れている）場合は空文字列に統一し、
+    /// 未設定・参照切れの両方を同じ「未分類」1グループに集約できるようにする。
+    /// </summary>
+    public static string NormalizeCategoryKey(string? categoryId, IReadOnlyCollection<string> knownCategoryIds) =>
+        !string.IsNullOrEmpty(categoryId) && knownCategoryIds.Contains(categoryId) ? categoryId : "";
 }
