@@ -250,8 +250,9 @@ public class LedgerService(AppStateStore store)
                 bool hasTransfer = mo.Transfers.Any(t => t.From == accountId || t.To == accountId);
                 return hasDebit || hasTransfer;
             })
+            // "yyyyMM" キーの時点で時系列ソート（Label化後の文字列ソートは "10月" が "5月" より前に来て崩れるため。#113/#120）。
+            .OrderBy(kvp => kvp.Key)
             .Select(kvp => Label(kvp.Key))
-            .OrderBy(s => s)
             .ToList();
     }
 
