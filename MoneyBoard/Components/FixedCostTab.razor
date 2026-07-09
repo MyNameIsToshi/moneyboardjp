@@ -2,7 +2,7 @@
 
 @{
     var fcCount = Svc.State.FixedCosts.Count;
-    var fcTotal = Svc.State.FixedCosts.Sum(f => f.Amount);
+    var fcTotal = Svc.State.FixedCosts.Where(f => !FixedCostPeriod.IsExpired(f, CurrentCycleStart)).Sum(f => f.Amount);
 
     // スマホカード。reorderable=true のときだけ▲▼を表示（期限切れグループは並べ替え不可）。
     RenderFragment RenderMobileCard(FixedCost fc, bool expired, bool reorderable) => @<div class="list-card-wrap @(expired ? "fc-expired" : "")">
@@ -417,7 +417,7 @@
    ═══════════════════════════════════════════════════ *@
 @{
     var fiCount = Svc.State.FixedIncomes.Count;
-    var fiTotal = Svc.State.FixedIncomes.Where(f => !f.IsVariable).Sum(f => f.Amount);
+    var fiTotal = Svc.State.FixedIncomes.Where(f => !f.IsVariable && !FixedCostPeriod.IsExpired(f, CurrentCycleStart)).Sum(f => f.Amount);
 
     // スマホカード。reorderable=true のときだけ▲▼を表示（期限切れグループは並べ替え不可）。
     RenderFragment RenderIncomeMobileCard(FixedIncome fi, bool expired, bool reorderable) => @<div class="list-card-wrap @(expired ? "fc-expired" : "")">
@@ -559,7 +559,7 @@
         @if (fiCount > 0)
         {
             <span class="set-total">
-                <span class="set-total-lab">月合計（金額固定分）</span>
+                <span class="set-total-lab">月合計</span>
                 <span class="set-total-val">@MaskedYen(IsMasked, fiTotal)</span>
             </span>
         }
