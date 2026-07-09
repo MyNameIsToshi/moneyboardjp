@@ -1,7 +1,13 @@
 @using System.Reflection
+@using MoneyBoard.Services
+@inject AnnouncementService AnnounceSvc
+@implements IDisposable
 
 @* ブランドタイトル「MoneyBoard vX.Y.Z」を全画面共通で表示する共有コンポーネント。
-   Subtitle に画面名（例「ポートフォリオ」「統計」）を渡すと右側にサブタイトルとして併記する。 *@
+   Subtitle に画面名（例「ポートフォリオ」「統計」）を渡すと右側にサブタイトルとして併記する。
+   お知らせベルもここに集約（#38）。ただしダイアログ自体は MainLayout 側でレンダーする
+   （PC はここが sidenav の position:sticky 配下＝独立した重ね合わせコンテキストに入ってしまい、
+   本文側の select 等がダイアログより手前に描画されてしまうため）。 *@
 <div class="app-title">
     MoneyBoard
     @if (!string.IsNullOrEmpty(AppVersion))
@@ -12,11 +18,25 @@
     {
         <span class="app-subtitle">@Subtitle</span>
     }
+    @if (ShowBell)
+    {
+        <button class="bell-btn" @onclick="() => AnnounceSvc.OpenListAsync()" title="お知らせ" aria-label="お知らせ">
+            <span class="msym">notifications</span>
+            @if (AnnounceSvc.UnreadCount > 0)
+            {
+                <span class="bell-badge">@(AnnounceSvc.UnreadCount > 9 ? "9+" : AnnounceSvc.UnreadCount.ToString())</span>
+            }
+        </button>
+    }
 </div>
 
 @code {
     /// <summary>画面名（タイトル右に小さく併記。未指定なら表示しない）。</summary>
     [Parameter] public string? Subtitle { get; set; }
+
+    /// <summary>お知らせベルを表示するか（既定 true）。PCサイドバーは SideNav 側に独立したナビ項目として
+    /// 出すため false を渡す（#38 フォローアップ）。</summary>
+    [Parameter] public bool ShowBell { get; set; } = true;
 
     private string AppVersion = "";
 
@@ -28,5 +48,13 @@
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
         // "v" を値側に含める（マークアップで v@AppVersion と書くと Razor がメール誤認してリテラル化するため）。
         AppVersion = string.IsNullOrEmpty(info) ? "" : "v" + info.Split('+')[0];
+
+        AnnounceSvc.Changed += OnAnnounceChanged;
     }
+
+    protected override async Task OnInitializedAsync() => await AnnounceSvc.InitAsync();
+
+    private void OnAnnounceChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => AnnounceSvc.Changed -= OnAnnounceChanged;
 }

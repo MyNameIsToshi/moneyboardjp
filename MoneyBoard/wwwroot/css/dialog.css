@@ -83,3 +83,128 @@
   padding: 8px 10px;
   margin-bottom: 8px;
 }
+
+/* =====================================================
+   お知らせ一覧 / What's New (AnnouncementListDialog / AnnouncementWhatsNewDialog・#38)
+   ===================================================== */
+.ann-dialog-box {
+  max-width: 520px;
+  max-height: 80vh;
+  overflow: hidden; /* はみ出し禁止：スクロールは内側の .ann-list だけに閉じ込める */
+  display: flex;
+  flex-direction: column;
+}
+
+.ann-dialog-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.ann-dialog-head h4 {
+  margin: 0;
+}
+
+.ann-close-btn {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--sub);
+  font-size: 18px;
+  line-height: 1;
+  padding: 2px;
+}
+
+.ann-close-btn:hover {
+  color: var(--ink);
+}
+
+.ann-empty {
+  font-size: 13px;
+  color: var(--sub);
+}
+
+/* What's New の下部「閉じる」ボタン行：.ann-list が縮む側なのでこちらは縮ませない */
+.ann-dialog-box .dialog-btns {
+  flex: none;
+  margin-top: 12px;
+}
+
+.ann-list {
+  /* flex:1 1 auto だけだと子要素の内容サイズが min-height の下限になり縮まない
+     （flexアイテムの既定 min-height:auto）ため、min-height:0 を明示して初めて
+     overflow-y:auto が効き、多件表示時にここだけがスクロールするようになる。 */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ann-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+.ann-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.ann-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--paper);
+  color: var(--sub);
+}
+
+.ann-badge-release {
+  background: rgba(31, 58, 95, .1); /* navy(--accent)淡 */
+  color: var(--accent);
+}
+
+.ann-badge-maintenance {
+  background: var(--badbg);
+  color: var(--bad);
+}
+
+.ann-date {
+  font-size: 12px;
+  color: var(--sub);
+}
+
+.ann-title {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: break-word;
+}
+
+.ann-body {
+  font-size: 13px;
+  color: var(--ink);
+  line-height: 1.6;
+  overflow-wrap: break-word; /* 長いURL等の未分割トークンで横はみ出ししないように */
+}
+
+.ann-body p {
+  margin: 0 0 8px;
+}
+
+.ann-body ul,
+.ann-body ol {
+  margin: 0 0 8px;
+  padding-left: 20px;
+}
+
+.ann-body :last-child {
+  margin-bottom: 0;
+}

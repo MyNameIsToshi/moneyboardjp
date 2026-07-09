@@ -143,6 +143,47 @@ body {
   font-weight: 400;
 }
 
+/* お知らせベル（AppTitle内・#38）。app-title は幅が狭い場面(サイドナビ)もあるため折り返し可能に */
+.app-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  row-gap: 4px;
+  width: 100%;
+}
+
+.bell-btn {
+  position: relative;
+  margin-left: auto;
+  padding: 2px 4px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--sub);
+  line-height: 1;
+  font-size: 20px;
+}
+
+.bell-btn:hover {
+  color: var(--accent);
+}
+
+.bell-badge {
+  position: absolute;
+  top: -4px;
+  right: -2px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: 8px;
+  background: var(--bad);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 15px;
+  text-align: center;
+}
+
 /* =====================================================
    共通ページヘッダー（PCのみ・線アイコン＋画面名＋サブ＋右スロット）。PageHeader.razor
    ===================================================== */
@@ -377,6 +418,13 @@ body {
 .sidenav-mask.masked .sn-ico,
 .sidenav-mask.masked .sn-lab {
   color: var(--accent);
+}
+
+/* お知らせナビ項目（#38）：bell-badge の絶対配置の基準をアイコン自体に閉じ込める
+   （行全体を基準にすると、行が全幅ボタンのため右上遠くに飛んでしまう） */
+.sn-ico-wrap {
+  position: relative;
+  display: inline-flex;
 }
 
 /* PC（サイドナビ表示時）はブランド/画面名・戻るを各ページ頭から消す（サイドナビに集約）。
