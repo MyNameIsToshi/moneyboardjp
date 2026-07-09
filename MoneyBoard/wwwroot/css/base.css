@@ -149,6 +149,7 @@ body {
   align-items: center;
   flex-wrap: wrap;
   row-gap: 4px;
+  width: 100%;
 }
 
 .bell-btn {
