@@ -19,6 +19,7 @@ public partial class DataApi(ILogger<DataApi> logger, CosmosClient cosmos, Fireb
     // 構造上の健全性チェック
     private const int MaxAccounts = 100;
     private const int MaxFixedCosts = 500;
+    private const int MaxFixedIncomes = 500;
     private const int MaxCategories = 100;
     private const int MaxCards = 100;
     private const int MaxMonthsPerSave = 600;
@@ -53,6 +54,7 @@ public partial class DataApi(ILogger<DataApi> logger, CosmosClient cosmos, Fireb
                     SchemaVersion = r.Resource.SchemaVersion,
                     Accounts = r.Resource.Accounts,
                     FixedCosts = r.Resource.FixedCosts,
+                    FixedIncomes = r.Resource.FixedIncomes,
                     Categories = r.Resource.Categories,
                     Cards = r.Resource.Cards,
                     CategoryRules = r.Resource.CategoryRules,
@@ -127,6 +129,7 @@ public partial class DataApi(ILogger<DataApi> logger, CosmosClient cosmos, Fireb
                     SchemaVersion = env.Settings.SchemaVersion,
                     Accounts = env.Settings.Accounts,
                     FixedCosts = env.Settings.FixedCosts,
+                    FixedIncomes = env.Settings.FixedIncomes,
                     Categories = env.Settings.Categories,
                     Cards = env.Settings.Cards,
                     CategoryRules = env.Settings.CategoryRules,
@@ -219,6 +222,7 @@ public partial class DataApi(ILogger<DataApi> logger, CosmosClient cosmos, Fireb
         {
             if (env.Settings.Accounts.Count > MaxAccounts) { reason = $"accounts={env.Settings.Accounts.Count}"; return false; }
             if (env.Settings.FixedCosts.Count > MaxFixedCosts) { reason = $"fixedCosts={env.Settings.FixedCosts.Count}"; return false; }
+            if (env.Settings.FixedIncomes.Count > MaxFixedIncomes) { reason = $"fixedIncomes={env.Settings.FixedIncomes.Count}"; return false; }
             if (env.Settings.Categories.Count > MaxCategories) { reason = $"categories={env.Settings.Categories.Count}"; return false; }
             if (env.Settings.Cards.Count > MaxCards) { reason = $"cards={env.Settings.Cards.Count}"; return false; }
         }
@@ -249,6 +253,7 @@ public class SettingsDoc
     public int SchemaVersion { get; set; } = 1;
     public List<Account> Accounts { get; set; } = new();
     public List<FixedCost> FixedCosts { get; set; } = new();
+    public List<FixedIncome> FixedIncomes { get; set; } = new();
     public List<Category> Categories { get; set; } = new();
     public List<Card> Cards { get; set; } = new();
     public Dictionary<string, string> CategoryRules { get; set; } = new();

@@ -18,6 +18,7 @@ public class SettingsPart
     public int SchemaVersion { get; set; } = 1;
     public List<Account> Accounts { get; set; } = new();
     public List<FixedCost> FixedCosts { get; set; } = new();
+    public List<FixedIncome> FixedIncomes { get; set; } = new();
     public List<Category> Categories { get; set; } = new();
     public List<Card> Cards { get; set; } = new();
     public Dictionary<string, string> CategoryRules { get; set; } = new();

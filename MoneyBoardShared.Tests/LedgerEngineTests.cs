@@ -341,6 +341,124 @@ public class LedgerEngineTests
         Assert.Empty(mo.Ledgers["a"].Debits);
     }
 
+    // ── 収入固定費計算（ExpandFixedIncomes / ReconcileFixedIncomes・#95）─────
+    [Theory]
+    [InlineData("202603", false)]   // 開始前
+    [InlineData("202604", true)]    // 開始月
+    [InlineData("202609", true)]    // 終了月
+    [InlineData("202610", false)]   // 終了後
+    public void IsFixedIncomeActive_RespectsBounds(string ym, bool active)
+    {
+        var fi = new FixedIncome { StartYm = "202604", EndYm = "202609" };
+        Assert.Equal(active, LedgerEngine.IsFixedIncomeActive(fi, ym));
+    }
+
+    [Fact]
+    public void IsFixedIncomeActive_NoBounds_AlwaysActive()
+    {
+        var fi = new FixedIncome { StartYm = null, EndYm = null };
+        Assert.True(LedgerEngine.IsFixedIncomeActive(fi, "209912"));
+    }
+
+    [Fact]
+    public void ExpandFixedIncomes_DoesNotOverwriteExistingIncomeAmount()
+    {
+        var state = FixedIncomeState(out var mo, isVariable: true);
+        LedgerEngine.ExpandFixedIncomes(state, "202606", mo);
+        mo.Ledgers["a"].Incomes.Single().Amount = 3_500m;   // 月次管理タブでの手入力を模擬
+
+        LedgerEngine.ExpandFixedIncomes(state, "202606", mo);   // 同月を再度展開（EnsureMonth の再呼び出し相当）
+
+        Assert.Equal(3_500m, mo.Ledgers["a"].Incomes.Single().Amount);   // 上書きされない
+    }
+
+    [Fact]
+    public void ExpandFixedIncomes_NewItem_Variable_StartsAtZero_IgnoringMasterAmount()
+    {
+        var state = FixedIncomeState(out var mo, isVariable: true);   // マスタの Amount=1,000（未使用の想定）
+        LedgerEngine.ExpandFixedIncomes(state, "202606", mo);
+
+        var item = mo.Ledgers["a"].Incomes.Single();
+        Assert.True(item.IsFixed);
+        Assert.True(item.IsVariable);
+        Assert.Equal(0m, item.Amount);   // 金額未固定は毎月0から手入力（マスタの既定額は使わない）
+    }
+
+    [Fact]
+    public void ExpandFixedIncomes_NewItem_Fixed_UsesMasterAmount()
+    {
+        var state = FixedIncomeState(out var mo, isVariable: false);
+        LedgerEngine.ExpandFixedIncomes(state, "202606", mo);
+
+        Assert.Equal(1_000m, mo.Ledgers["a"].Incomes.Single().Amount);   // 金額固定はマスタの額を毎月自動計上
+    }
+
+    [Fact]
+    public void ReconcileFixedIncomes_OnCurrentCycle_PreservesOverriddenAmount_ForVariableFixedIncome()
+    {
+        var state = FixedIncomeState(out var mo, isVariable: true);
+        LedgerEngine.ExpandFixedIncomes(state, "202606", mo);
+        var item = mo.Ledgers["a"].Incomes.Single();
+        item.Amount = 3_500m;               // 月次管理タブでの手入力を模擬
+        item.AmountOverridden = true;
+
+        LedgerEngine.ReconcileFixedIncomes(state, "202606", mo, isCurrentCycle: true);
+
+        Assert.Equal(3_500m, mo.Ledgers["a"].Incomes.Single().Amount);   // 当月は手入力値を保持
+    }
+
+    [Fact]
+    public void ReconcileFixedIncomes_OnCurrentCycle_ResetsToZero_WhenNotOverridden()
+    {
+        var state = FixedIncomeState(out var mo, isVariable: true);
+        LedgerEngine.ExpandFixedIncomes(state, "202606", mo);
+        // 手入力していない（AmountOverridden=false）のまま
+
+        LedgerEngine.ReconcileFixedIncomes(state, "202606", mo, isCurrentCycle: true);
+
+        Assert.Equal(0m, mo.Ledgers["a"].Incomes.Single().Amount);
+    }
+
+    [Fact]
+    public void ReconcileFixedIncomes_NotCurrentCycle_AlwaysResetsToZero_EvenIfOverridden()
+    {
+        // 翌月以降は編集有無に関わらず一律0へ揃え直す（前月の手入力値を引き継がず、毎月あらためて確定させる）。
+        var state = FixedIncomeState(out var mo, isVariable: true);
+        LedgerEngine.ExpandFixedIncomes(state, "202607", mo);
+        var item = mo.Ledgers["a"].Incomes.Single();
+        item.Amount = 3_500m;
+        item.AmountOverridden = true;
+
+        LedgerEngine.ReconcileFixedIncomes(state, "202607", mo, isCurrentCycle: false);
+
+        Assert.Equal(0m, mo.Ledgers["a"].Incomes.Single().Amount);
+        Assert.False(mo.Ledgers["a"].Incomes.Single().AmountOverridden);
+    }
+
+    [Fact]
+    public void ReconcileFixedIncomes_UsesMasterAmount_ForNonVariableFixedIncome()
+    {
+        var state = FixedIncomeState(out var mo, isVariable: false);
+        LedgerEngine.ExpandFixedIncomes(state, "202606", mo);
+
+        state.FixedIncomes[0].Amount = 1_200m;               // マスタの金額変更
+        LedgerEngine.ReconcileFixedIncomes(state, "202606", mo, isCurrentCycle: true);
+
+        Assert.Equal(1_200m, mo.Ledgers["a"].Incomes.Single().Amount);   // 金額固定は常にマスタへ追随
+    }
+
+    [Fact]
+    public void ReconcileFixedIncomes_RemovesItem_WhenFixedIncomeDeactivated()
+    {
+        var state = FixedIncomeState(out var mo, isVariable: true);
+        LedgerEngine.ExpandFixedIncomes(state, "202606", mo);
+
+        state.FixedIncomes[0].EndYm = "202605";   // 当月より前に終了＝非アクティブ化
+        LedgerEngine.ReconcileFixedIncomes(state, "202606", mo, isCurrentCycle: true);
+
+        Assert.Empty(mo.Ledgers["a"].Incomes);
+    }
+
     // ── 財布（現金）── ATM入出金の対称実体化（ExpandWallet・#77）─────
     [Fact]
     public void ExpandWallet_NoActiveWallet_DoesNothing()
@@ -494,6 +612,19 @@ public class LedgerEngineTests
         {
             Accounts = { new Account { Id = "a" } },
             FixedCosts = { new FixedCost { Id = "fc1", Name = "水道代", AccountId = "a", Amount = 1_000m, IsVariable = isVariable } },
+        };
+        mo = MonthWith("a", new Ledger());
+        state.Months["202606"] = mo;
+        return state;
+    }
+
+    // 口座a＋収入固定費fi1（Amount=1,000・口座a紐付け）の最小 state と、口座台帳を持つ当月 MonthData を返す。
+    private static AppState FixedIncomeState(out MonthData mo, bool isVariable)
+    {
+        var state = new AppState
+        {
+            Accounts = { new Account { Id = "a" } },
+            FixedIncomes = { new FixedIncome { Id = "fi1", Name = "家賃収入", AccountId = "a", Amount = 1_000m, IsVariable = isVariable } },
         };
         mo = MonthWith("a", new Ledger());
         state.Months["202606"] = mo;

@@ -251,4 +251,64 @@ public static class LedgerEngine
         IsVariable = fc.IsVariable,
         FixedCostId = fc.Id
     };
+
+    // ── 収入固定費計算（#95）───────────────────────
+    // 支出の固定費計算（IsFixedCostActive/ExpandFixedCosts/ReconcileFixedCosts）と同じ形。
+    // 「金額固定」は fi.Amount を毎月自動計上。「金額未固定」（IsVariable）は Amount を使わず
+    // 常に0から展開し、月次管理タブで手入力した当月分の値だけ AmountOverridden で保護する。
+    public static bool IsFixedIncomeActive(FixedIncome fi, string ym)
+    {
+        var target = Ym.Parse(ym);
+        if (fi.StartBound() is { } start && target < start) return false;
+        if (fi.EndBound() is { } end && target > end) return false;
+        return true;
+    }
+
+    // 未展開の収入固定費のみ追加する（既存 IncomeItem はそのまま＝月ごとの編集値を保持）。新規月の作成（EnsureMonth）用。
+    public static void ExpandFixedIncomes(AppState state, string ym, MonthData mo)
+    {
+        foreach (var fi in state.FixedIncomes.Where(f => IsFixedIncomeActive(f, ym)))
+        {
+            if (!mo.Ledgers.TryGetValue(fi.AccountId, out var ledger)) continue;
+            if (ledger.Incomes.Any(i => i.FixedIncomeId == fi.Id)) continue;
+            ledger.Incomes.Add(NewFixedIncomeItem(fi, fi.IsVariable ? 0 : fi.Amount));
+        }
+    }
+
+    // マスタ変更（追加/削除/改名/金額/口座/期間）を当月以降へ反映する再展開。
+    // 当月（isCurrentCycle=true）に限り、金額未固定でユーザーが手動編集済み（AmountOverridden）の
+    // 分だけ編集値を保持して上書きしない。翌月以降は常に「金額固定=fi.Amount／金額未固定=0」へ揃え直す
+    // （前月に手入力した値をそのまま引き継がず、毎月あらためて手入力を求める＝要望どおりの挙動）。
+    public static void ReconcileFixedIncomes(AppState state, string ym, MonthData mo, bool isCurrentCycle)
+    {
+        var preserved = isCurrentCycle
+            ? mo.Ledgers.Values
+                .SelectMany(l => l.Incomes)
+                .Where(i => i.IsFixed && i.IsVariable && i.AmountOverridden && i.FixedIncomeId != null)
+                .ToDictionary(i => i.FixedIncomeId!, i => i.Amount)
+            : new Dictionary<string, decimal>();
+
+        foreach (var ledger in mo.Ledgers.Values)
+            ledger.Incomes.RemoveAll(i => i.IsFixed);
+
+        foreach (var fi in state.FixedIncomes.Where(f => IsFixedIncomeActive(f, ym)))
+        {
+            if (!mo.Ledgers.TryGetValue(fi.AccountId, out var ledger)) continue;
+            var kept = fi.IsVariable && preserved.TryGetValue(fi.Id, out var keptAmount) ? (decimal?)keptAmount : null;
+            var overridden = kept.HasValue;
+            var amount = kept ?? (fi.IsVariable ? 0 : fi.Amount);
+            var item = NewFixedIncomeItem(fi, amount);
+            item.AmountOverridden = overridden;
+            ledger.Incomes.Add(item);
+        }
+    }
+
+    private static IncomeItem NewFixedIncomeItem(FixedIncome fi, decimal amount) => new()
+    {
+        Name = fi.Name,
+        Amount = amount,
+        IsFixed = true,
+        IsVariable = fi.IsVariable,
+        FixedIncomeId = fi.Id
+    };
 }

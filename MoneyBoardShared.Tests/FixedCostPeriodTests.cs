@@ -99,4 +99,41 @@ public class FixedCostPeriodTests
         fc.BonusSettings.Add(new BonusSetting { Month = 6 });
         Assert.Equal("2026年4月〜2027年・ボーナス1件", FixedCostPeriod.Summary(fc));
     }
+
+    // ── IsExpired(FixedIncome)・#95フォローアップ ──
+    [Fact]
+    public void IsExpired_FixedIncome_EndBeforeAsOf_True()
+    {
+        var fi = new FixedIncome { EndYm = "202603" };
+        Assert.True(FixedCostPeriod.IsExpired(fi, new Ym(2026, 4)));
+    }
+
+    [Fact]
+    public void IsExpired_FixedIncome_EndEqualsAsOf_False()
+    {
+        var fi = new FixedIncome { EndYm = "202604" };
+        Assert.False(FixedCostPeriod.IsExpired(fi, new Ym(2026, 4)));
+    }
+
+    [Fact]
+    public void IsExpired_FixedIncome_NoEnd_NeverExpires()
+    {
+        var fi = new FixedIncome { EndYm = null };
+        Assert.False(FixedCostPeriod.IsExpired(fi, new Ym(9999, 12)));
+    }
+
+    // ── Summary(FixedIncome)・#95（ボーナス設定は対象外のため期間のみ） ──
+    [Fact]
+    public void Summary_FixedIncome_OpenStart_AndUnlimitedEnd()
+    {
+        var fi = new FixedIncome { StartYm = null, EndYm = null };
+        Assert.Equal("開始なし〜無期限", FixedCostPeriod.Summary(fi));
+    }
+
+    [Fact]
+    public void Summary_FixedIncome_BoundedRange()
+    {
+        var fi = new FixedIncome { StartYm = "202604", EndYm = "2027" };
+        Assert.Equal("2026年4月〜2027年", FixedCostPeriod.Summary(fi));
+    }
 }

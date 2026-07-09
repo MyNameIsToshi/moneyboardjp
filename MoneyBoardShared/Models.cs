@@ -14,6 +14,7 @@ public class AppState
 
     public List<Account> Accounts { get; set; } = new();
     public List<FixedCost> FixedCosts { get; set; } = new();
+    public List<FixedIncome> FixedIncomes { get; set; } = new();
     public List<Category> Categories { get; set; } = new();
     public List<Card> Cards { get; set; } = new();
     // 利用先(店名) → カテゴリId。一括適用で記憶し、以降の取込で自動分類する（完全一致）。
@@ -74,16 +75,8 @@ public class FixedCost
     public bool IsVariable { get; set; }
 
     // 有効期間の下限・上限を Ym として返す。年のみ指定は開始=1月 / 終了=12月 とみなす。
-    public Ym? StartBound() => ParseBound(StartYm, 1);
-    public Ym? EndBound() => ParseBound(EndYm, 12);
-
-    private static Ym? ParseBound(string? s, int monthIfYearOnly)
-    {
-        if (string.IsNullOrEmpty(s) || s.Length < 4) return null;
-        var year = int.Parse(s[..4]);
-        var month = s.Length >= 6 ? int.Parse(s[4..6]) : monthIfYearOnly;
-        return new Ym(year, month);
-    }
+    public Ym? StartBound() => FixedCostPeriod.ParseBound(StartYm, 1);
+    public Ym? EndBound() => FixedCostPeriod.ParseBound(EndYm, 12);
 }
 
 public class BonusSetting
@@ -95,6 +88,25 @@ public class BonusSetting
 }
 
 public enum BonusType { Add, Separate }
+
+// ── 収入固定費マスタ（#95）────────────────────────
+// 支出の FixedCost に対する収入版。「金額固定」（IsVariable=false・毎月 Amount を自動計上）と
+// 「金額未固定」（IsVariable=true・例：売電収入。項目のみ自動展開し、Amount は使わず毎月0から
+// 月次管理タブで手入力して確定する）の2種を扱う。ボーナス払い相当の月別調整は収入側では対象外。
+public class FixedIncome
+{
+    public string Id { get; set; } = Util.NewId();
+    public string Name { get; set; } = "";
+    public string AccountId { get; set; } = "";
+    public decimal Amount { get; set; }    // 金額固定のときのみ使用（金額未固定では未使用・常に0から展開）
+    public string? StartYm { get; set; }   // null / "yyyy"（年のみ）/ "yyyyMM"
+    public string? EndYm { get; set; }     // null / "yyyy"（年のみ）/ "yyyyMM"
+    public int SortOrder { get; set; }
+    public bool IsVariable { get; set; }   // true=金額未固定
+
+    public Ym? StartBound() => FixedCostPeriod.ParseBound(StartYm, 1);
+    public Ym? EndBound() => FixedCostPeriod.ParseBound(EndYm, 12);
+}
 
 // ── 月次データ ────────────────────────────────────
 public class MonthData
@@ -150,6 +162,10 @@ public class IncomeItem
     public string Id { get; set; } = Util.NewId();
     public string Name { get; set; } = "";
     public decimal Amount { get; set; }
+    public bool IsFixed { get; set; }           // 収入固定費マスタ由来か（#95）
+    public bool IsVariable { get; set; }        // 金額未固定（#95）由来：月次管理タブで金額編集可
+    public bool AmountOverridden { get; set; }  // 金額未固定：ユーザーが金額を手動編集済みか（当月のみ再展開で保持）
+    public string? FixedIncomeId { get; set; }
 }
 
 public class Debit

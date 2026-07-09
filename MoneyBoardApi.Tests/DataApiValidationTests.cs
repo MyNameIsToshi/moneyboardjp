@@ -41,6 +41,16 @@ public class DataApiValidationTests
     }
 
     [Fact]
+    public void TooManyFixedIncomes_ReturnsFalse_WithReason()
+    {
+        var env = new DataEnvelope { Settings = new SettingsPart() };
+        for (int i = 0; i < 501; i++) env.Settings.FixedIncomes.Add(new FixedIncome());   // 上限500
+
+        Assert.False(DataApi.IsStructurallyValid(env, out var reason));
+        Assert.Contains("fixedIncomes", reason);
+    }
+
+    [Fact]
     public void TooManyMonths_ReturnsFalse()
     {
         var env = new DataEnvelope { Settings = new SettingsPart() };

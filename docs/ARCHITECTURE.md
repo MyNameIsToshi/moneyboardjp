@@ -129,7 +129,7 @@ C:\Development\moneyboard\
   MoneyBoard\
     Components\
       AccountsTab.razor       口座管理（マイページ内に内包・口座番号は廃止・チップ＋枠付き行/列見出し整列・#50。スマホ=▲▼/PC=D&D 並べ替え・#53）
-      FixedCostTab.razor      固定費設定タブ（口座フィルター[Excel風複数選択]・D&D並び替え）
+      FixedCostTab.razor      固定費設定タブ（固定費（支出）＝口座フィルター[Excel風複数選択]・D&D並び替え・期限切れ折りたたみ・ボーナス払い。固定費（収入）（#95）＝同タブ下部に併設・「金額固定」/「金額未固定」を選択可・口座フィルター/期限切れ折りたたみは支出と同挙動を#95フォローアップで踏襲、ボーナス払いのみ対象外）
       MonthlyTab.razor        月次管理タブ（収入[給料/ボーナス/ATM入金/臨時収入]・支出[固定費/カード/ATM出金/手入力]・送金。サマリ=ヒーロー、口座カードは折りたたみ＋ヒーロー/収入・支出・振込ゾーン構成・#43/#81 リデザイン）
       CardTab.razor           カードタブ（明細の手入力/カードCSV取込[JCB/三井住友/PayPay/au PAY/楽天]/AIで読取[スクショ]/一括カテゴリ・カードごと折りたたみ・#49でリデザイン）
       MyPageTab.razor         マイページタブ（プロフィールヒーロー＋設定カードのグリッド[PC]/折りたたみ[スマホ]・アクセス管理は2列色分け・#50でリデザイン）
@@ -178,17 +178,17 @@ C:\Development\moneyboard\
     host.json
     local.settings.json       ※.gitignore対象（`Anthropic__ApiKey` もここに置く）
   MoneyBoardShared\           ※ 役割は下記「MoneyBoardShared の憲章」を参照
-    Models.cs                 AppState・Account・FixedCost等
+    Models.cs                 AppState・Account・FixedCost・FixedIncome（収入固定費・#95）等
     Ym.cs                     年月(yyyyMM)の値型（パース/整形/比較）
     LedgerMath.cs             月末残高の計算式（実行時 CloseOf と移行で共有しドリフト防止）
-    LedgerEngine.cs           残高の前月末連鎖(OpeningOf/CloseOf)・カード明細の月次反映(ExpandCards)・取込重複除外(DedupAgainstEarlierMonths)・固定費計算（純粋ロジック・LedgerService が委譲）
+    LedgerEngine.cs           残高の前月末連鎖(OpeningOf/CloseOf)・カード明細の月次反映(ExpandCards)・取込重複除外(DedupAgainstEarlierMonths)・支出/収入固定費計算（純粋ロジック・LedgerService が委譲。収入固定費(ExpandFixedIncomes/ReconcileFixedIncomes)は#95）
     CardCsvParser.cs          カード明細CSVを種別ごとの列マッピングでパース（JCB/三井住友/PayPay/au PAY/楽天）
     SchemaMigration.cs        スキーマ移行の足場（SchemaVersion管理）
     StorageContracts.cs       GET/POST DTO（DataEnvelope/SettingsPart/MonthPart）
     StatsMath.cs              統計（グラフ）の純粋ロジック（SelectPeriodYms=期間選択。GraphPage が委譲・v1.3.3。NormalizeCategoryKey=カテゴリ別集計のグルーピングキー正規化・#117で追加）
-    FixedCostPeriod.cs        固定費の有効期間 StartYm/EndYm の解析・組み立て・表示整形＋期限切れ判定（YearPart/MonthPart/ComposeYm/FmtBound/Summary/IsExpired。FixedCostTab が委譲・v1.3.3・IsExpiredは#100）
+    FixedCostPeriod.cs        固定費の有効期間 StartYm/EndYm の解析・組み立て・表示整形＋期限切れ判定（YearPart/MonthPart/ComposeYm/FmtBound/Summary/IsExpired/ParseBound。FixedCostTab が委譲・v1.3.3・IsExpiredは#100。ParseBound・Summary(FixedIncome)は#95で FixedCost/FixedIncome 共用に抽出）
     Portfolio.cs / PortfolioMath.cs  証券ポートフォリオのモデルと集計計算（Phase 3）。PortfolioMath に CostBasisJpyAsOf（指定日元本・円換算）/ YahooSymbol（日本株 .T 付与）を v1.3.3 で抽出。v2.1.0（issue #57）で PnlPct・DayChangePct・GroupValuationJpy を追加（テスト 118件）。issue #36 で BuildSnapshot（スナップショット構築）を追加（テスト 125件）
-  MoneyBoardShared.Tests\     ※ xUnit(net8.0)。LedgerMath / LedgerEngine / PortfolioMath / StatsMath / FixedCostPeriod / CardCsvParser / Ym / SchemaMigration / FixedCost / AnnouncementMath のユニットテスト（計183・`dotnet test`／カバレッジは `--collect:"XPlat Code Coverage"`）
+  MoneyBoardShared.Tests\     ※ xUnit(net8.0)。LedgerMath / LedgerEngine / PortfolioMath / StatsMath / FixedCostPeriod / CardCsvParser / Ym / SchemaMigration / FixedCost / FixedIncome / AnnouncementMath のユニットテスト（計206・`dotnet test`／カバレッジは `--collect:"XPlat Code Coverage"`）
 ```
 
 ### MoneyBoardShared の憲章（役割定義）
@@ -201,8 +201,8 @@ C:\Development\moneyboard\
 ### テスト方針
 - **対象＝自動テスト可能な純粋ロジック**。**API の CRUD/認証は Cosmos オーケストレーションのため対象外**（結合テスト領域・ROI低）。Blazor UI も自動化困難で対象外。
 - **テストプロジェクトは2つ**（いずれも xUnit・net8.0）：
-  - `MoneyBoardShared.Tests`：`LedgerMath` / `LedgerEngine`（残高連鎖・ExpandCards・重複除外・固定費）/ `PortfolioMath`（集計・Valuation・CostBasisJpyAsOf・YahooSymbol・PnlPct・DayChangePct・GroupValuationJpy・BuildSnapshot）/ `StatsMath`（期間選択）/ `FixedCostPeriod`（年月の解析・整形）/ `CardCsvParser` / `Ym` / `SchemaMigration`（v4＝CategoryRules正規化統合含む） / `FixedCost` / `AnnouncementMath`（未読判定・#38）（計**178**・v1.3.3 で 63→102・v2.1.0 で 102→118・issue #36 で 118→125・#27 で 125→130・#38 で 168→178）。
-  - `MoneyBoardApi.Tests`：API の**純粋ロジックのみ**（計35・#54 で 20→26・#27 で 26→35）。`DataApi.IsStructurallyValid`（保存前データ健全性ガード）／価格パーサ `ParseYahooQuote`・`ParseFundCsv`（取得=HTTPと分離した解析部）／`ParseCardImageResponse`（スクショAI応答JSON→CardDetail[]・日付正規化/金額/不正行スキップ）／`ParseCategoryClassifyResponse`（利用先一括分類AI応答JSON→Dictionary<store,categoryId>・null/存在しないID/でっち上げ店名除外・要求店名へ NormalizeStore で突き合わせ表記ゆれ吸収）／`IsAuthorizedSharedSecret`（共有シークレット照合・定数時間比較）。テストのため対象は `internal static`＋`InternalsVisibleTo("MoneyBoardApi.Tests")`。
+  - `MoneyBoardShared.Tests`：`LedgerMath` / `LedgerEngine`（残高連鎖・ExpandCards・重複除外・支出/収入固定費）/ `PortfolioMath`（集計・Valuation・CostBasisJpyAsOf・YahooSymbol・PnlPct・DayChangePct・GroupValuationJpy・BuildSnapshot）/ `StatsMath`（期間選択）/ `FixedCostPeriod`（年月の解析・整形。IsExpired/Summaryは FixedCost/FixedIncome 両対応） / `CardCsvParser` / `Ym` / `SchemaMigration`（v4＝CategoryRules正規化統合含む） / `FixedCost` / `FixedIncome`（収入固定費・#95） / `AnnouncementMath`（未読判定・#38）（計**206**・v1.3.3 で 63→102・v2.1.0 で 102→118・issue #36 で 118→125・#27 で 125→130・#38 で 168→178・（間の #100 等の増分を経て）183・#95 で 183→206）。
+  - `MoneyBoardApi.Tests`：API の**純粋ロジックのみ**（計36・#54 で 20→26・#27 で 26→35・#95 で 35→36）。`DataApi.IsStructurallyValid`（保存前データ健全性ガード）／価格パーサ `ParseYahooQuote`・`ParseFundCsv`（取得=HTTPと分離した解析部）／`ParseCardImageResponse`（スクショAI応答JSON→CardDetail[]・日付正規化/金額/不正行スキップ）／`ParseCategoryClassifyResponse`（利用先一括分類AI応答JSON→Dictionary<store,categoryId>・null/存在しないID/でっち上げ店名除外・要求店名へ NormalizeStore で突き合わせ表記ゆれ吸収）／`IsAuthorizedSharedSecret`（共有シークレット照合・定数時間比較）。テストのため対象は `internal static`＋`InternalsVisibleTo("MoneyBoardApi.Tests")`。
 - **カバレッジ**：`--collect:"XPlat Code Coverage"`（coverlet）。ロジック層は行/分岐とも高水準（LedgerMath/SchemaMigration=100% など）。DTO/モデルやCRUD/HTTP部は対象外のため class 全体の数値は薄く出る点に注意（=想定どおり）。**カバレッジ100%でもバグ不在の証明ではない**点は前提として共有。
 - **CI**：`.github/workflows/dotnet-test.yml` が dev push / main への PR で**両テストプロジェクト**を `dotnet test`（カバレッジ収集）。main への PR で「必須チェック」に設定すればマージゲートになる（要：Settings→Branches の保護ルール）。
 
@@ -333,6 +333,7 @@ Transfer
 | 推移スナップショットのサーバー側自動記録（`POST /api/record-snapshots`。全ユーザー横断でクロスパーティションクエリ→価格重複排除取得→`PortfolioMath.BuildSnapshot`/`UpsertSnapshot`再利用で1点ずつ記録。GitHub Actions cron `record-snapshots.yml` から平日1回呼び出し。SWA Free の Timer トリガー非対応を cron→HTTP で代替） | ✅ 完了（dev・リリース待ち・#37。要 GitHub Secrets `INTERNAL_API_SHARED_SECRET` 設定） |
 | 変動費（`FixedCost.IsVariable`。水道・電気など毎月自動計上だが金額が変わる支出。固定費設定タブでフラグON→月次管理タブでその月の金額を編集可、マスタ額は既定値/初期値。当月に限り手動編集値（`Debit.AmountOverridden`）を保持しマスタ変更で上書きしない、翌月以降は非変動の固定費と同様マスタへ一律追随。あわせて `EnsureMonth` の固定費展開を新規作成月/当月以降に限定するバグ修正（既存の過去月を開いただけで新規固定費が遡って混入しないように）。SchemaMigration v5→v6） | ✅ 完了（dev・リリース待ち・#87） |
 | リリースノート・お知らせ通知（`wwwroot/announcements.json` を repo 同梱・デプロイ配信。ヘッダーの🔔ベルに未読バッジ→押下で一覧[新しい順・type バッジ・Markdown本文]、初回表示は未読分を全件 What's New モーダルで自動提示（1件なら「最新のお知らせ」・複数なら「新着のお知らせ（N件）」）。既読は localStorage の最終既読idで判定・端末ごと独立。未読判定は `AnnouncementMath`（Shared）で純粋ロジック化） | ✅ 完了（dev・リリース待ち・#38） |
+| 収入の固定費（`FixedIncome`。支出の `FixedCost` の収入版。「金額固定」＝毎月 `Amount` を自動計上、「金額未固定」（`IsVariable`。例：売電収入）＝項目のみ自動展開し `Amount` は使わず毎月0から月次管理タブで手入力して確定（`IncomeItem.AmountOverridden` で当月分のみ保護、翌月以降は毎月あらためて0からの手入力を求める＝変動費 `FixedCost.IsVariable` とは既定値の扱いが異なる）。固定費設定タブに併設し、口座フィルター（Excel風）・期限切れ折りたたみグループ化・D&D/▲▼並び替え・追加ダイアログは支出の固定費と同挙動を踏襲（ボーナス払いのみ収入側に対応概念が無く対象外）。SchemaMigration v7→v8） | ✅ 完了（dev・リリース待ち・#95） |
 
 ---
 
@@ -368,6 +369,7 @@ Transfer
 - `＋ 追加` → ダイアログ。口座未登録時は警告ダイアログ。金額0でも追加可。
 - **変動費（`IsVariable`・#87）**：期間・ボーナス設定の展開部にチェックボックス「毎月金額が変わる」。ON にすると一覧に🔄バッジを表示し、月次管理タブでその月の金額を編集できるようになる（マスタの金額は既定値/初期値扱い）。
 - **期限切れの折りたたみグループ化（#100）**：`EndBound()` が当月サイクル開始（`CurrentCycleStartYm()`）より前の固定費は、通常の一覧から分離し「期限切れ（N件）」の折りたたみグループにまとめる（既定は閉・非永続・`FixedCostPeriod.IsExpired`）。グループ内は終了年月の降順（新しく切れたものが先頭）で固定表示し、D&D／▲▼ の並べ替え対象外。背景色（`--paper`・破線ボーダー）で通常項目と区別する。口座フィルターと併用可（両条件を満たすものだけ表示）。PC/スマホ共通。
+- **固定費（収入）（#95）**：同タブ下部に別セクションとして併設。項目名・口座・「金額固定」（`Amount`を毎月自動計上）/「金額未固定」（例：売電収入。項目のみ自動展開し`Amount`は使わず毎月0から月次管理タブで手入力）・開始終了年月・口座フィルター（Excel風）・期限切れ折りたたみグループ化・D&D/▲▼並び替えは固定費（支出）と同じ挙動を踏襲（#95フォローアップ）。**ボーナス払い（`BonusSettings`）のみ対象外**：カード等のボーナス月一括払いを想定した機能で、収入側に自然に対応する概念が無く要望にも含まれないため未実装（必要になれば別途 issue 化）。追加はPC/スマホともダイアログ形式で支出固定費と統一。
   - **編集ロック**：期限切れ中は終了年月以外（名前・口座・金額・変動費チェック・開始年月・ボーナス払い）を disabled にして編集不可。終了年月のみ延長できる。延長して期限切れでなくなると、その場で（シートを閉じずに）編集可能へ戻り、一覧上も通常グループへ自動的に移動する。
 
 ### マイページタブ（レイアウト/質感リデザイン済み・#50）

@@ -65,8 +65,12 @@ public class LedgerService(AppStateStore store)
                 mo.Ledgers[a.Id] = new Ledger { Confirmed = hasPrev ? CloseOf(prev, a.Id) : 0 };
         }
         // 固定費展開の可否判定は LedgerEngine.ShouldExpandFixedCosts（純粋ロジック・テスト対象）へ委譲する。
+        // 収入固定費（#95）も支出の固定費と同じガードで展開する。
         if (LedgerEngine.ShouldExpandFixedCosts(isNewMonth, IsCurrentOrFutureCycle(ym)))
+        {
             ExpandFixedCosts(ym, mo);
+            ExpandFixedIncomes(ym, mo);
+        }
         ExpandCards(ym, mo);
         ExpandWallet(mo);
         return mo;
@@ -83,6 +87,18 @@ public class LedgerService(AppStateStore store)
         var currentCycleYm = CurrentCycleStartYm();
         foreach (var ym in State.Months.Keys.Where(IsCurrentOrFutureCycle).ToList())
             LedgerEngine.ReconcileFixedCosts(State, ym, State.Months[ym], isCurrentCycle: ym == currentCycleYm);
+    }
+
+    // ── 収入固定費（#95）───────────────────────────
+    // 未展開分のみ追加する。計算本体は LedgerEngine.ExpandFixedIncomes（純粋ロジック・テスト対象）へ委譲する。
+    private void ExpandFixedIncomes(string ym, MonthData mo) => LedgerEngine.ExpandFixedIncomes(State, ym, mo);
+
+    // マスタ変更を当月以降へ反映する再展開。OnFixedCostChanged と同じ形。
+    public void OnFixedIncomeChanged()
+    {
+        var currentCycleYm = CurrentCycleStartYm();
+        foreach (var ym in State.Months.Keys.Where(IsCurrentOrFutureCycle).ToList())
+            LedgerEngine.ReconcileFixedIncomes(State, ym, State.Months[ym], isCurrentCycle: ym == currentCycleYm);
     }
 
     // ── カード明細 → 月次 Debit 反映 ──────────────────
@@ -209,6 +225,9 @@ public class LedgerService(AppStateStore store)
 
     public List<string> GetFixedCostsUsingAccount(string accountId) =>
         State.FixedCosts.Where(f => f.AccountId == accountId).Select(f => f.Name).ToList();
+
+    public List<string> GetFixedIncomesUsingAccount(string accountId) =>
+        State.FixedIncomes.Where(f => f.AccountId == accountId).Select(f => f.Name).ToList();
 
     public List<string> GetCardsUsingAccount(string accountId) =>
         State.Cards.Where(c => !c.IsDeleted && c.AccountId == accountId).Select(c => c.Name).ToList();

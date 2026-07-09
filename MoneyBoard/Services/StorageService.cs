@@ -43,6 +43,7 @@ public class StorageService(HttpClient http, AuthService auth)
             SchemaVersion = env.Settings?.SchemaVersion ?? 1,
             Accounts = env.Settings?.Accounts ?? new(),
             FixedCosts = env.Settings?.FixedCosts ?? new(),
+            FixedIncomes = env.Settings?.FixedIncomes ?? new(),
             Categories = env.Settings?.Categories ?? new(),
             Cards = env.Settings?.Cards ?? new(),
             CategoryRules = env.Settings?.CategoryRules ?? new(),

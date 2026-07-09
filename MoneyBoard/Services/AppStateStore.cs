@@ -141,6 +141,7 @@ public class AppStateStore(StorageService storage)
         SchemaVersion = State.SchemaVersion,
         Accounts = State.Accounts,
         FixedCosts = State.FixedCosts,
+        FixedIncomes = State.FixedIncomes,
         Categories = State.Categories,
         Cards = State.Cards,
         CategoryRules = State.CategoryRules,
