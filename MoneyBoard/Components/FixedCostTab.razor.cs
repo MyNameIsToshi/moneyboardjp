@@ -49,13 +49,13 @@ public partial class FixedCostTab
     // ＋追加：スマホはドラフトを作って編集シートを開く（State には未追加）。PCは従来の追加ダイアログ。
     private void AddClicked()
     {
-        if (!Svc.ActiveAccounts.Any()) { ShowNoAccountWarn = true; return; }
+        if (!Svc.NonWalletAccounts.Any()) { ShowNoAccountWarn = true; return; }
         if (IsMobile)
         {
             _draft = new FixedCost
             {
                 Name = "",
-                AccountId = Svc.ActiveAccounts.First().Id,
+                AccountId = Svc.NonWalletAccounts.First().Id,
                 Amount = 0,
                 SortOrder = Svc.State.FixedCosts.Count
             };
@@ -146,13 +146,13 @@ public partial class FixedCostTab
 
     private void OpenAddDialog()
     {
-        if (!Svc.ActiveAccounts.Any())
+        if (!Svc.NonWalletAccounts.Any())
         {
             ShowNoAccountWarn = true;
             return;
         }
         NewName      = "";
-        NewAccountId = Svc.ActiveAccounts.FirstOrDefault()?.Id ?? "";
+        NewAccountId = Svc.NonWalletAccounts.FirstOrDefault()?.Id ?? "";
         NewAmount    = 0;
         NewIsVariable = false;
         AddError     = "";
@@ -326,13 +326,13 @@ public partial class FixedCostTab
     // スマホ＝編集シートのドラフト、PC＝追加ダイアログ（支出の固定費と同じ操作感に統一）。
     private void AddIncomeClicked()
     {
-        if (!Svc.ActiveAccounts.Any()) { ShowNoAccountWarn = true; return; }
+        if (!Svc.NonWalletAccounts.Any()) { ShowNoAccountWarn = true; return; }
         if (IsMobile)
         {
             var fi = new FixedIncome
             {
                 Name = "",
-                AccountId = Svc.ActiveAccounts.First().Id,
+                AccountId = Svc.NonWalletAccounts.First().Id,
                 SortOrder = Svc.State.FixedIncomes.Count
             };
             _draftIncome = fi; _editIncomeId = fi.Id; _isNewIncome = true;
@@ -350,13 +350,13 @@ public partial class FixedCostTab
 
     private void OpenAddIncomeDialog()
     {
-        if (!Svc.ActiveAccounts.Any())
+        if (!Svc.NonWalletAccounts.Any())
         {
             ShowNoAccountWarn = true;
             return;
         }
         NewIncomeName       = "";
-        NewIncomeAccountId  = Svc.ActiveAccounts.FirstOrDefault()?.Id ?? "";
+        NewIncomeAccountId  = Svc.NonWalletAccounts.FirstOrDefault()?.Id ?? "";
         NewIncomeAmount     = 0;
         NewIncomeIsVariable = false;
         AddIncomeError      = "";

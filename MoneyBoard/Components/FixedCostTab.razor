@@ -52,7 +52,7 @@
             <div class="set-select-wrap">
                 <select class="set-select" @bind="fc.AccountId" @bind:after="SaveWithReload" disabled="@expired">
                     <option value="">口座を選択</option>
-                    @foreach (var a in Svc.ActiveAccounts)
+                    @foreach (var a in Svc.NonWalletAccounts)
                     {
                         <option value="@a.Id">@a.Name</option>
                     }
@@ -268,7 +268,7 @@
                 <label>口座</label>
                 <select @bind="NewAccountId">
                     <option value="">口座を選択</option>
-                    @foreach (var a in Svc.ActiveAccounts)
+                    @foreach (var a in Svc.NonWalletAccounts)
                     {
                         <option value="@a.Id">@a.Name</option>
                     }
@@ -316,7 +316,7 @@
                 <label>口座</label>
                 <select @bind="Editing.AccountId" @bind:after="SaveWithReload" disabled="@EditingExpired">
                     <option value="">口座を選択</option>
-                    @foreach (var a in Svc.ActiveAccounts)
+                    @foreach (var a in Svc.NonWalletAccounts)
                     {
                         <option value="@a.Id">@a.Name</option>
                     }
@@ -470,7 +470,7 @@
             <div class="set-select-wrap">
                 <select class="set-select" @bind="fi.AccountId" @bind:after="SaveIncomeWithReload" disabled="@expired">
                     <option value="">口座を選択</option>
-                    @foreach (var a in Svc.ActiveAccounts)
+                    @foreach (var a in Svc.NonWalletAccounts)
                     {
                         <option value="@a.Id">@a.Name</option>
                     }
@@ -653,7 +653,7 @@
                 <label>口座</label>
                 <select @bind="NewIncomeAccountId">
                     <option value="">口座を選択</option>
-                    @foreach (var a in Svc.ActiveAccounts)
+                    @foreach (var a in Svc.NonWalletAccounts)
                     {
                         <option value="@a.Id">@a.Name</option>
                     }
@@ -704,7 +704,7 @@
                 <label>口座</label>
                 <select @bind="EditingIncome.AccountId" @bind:after="SaveIncomeWithReload" disabled="@EditingIncomeExpired">
                     <option value="">口座を選択</option>
-                    @foreach (var a in Svc.ActiveAccounts)
+                    @foreach (var a in Svc.NonWalletAccounts)
                     {
                         <option value="@a.Id">@a.Name</option>
                     }
