@@ -420,9 +420,11 @@ body {
   color: var(--accent);
 }
 
-/* お知らせナビ項目（#38）：bell-badge の絶対配置の基準をこの行内に閉じ込める */
-.sidenav-notice {
+/* お知らせナビ項目（#38）：bell-badge の絶対配置の基準をアイコン自体に閉じ込める
+   （行全体を基準にすると、行が全幅ボタンのため右上遠くに飛んでしまう） */
+.sn-ico-wrap {
   position: relative;
+  display: inline-flex;
 }
 
 /* PC（サイドナビ表示時）はブランド/画面名・戻るを各ページ頭から消す（サイドナビに集約）。

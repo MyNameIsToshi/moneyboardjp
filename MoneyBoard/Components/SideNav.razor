@@ -32,11 +32,14 @@
         </button>
         <div class="sidenav-sep"></div>
         <button class="sidenav-item sidenav-notice" @onclick="() => AnnounceSvc.OpenListAsync()">
-            <span class="sn-ico msym">notifications</span><span class="sn-lab">お知らせ</span>
-            @if (AnnounceSvc.UnreadCount > 0)
-            {
-                <span class="bell-badge">@(AnnounceSvc.UnreadCount > 9 ? "9+" : AnnounceSvc.UnreadCount.ToString())</span>
-            }
+            <span class="sn-ico-wrap">
+                <span class="sn-ico msym">notifications</span>
+                @if (AnnounceSvc.UnreadCount > 0)
+                {
+                    <span class="bell-badge">@(AnnounceSvc.UnreadCount > 9 ? "9+" : AnnounceSvc.UnreadCount.ToString())</span>
+                }
+            </span>
+            <span class="sn-lab">お知らせ</span>
         </button>
         <button class="sidenav-item sidenav-mask @(IsMasked ? "masked" : "")" @onclick="MaskSvc.ToggleAsync">
             <span class="sn-ico msym">@(IsMasked ? "visibility_off" : "visibility")</span>
