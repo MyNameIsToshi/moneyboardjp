@@ -51,7 +51,7 @@ else
                                     @onclick="() => SetColor(c, color)" title="@color"></button>
                         }
                     </div>
-                    <button class="set-del" @onclick="() => Remove(c.Id)" title="削除"><span class="msym">close</span></button>
+                    <button class="set-del" @onclick="() => RequestDelete(c.Id)" title="削除"><span class="msym">close</span></button>
                 </div>
             }
         }
@@ -59,8 +59,17 @@ else
 }
 
 <div class="set-note">
-    カテゴリ未設定の明細は「未分類（灰色）」として扱われます。
+    カテゴリ未設定の明細は「未分類（灰色）」として扱われます。<br />
+    使用中のカテゴリを削除すると、該当のカード明細・現金支出は「未分類」になります。
 </div>
+
+<!-- 削除確認ダイアログ -->
+<ConfirmDialog IsVisible="@ShowConfirm"
+               Title="カテゴリを削除しますか？"
+               Message="@ConfirmMessage"
+               ConfirmText="削除する"
+               OnConfirm="ExecuteDelete"
+               OnCancel="CancelDelete" />
 
 <!-- スマホ：サマリーカードのタップで開く編集シート -->
 <BottomSheet IsVisible="@(Editing is not null)" Title="カテゴリを編集" OnClose="CloseEdit">
@@ -114,13 +123,13 @@ else
         _editId = null;
     }
 
-    // シートから削除：ドラフトは破棄、既存はシートを閉じてから削除（カテゴリは確認なしで即削除＝従来挙動）。
+    // シートから削除：ドラフトは破棄、既存はシートを閉じてから削除判定（使用状況を確認ダイアログに反映）。
     private void DeleteEditing()
     {
         if (_isNew) { _isNew = false; _draft = null; _editId = null; return; }
         var id = _editId;
         _editId = null;
-        if (id != null) Remove(id);
+        if (id != null) RequestDelete(id);
     }
 
     // 12色パレット
@@ -165,7 +174,41 @@ else
         Save();
     }
 
-    private void Remove(string id) { Svc.State.Categories.RemoveAll(c => c.Id == id); Save(); }
+    // ── 削除（使用状況を確認ダイアログに明示。使用中でも削除は可能＝該当明細は「未分類」になる。
+    //    参照切れの実データ側の整理・不整合是正は #117 で別途対応）────
+    private bool ShowConfirm;
+    private string? PendingDeleteId;
+    private string ConfirmMessage = "";
+
+    private void RequestDelete(string id)
+    {
+        var name = Svc.State.Categories.FirstOrDefault(c => c.Id == id)?.Name;
+        var label = string.IsNullOrEmpty(name) ? "このカテゴリ" : $"「{name}」";
+        var lines = $"{label}を削除します。\n\n";
+
+        var (cardCount, cardMonths) = Svc.GetCardDetailsUsingCategory(id);
+        var (debitCount, debitMonths) = Svc.GetDebitsUsingCategory(id);
+        if (cardCount > 0)
+            lines += $"・カード明細 {cardCount} 件（対象月：{string.Join("、", cardMonths)}）が「未分類」になります。\n";
+        if (debitCount > 0)
+            lines += $"・現金支出 {debitCount} 件（対象月：{string.Join("、", debitMonths)}）が「未分類」になります。\n";
+        if (cardCount == 0 && debitCount == 0)
+            lines += "・このカテゴリを使用している明細はありません。\n";
+        lines += "\nこの操作は取り消せません。";
+
+        ConfirmMessage = lines;
+        PendingDeleteId = id;
+        ShowConfirm = true;
+    }
+
+    private void ExecuteDelete()
+    {
+        if (PendingDeleteId != null) { Svc.State.Categories.RemoveAll(c => c.Id == PendingDeleteId); Save(); }
+        PendingDeleteId = null;
+        ShowConfirm = false;
+    }
+
+    private void CancelDelete() { PendingDeleteId = null; ShowConfirm = false; }
 
     // ── ドラッグ＆ドロップ並び替え ──────────────────
     private string? DragSourceId;

@@ -213,6 +213,28 @@ public class LedgerService(AppStateStore store)
     public List<string> GetCardsUsingAccount(string accountId) =>
         State.Cards.Where(c => !c.IsDeleted && c.AccountId == accountId).Select(c => c.Name).ToList();
 
+    // カテゴリ削除時の使用中チェック（#113）。口座/カードと異なりカテゴリはソフト削除ではなく
+    // 即時削除のため、過去月を含む全期間を対象にする（過去月だけ「参照切れ」を許容する理由がない）。
+    public (int count, List<string> months) GetCardDetailsUsingCategory(string categoryId)
+    {
+        var hits = State.Months.Where(kv => kv.Value.CardDetails.Any(d => d.CategoryId == categoryId)).ToList();
+        return (
+            hits.Sum(kv => kv.Value.CardDetails.Count(d => d.CategoryId == categoryId)),
+            // "yyyyMM" キーの時点で時系列ソート（Label化後の文字列ソートは "10月" が "5月" より前に来て崩れるため）。
+            hits.OrderBy(kv => kv.Key).Select(kv => Label(kv.Key)).ToList()
+        );
+    }
+
+    // 現金支出（財布のDebit・#77）でのカテゴリ使用中チェック（#113）。
+    public (int count, List<string> months) GetDebitsUsingCategory(string categoryId)
+    {
+        var hits = State.Months.Where(kv => kv.Value.Ledgers.Values.Any(l => l.Debits.Any(d => d.CategoryId == categoryId))).ToList();
+        return (
+            hits.Sum(kv => kv.Value.Ledgers.Values.Sum(l => l.Debits.Count(d => d.CategoryId == categoryId))),
+            hits.OrderBy(kv => kv.Key).Select(kv => Label(kv.Key)).ToList()
+        );
+    }
+
     // 財布は「使用中だから消せない」対象外（#77）。現金支出（Debits）が記帳済みでも、財布OFFは
     // カード削除(#49)と同じ「当月以降を掃除・過去は凍結」で正常に完了する設計のため、このガードを適用しない。
     public List<string> GetFutureMonthsUsingAccount(string accountId)
