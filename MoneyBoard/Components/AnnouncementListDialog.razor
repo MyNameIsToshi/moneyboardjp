@@ -1,22 +1,47 @@
 @using MoneyBoard.Services
+@using MoneyBoardShared
+@inject AnnouncementService AnnounceSvc
 
-@* お知らせ一覧（ベル押下で表示・新しい順）。 *@
+@* お知らせ一覧（ベル押下で表示・新しい順）。案A タイムライン改良型（#130）。
+   バージョンの枠を保ったまま種別（新機能/改善/修正）でフィルタできる。未読はダイアログを
+   開いた瞬間のスナップショット（AnnounceSvc.UnreadCountAtOpen/LastSeenIdAtOpen）で描画するが、
+   既読化のタイミング自体は既存仕様のまま（開いた時点で自動既読化）で変更していない。 *@
 <div class="dialog-overlay" @onclick="Close">
     <div class="dialog-box ann-dialog-box" @onclick:stopPropagation="true">
         <div class="ann-dialog-head">
-            <h4>お知らせ</h4>
+            <div class="ann-head-title">
+                <span class="msym ann-head-icon">notifications</span>
+                <h4>お知らせ</h4>
+                @if (AnnounceSvc.UnreadCountAtOpen > 0)
+                {
+                    <span class="ann-unread-pill">未読 @AnnounceSvc.UnreadCountAtOpen</span>
+                }
+            </div>
             <button class="ann-close-btn" @onclick="Close" aria-label="閉じる"><span class="msym">close</span></button>
         </div>
-        @if (Items.Count == 0)
+
+        <div class="ann-filter-row">
+            <div class="ann-segment" role="tablist">
+                @foreach (var opt in FilterOptions)
+                {
+                    <button type="button" class="ann-segment-btn @(_filter == opt.Value ? "active" : "")"
+                            @onclick="() => SetFilter(opt.Value)">@opt.Label</button>
+                }
+            </div>
+        </div>
+
+        @if (FilteredEntries.Count == 0)
         {
-            <p class="ann-empty">お知らせはありません。</p>
+            <p class="ann-empty">該当するお知らせはありません。</p>
         }
         else
         {
-            <div class="ann-list">
-                @foreach (var item in Items)
+            <div class="ann-list ann-timeline">
+                @foreach (var entry in FilteredEntries)
                 {
-                    <AnnouncementCard Item="item" />
+                    <AnnouncementCard Item="entry.Item" Changes="entry.Changes"
+                                      IsLatest="@(entry.Item.Id == LatestId)"
+                                      IsUnread="@AnnouncementMath.IsUnread(entry.Item.Id, AnnounceSvc.LastSeenIdAtOpen)" />
                 }
             </div>
         }
@@ -27,5 +52,37 @@
     [Parameter] public IReadOnlyList<Announcement> Items { get; set; } = Array.Empty<Announcement>();
     [Parameter] public EventCallback OnClose { get; set; }
 
+    private static readonly (string Label, string? Value)[] FilterOptions =
+    {
+        ("すべて", null),
+        ("新機能", "新機能"),
+        ("改善", "改善"),
+        ("修正", "修正"),
+    };
+
+    private string? _filter;
+    private List<(Announcement Item, List<AnnouncementChangeItem> Changes)> _filteredEntries = new();
+
+    protected override void OnParametersSet() => RecomputeFilteredEntries();
+
     private Task Close() => OnClose.InvokeAsync();
+
+    private void SetFilter(string? value)
+    {
+        _filter = value;
+        RecomputeFilteredEntries();
+    }
+
+    private int? LatestId => Items.Count > 0 ? Items[0].Id : null;
+
+    private List<(Announcement Item, List<AnnouncementChangeItem> Changes)> FilteredEntries => _filteredEntries;
+
+    /// <summary>バージョンの枠を保ったまま、種別でフィルタ後に1件も残らないバージョンは丸ごと除外する。</summary>
+    private void RecomputeFilteredEntries() =>
+        _filteredEntries = Items
+            .Select(a => (Item: a, Changes: AnnouncementMath.ParseChangeItems(a.Body)
+                .Where(c => _filter == null || c.TypeLabel == _filter)
+                .ToList()))
+            .Where(e => e.Changes.Count > 0)
+            .ToList();
 }

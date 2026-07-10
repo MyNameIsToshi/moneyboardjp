@@ -604,6 +604,53 @@
 }
 
 /* =====================================================
+   お知らせ（AnnouncementListDialog / AnnouncementWhatsNewDialog）：スマホはボトムシート（#130）
+   ===================================================== */
+.app-shell.is-mobile .dialog-overlay:has(.ann-dialog-box) {
+  align-items: flex-end;
+  padding: 0;
+}
+
+.app-shell.is-mobile .ann-dialog-box {
+  width: 100%;
+  max-width: none;
+  max-height: 88dvh;
+  border-radius: 20px 20px 0 0;
+  padding-top: 10px;
+}
+
+.app-shell.is-mobile .ann-dialog-box::before {
+  content: "";
+  display: block;
+  width: 38px;
+  height: 4px;
+  border-radius: 3px;
+  background: #e0dbd0;
+  margin: 0 auto 10px;
+}
+
+.app-shell.is-mobile .ann-entry {
+  grid-template-columns: 12px 1fr;
+  gap: 8px;
+}
+
+.app-shell.is-mobile .ann-node {
+  width: 10px;
+  height: 10px;
+}
+
+.app-shell.is-mobile .ann-change-text {
+  font-size: 12.5px;
+}
+
+/* ボトムシートは画面いっぱいまで伸縮するのが自然なUXのため、PC版の固定高さ(440px)は解除する */
+.app-shell.is-mobile .ann-list,
+.app-shell.is-mobile .ann-empty {
+  height: auto;
+  flex: 1 1 auto;
+}
+
+/* =====================================================
    カード明細（CardTab）：スマホ調整
    ===================================================== */
 /* 明細はサマリーカード（list-card）＋編集シートに統一。サブ行のカテゴリ色ドットを行内表示 */
