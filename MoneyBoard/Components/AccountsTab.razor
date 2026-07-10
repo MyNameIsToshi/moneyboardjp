@@ -1,8 +1,11 @@
 @inject LedgerService Svc
 
 <div class="set-head">
-    <span class="set-chip c-account msym">account_balance</span>
-    <span class="set-title">口座</span>
+    @if (!IsMobile)
+    {
+        <span class="set-chip c-account msym">account_balance</span>
+        <span class="set-title">口座</span>
+    }
     @if (!Svc.HasActiveWallet)
     {
         <button class="set-add" @onclick="AddWallet"><span class="msym">account_balance_wallet</span>財布を追加</button>
@@ -350,8 +353,17 @@ else
         var fcNames = Svc.GetFixedCostsUsingAccount(id);
         if (fcNames.Count > 0)
         {
-            WarnMessages.Add($"以下の固定費で使用されています：{string.Join("、", fcNames)}");
+            WarnMessages.Add($"以下の固定費（支出）で使用されています：{string.Join("、", fcNames)}");
             WarnSubMessage = "固定費設定から該当の固定費を変更または削除してください。";
+            ShowWarn = true;
+            return;
+        }
+
+        var fiNames = Svc.GetFixedIncomesUsingAccount(id);
+        if (fiNames.Count > 0)
+        {
+            WarnMessages.Add($"以下の固定費（収入）で使用されています：{string.Join("、", fiNames)}");
+            WarnSubMessage = "固定費設定から該当の固定費（収入）を変更または削除してください。";
             ShowWarn = true;
             return;
         }

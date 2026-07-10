@@ -49,13 +49,13 @@ public partial class FixedCostTab
     // ＋追加：スマホはドラフトを作って編集シートを開く（State には未追加）。PCは従来の追加ダイアログ。
     private void AddClicked()
     {
-        if (!Svc.ActiveAccounts.Any()) { ShowNoAccountWarn = true; return; }
+        if (!Svc.NonWalletAccounts.Any()) { ShowNoAccountWarn = true; return; }
         if (IsMobile)
         {
             _draft = new FixedCost
             {
                 Name = "",
-                AccountId = Svc.ActiveAccounts.First().Id,
+                AccountId = Svc.NonWalletAccounts.First().Id,
                 Amount = 0,
                 SortOrder = Svc.State.FixedCosts.Count
             };
@@ -134,27 +134,31 @@ public partial class FixedCostTab
         SaveWithReload();
     }
 
-    // ── 追加ダイアログ ──────────────────────────────
+    // ── 追加ダイアログ（#128：スマホの編集シートに合わせ、期間・ボーナス払いも追加時に設定可能）──
+    // 期間・ボーナスは NewPeriod（未コミットの FixedCost）上で、既存項目編集と同じ Apply* 純粋ロジックを使って組み立て、
+    // ExecuteAdd で確定するまで保存しない（Svc.State には未追加のため SaveWithReload は呼ばない）。
     private bool ShowAddDialog = false;
     private string NewName = "";
     private string NewAccountId = "";
     private decimal NewAmount = 0;
     private bool NewIsVariable = false;
+    private FixedCost NewPeriod = new();
     private string AddError = "";
 
     private bool ShowNoAccountWarn = false;
 
     private void OpenAddDialog()
     {
-        if (!Svc.ActiveAccounts.Any())
+        if (!Svc.NonWalletAccounts.Any())
         {
             ShowNoAccountWarn = true;
             return;
         }
         NewName      = "";
-        NewAccountId = Svc.ActiveAccounts.FirstOrDefault()?.Id ?? "";
+        NewAccountId = Svc.NonWalletAccounts.FirstOrDefault()?.Id ?? "";
         NewAmount    = 0;
         NewIsVariable = false;
+        NewPeriod    = new();
         AddError     = "";
         ShowAddDialog = true;
     }
@@ -172,6 +176,9 @@ public partial class FixedCostTab
             AccountId  = NewAccountId,
             Amount     = NewAmount,
             IsVariable = NewIsVariable,
+            StartYm    = NewPeriod.StartYm,
+            EndYm      = NewPeriod.EndYm,
+            BonusSettings = NewPeriod.BonusSettings,
             SortOrder  = Svc.State.FixedCosts.Count
         });
         SaveWithReload();
@@ -229,8 +236,13 @@ public partial class FixedCostTab
 
     private void CancelDelete() { PendingDeleteId = null; ShowConfirm = false; }
 
-    private void AddBonus(FixedCost fc)    { fc.BonusSettings.Add(new BonusSetting { Month = 6 }); SaveWithReload(); }
-    private void RemoveBonus(FixedCost fc, string bid) { fc.BonusSettings.RemoveAll(b => b.Id == bid); SaveWithReload(); }
+    // 書き換えのみ（保存はしない）。追加ダイアログの未コミットドラフト（NewPeriod）と、
+    // 保存を伴う既存項目編集（下の Set*/AddBonus/RemoveBonus）の両方から使う純粋ロジック。
+    private static void ApplyAddBonus(FixedCost fc) => fc.BonusSettings.Add(new BonusSetting { Month = 6 });
+    private static void ApplyRemoveBonus(FixedCost fc, string bid) => fc.BonusSettings.RemoveAll(b => b.Id == bid);
+
+    private void AddBonus(FixedCost fc)    { ApplyAddBonus(fc);       SaveWithReload(); }
+    private void RemoveBonus(FixedCost fc, string bid) { ApplyRemoveBonus(fc, bid); SaveWithReload(); }
 
     // ── 年月ヘルパー ────────────────────────────────
     // StartYm/EndYm は null / "yyyy"（年のみ）/ "yyyyMM" の3形態。
@@ -242,10 +254,15 @@ public partial class FixedCostTab
     private static string EndYear(FixedCost fc)    => FixedCostPeriod.YearPart(fc.EndYm);
     private static string EndMonth(FixedCost fc)   => FixedCostPeriod.MonthPart(fc.EndYm);
 
-    private void SetStartYear(FixedCost fc, string? y)  { fc.StartYm = FixedCostPeriod.ComposeYm(y, StartMonth(fc)); SaveWithReload(); }
-    private void SetStartMonth(FixedCost fc, string? m) { fc.StartYm = FixedCostPeriod.ComposeYm(StartYear(fc), m);  SaveWithReload(); }
-    private void SetEndYear(FixedCost fc, string? y)    { fc.EndYm   = FixedCostPeriod.ComposeYm(y, EndMonth(fc));    SaveWithReload(); }
-    private void SetEndMonth(FixedCost fc, string? m)   { fc.EndYm   = FixedCostPeriod.ComposeYm(EndYear(fc), m);     SaveWithReload(); }
+    private static void ApplyStartYear(FixedCost fc, string? y)  => fc.StartYm = FixedCostPeriod.ComposeYm(y, StartMonth(fc));
+    private static void ApplyStartMonth(FixedCost fc, string? m) => fc.StartYm = FixedCostPeriod.ComposeYm(StartYear(fc), m);
+    private static void ApplyEndYear(FixedCost fc, string? y)    => fc.EndYm   = FixedCostPeriod.ComposeYm(y, EndMonth(fc));
+    private static void ApplyEndMonth(FixedCost fc, string? m)   => fc.EndYm   = FixedCostPeriod.ComposeYm(EndYear(fc), m);
+
+    private void SetStartYear(FixedCost fc, string? y)  { ApplyStartYear(fc, y);   SaveWithReload(); }
+    private void SetStartMonth(FixedCost fc, string? m) { ApplyStartMonth(fc, m);  SaveWithReload(); }
+    private void SetEndYear(FixedCost fc, string? y)    { ApplyEndYear(fc, y);     SaveWithReload(); }
+    private void SetEndMonth(FixedCost fc, string? m)   { ApplyEndMonth(fc, m);    SaveWithReload(); }
 
     private static string SummaryText(FixedCost fc) => FixedCostPeriod.Summary(fc);
 }

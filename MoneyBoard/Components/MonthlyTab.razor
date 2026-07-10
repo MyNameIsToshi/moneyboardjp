@@ -65,6 +65,8 @@
             var cardDebits = l.Debits.Where(d => d.CardId != null).ToList();
             var fixedDebits = l.Debits.Where(d => d.CardId == null && d.IsFixed).ToList();
             var manualDebits = l.Debits.Where(d => d.CardId == null && !d.IsFixed).ToList();
+            var fixedIncomes = l.Incomes.Where(x => x.IsFixed).ToList();
+            var manualIncomes = l.Incomes.Where(x => !x.IsFixed).ToList();
             // ATM は資産移動のためセクション合計には含めない（既存の統計集計と同じ流儀）。
             var incomeTotal = l.Salary + l.Bonus + l.Incomes.Sum(x => x.Amount);
             var spendTotal = l.Debits.Sum(d => d.Amount);
@@ -214,7 +216,42 @@
                                         <AmountInput CssClass="amt" Value="@l.AtmDeposit" ValueChanged="v => { l.AtmDeposit = v; Svc.RequestSave(); }" />
                                     </div>
                                 }
-                                @foreach (var inc in l.Incomes)
+                                @* 収入固定費＝表示専用（折りたたみ）。金額未固定はここで月ごとに金額を編集できる（#95）。 *@
+                                @if (fixedIncomes.Count > 0)
+                                {
+                                    var fixedIncomeOpen = _fixedIncomeOpen.Contains(a.Id);
+                                    <div class="fold @(fixedIncomeOpen ? "open" : "")">
+                                        <button class="fold-head" @onclick="() => ToggleFixedIncome(a.Id)">
+                                            <span class="fold-head-lab"><span class="msym">payments</span> 固定費（収入） @fixedIncomes.Count 件</span>
+                                            <span class="fold-head-right">
+                                                <span class="fold-total">@MaskedYen(IsMasked,fixedIncomes.Sum(x => x.Amount))</span>
+                                                <span class="msym fold-chev">@(fixedIncomeOpen ? "expand_less" : "expand_more")</span>
+                                            </span>
+                                        </button>
+                                        @if (fixedIncomeOpen)
+                                        {
+                                            <div class="fold-list">
+                                                @foreach (var fInc in fixedIncomes)
+                                                {
+                                                    <div class="fixed-row">
+                                                        <span class="fixed-name">@fInc.Name</span>
+                                                        @if (fInc.IsVariable)
+                                                        {
+                                                            <span class="msym fixed-lock" title="金額未固定：この月の金額を編集できます">sync</span>
+                                                            <AmountInput CssClass="fixed-amt-input" Value="@fInc.Amount" ValueChanged="v => { fInc.Amount = v; fInc.AmountOverridden = IsCurrentCycleMonth; Svc.RequestSave(); }" />
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="msym fixed-lock" title="収入固定費マスタから展開">lock</span>
+                                                            <span class="fixed-amt">@MaskedYen(IsMasked,fInc.Amount)</span>
+                                                        }
+                                                    </div>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                                @foreach (var inc in manualIncomes)
                                 {
                                     <div class="row">
                                         <input class="name" @bind="inc.Name" @bind:after="Save" placeholder="収入名（例：副業・還付金）" />
@@ -245,7 +282,7 @@
                                 {
                                     <div class="fold @(fixedOpen ? "open" : "")">
                                         <button class="fold-head" @onclick="() => ToggleFixed(a.Id)">
-                                            <span class="fold-head-lab"><span class="msym">lock</span> 固定費 @fixedDebits.Count 件</span>
+                                            <span class="fold-head-lab"><span class="msym">lock</span> 固定費（支出） @fixedDebits.Count 件</span>
                                             <span class="fold-head-right">
                                                 <span class="fold-total">@MaskedYen(IsMasked,fixedDebits.Sum(d => d.Amount))</span>
                                                 <span class="msym fold-chev">@(fixedOpen ? "expand_less" : "expand_more")</span>
@@ -455,7 +492,7 @@
 
     <div class="foot">
         月初残高は前月末から自動計算されます（起点の月のみ「開始残高」を入力）。<br />
-        固定費は表示専用です（金額の変更は固定費設定タブから）。変動費（<span class="msym" style="font-size:13px;vertical-align:-2px">sync</span>）はここで月ごとに金額を編集できます。カード由来はカードタブで管理し、ここでは合計を表示します。<br />
+        固定費（支出・収入とも）は表示専用です（金額の変更は固定費設定タブから）。変動費・金額未固定（<span class="msym" style="font-size:13px;vertical-align:-2px">sync</span>）はここで月ごとに金額を編集できます。カード由来はカードタブで管理し、ここでは合計を表示します。<br />
         口座間振込は送金元で設定し、振込先に「受取」として自動反映されます。
     </div>
 </div>
@@ -503,6 +540,7 @@
     private readonly HashSet<string> _toggled = new();
     private readonly HashSet<string> _cardOpen = new();
     private readonly HashSet<string> _fixedOpen = new();
+    private readonly HashSet<string> _fixedIncomeOpen = new();
 
     // 収入/支出/振込ゾーンの開閉（口座IDを保持）。既定はすべて閉、_xxxToggled は展開中の口座。
     private readonly HashSet<string> _incomeToggled = new();
@@ -549,6 +587,7 @@
     private void ToggleAccount(string aid) { if (!_toggled.Add(aid)) _toggled.Remove(aid); }
     private void ToggleCardBlock(string aid) { if (!_cardOpen.Add(aid)) _cardOpen.Remove(aid); }
     private void ToggleFixed(string aid) { if (!_fixedOpen.Add(aid)) _fixedOpen.Remove(aid); }
+    private void ToggleFixedIncome(string aid) { if (!_fixedIncomeOpen.Add(aid)) _fixedIncomeOpen.Remove(aid); }
     private void ToggleIncome(string aid) { if (!_incomeToggled.Add(aid)) _incomeToggled.Remove(aid); }
     private void ToggleExpense(string aid) { if (!_expenseToggled.Add(aid)) _expenseToggled.Remove(aid); }
     private void ToggleTransfer(string aid) { if (!_transferToggled.Add(aid)) _transferToggled.Remove(aid); }

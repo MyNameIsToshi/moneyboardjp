@@ -27,16 +27,39 @@ public static class FixedCostPeriod
         return month != "" ? $"{YearPart(ym)}年{month}月" : $"{YearPart(ym)}年";
     }
 
+    /// <summary>StartYm/EndYm の生文字列を Ym 境界へ解析する（年のみ指定は monthIfYearOnly を補う）。
+    /// FixedCost/FixedIncome の StartBound/EndBound が共用する。</summary>
+    public static Ym? ParseBound(string? s, int monthIfYearOnly)
+    {
+        if (string.IsNullOrEmpty(s) || s.Length < 4) return null;
+        var year = int.Parse(s[..4]);
+        var month = s.Length >= 6 ? int.Parse(s[4..6]) : monthIfYearOnly;
+        return new Ym(year, month);
+    }
+
     /// <summary>期限切れ判定：EndBound が基準月（当月サイクル開始等）より前なら true（無期限/未設定は false）。</summary>
     public static bool IsExpired(FixedCost fc, Ym asOf) =>
         fc.EndBound() is { } end && end < asOf;
 
+    /// <summary>期限切れ判定（収入固定費・#95フォローアップ）。FixedCost 版と同じ基準。</summary>
+    public static bool IsExpired(FixedIncome fi, Ym asOf) =>
+        fi.EndBound() is { } end && end < asOf;
+
+    /// <summary>有効期間の表示のみ（例: 2026年4月〜無期限）。FixedCost/FixedIncome で共用。</summary>
+    public static string PeriodText(string? startYm, string? endYm)
+    {
+        var start = startYm == null ? "開始なし〜" : FmtBound(startYm) + "〜";
+        var end   = endYm   == null ? "無期限"     : FmtBound(endYm);
+        return $"{start}{end}";
+    }
+
     /// <summary>有効期間＋ボーナス件数のサマリー文（例: 2026年4月〜無期限・ボーナス1件）。</summary>
     public static string Summary(FixedCost fc)
     {
-        var start = fc.StartYm == null ? "開始なし〜" : FmtBound(fc.StartYm) + "〜";
-        var end   = fc.EndYm   == null ? "無期限"     : FmtBound(fc.EndYm);
         var bonus = fc.BonusSettings.Count > 0 ? $"ボーナス{fc.BonusSettings.Count}件" : "ボーナスなし";
-        return $"{start}{end}・{bonus}";
+        return $"{PeriodText(fc.StartYm, fc.EndYm)}・{bonus}";
     }
+
+    /// <summary>有効期間のサマリー文（収入固定費・#95。ボーナス設定は対象外のため期間のみ）。</summary>
+    public static string Summary(FixedIncome fi) => PeriodText(fi.StartYm, fi.EndYm);
 }

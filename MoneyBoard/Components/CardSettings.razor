@@ -1,8 +1,11 @@
 @inject LedgerService Svc
 
 <div class="set-head">
-    <span class="set-chip c-card msym">credit_card</span>
-    <span class="set-title">カード</span>
+    @if (!IsMobile)
+    {
+        <span class="set-chip c-card msym">credit_card</span>
+        <span class="set-title">カード</span>
+    }
     <button class="set-add" @onclick="Add"><span class="msym">add</span>追加</button>
 </div>
 
@@ -53,7 +56,7 @@ else
                     <div class="set-select-wrap card-acct">
                         <select class="set-select" @bind="card.AccountId" @bind:after="Save">
                             <option value="">引き落とし口座を選択</option>
-                            @foreach (var a in Svc.ActiveAccounts)
+                            @foreach (var a in Svc.NonWalletAccounts)
                             {
                                 <option value="@a.Id">@a.Name</option>
                             }
@@ -97,7 +100,7 @@ else
                 <label>引き落とし口座</label>
                 <select @bind="Editing.AccountId" @bind:after="Save">
                     <option value="">引き落とし口座を選択</option>
-                    @foreach (var a in Svc.ActiveAccounts)
+                    @foreach (var a in Svc.NonWalletAccounts)
                     {
                         <option value="@a.Id">@a.Name</option>
                     }
@@ -167,12 +170,12 @@ else
 
     private void Add()
     {
-        // 口座が1件も無いとカードの引き落とし先が決められないため、先に口座登録を促す。
-        if (!Svc.ActiveAccounts.Any()) { ShowNoAccountWarn = true; return; }
+        // 口座が1件も無いとカードの引き落とし先が決められないため、先に口座登録を促す（財布は対象外＝#124）。
+        if (!Svc.NonWalletAccounts.Any()) { ShowNoAccountWarn = true; return; }
         var card = new Card
         {
             Name = "",
-            AccountId = Svc.ActiveAccounts.FirstOrDefault()?.Id ?? "",
+            AccountId = Svc.NonWalletAccounts.FirstOrDefault()?.Id ?? "",
             SortOrder = Ordered.Count()
         };
         // スマホはドラフトとして編集シートを開く（決定時にコミット）。PCは従来どおり即追加＋インライン編集。

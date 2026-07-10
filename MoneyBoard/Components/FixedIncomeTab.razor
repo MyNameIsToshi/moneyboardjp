@@ -1,0 +1,410 @@
+@inject LedgerService Svc
+
+@* ═══════════════════════════════════════════════════
+   収入固定費（#95）。「金額固定」は毎月自動で同額計上、「金額未固定」（例：売電収入）は
+   項目のみ自動展開し金額は月次管理タブで都度手入力する。口座フィルター・期限切れ折りたたみは
+   固定費（支出・FixedCostTab）と同じ挙動。ボーナス払いのみ対象外（収入側に自然な対応概念が無いため）。
+   #125 でマイページの独立カードへ分割（元は FixedCostTab 内に同居）。
+   ═══════════════════════════════════════════════════ *@
+@{
+    var fiCount = Svc.State.FixedIncomes.Count;
+    var fiTotal = Svc.State.FixedIncomes.Where(f => !f.IsVariable && !FixedCostPeriod.IsExpired(f, CurrentCycleStart)).Sum(f => f.Amount);
+
+    // スマホカード。reorderable=true のときだけ▲▼を表示（期限切れグループは並べ替え不可）。
+    RenderFragment RenderIncomeMobileCard(FixedIncome fi, bool expired, bool reorderable) => @<div class="list-card-wrap @(expired ? "fc-expired" : "")">
+        <button class="list-card" @onclick="() => OpenEditIncome(fi.Id)">
+            <div class="list-card-main with-chip">
+                <span class="acct-row-chip c-card msym">payments</span>
+                <span class="list-card-name">@fi.Name</span>
+                @if (fi.IsVariable)
+                {
+                    <span class="msym fc-variable-badge" title="金額未固定（月ごとに手入力で確定）">sync</span>
+                }
+                else
+                {
+                    <span class="list-card-amount">@MaskedYen(IsMasked, fi.Amount)</span>
+                }
+            </div>
+            <div class="list-card-sub">
+                <span>@AccountName(fi.AccountId)</span>
+                <span class="list-card-chev msym">chevron_right</span>
+            </div>
+        </button>
+        @if (reorderable && IsManualIncomeOrder)
+        {
+            <div class="list-card-move">
+                <button @onclick="() => MoveIncome(fi, -1)" disabled="@(fi == DisplayedFixedIncomes.First())" aria-label="上へ">▲</button>
+                <button @onclick="() => MoveIncome(fi, 1)" disabled="@(fi == DisplayedFixedIncomes.Last())" aria-label="下へ">▼</button>
+            </div>
+        }
+    </div>;
+
+    // PC行＋詳細パネル。reorderable=false のときは D&D 属性ごと外す（期限切れグループはドロップ先にもならない）。
+    RenderFragment RenderIncomePcRow(FixedIncome fi, bool expired, bool reorderable) => @<div class="fc-item @(expired ? "fc-expired" : "") @(reorderable && DragOverIncomeId == fi.Id ? "drag-over" : "")"
+         draggable="@(reorderable && IsManualIncomeOrder ? "true" : "false")"
+         @ondragstart="() => { if (reorderable) OnIncomeDragStart(fi.Id); }"
+         @ondragover:preventDefault="@reorderable"
+         @ondragover="() => { if (reorderable) OnIncomeDragOver(fi.Id); }"
+         @ondrop="() => { if (reorderable) OnIncomeDrop(fi.Id); }"
+         @ondragend="OnIncomeDragEnd">
+        <div class="fc-row">
+            @if (reorderable && IsManualIncomeOrder)
+            {
+                <span class="drag-handle msym">drag_indicator</span>
+            }
+            else
+            {
+                <span></span>
+            }
+            <span class="acct-row-chip c-card msym">payments</span>
+            <input class="set-input" @bind="fi.Name" @bind:after="SaveIncomeWithReload" placeholder="項目名（例：家賃収入）" disabled="@expired" />
+            <div class="set-select-wrap">
+                <select class="set-select" @bind="fi.AccountId" @bind:after="SaveIncomeWithReload" disabled="@expired">
+                    <option value="">口座を選択</option>
+                    @foreach (var a in Svc.NonWalletAccounts)
+                    {
+                        <option value="@a.Id">@a.Name</option>
+                    }
+                </select>
+                <span class="msym set-select-chev">expand_more</span>
+            </div>
+            @if (fi.IsVariable)
+            {
+                <span class="msym fc-variable-badge" title="金額未固定（月ごとに手入力で確定）">sync</span>
+            }
+            else
+            {
+                <AmountInput CssClass="set-input ra" Value="@fi.Amount" ValueChanged="v => { fi.Amount = v; RequestSaveIncomeWithReload(); }" Disabled="@expired" />
+            }
+            <button class="set-del" @onclick="() => RemoveFixedIncome(fi.Id)" title="削除"><span class="msym">close</span></button>
+        </div>
+
+        <button class="fc-expand" @onclick="() => ToggleExpandIncome(fi.Id)">
+            <span class="msym">@(ExpandedIncomeIds.Contains(fi.Id) ? "expand_more" : "chevron_right")</span>期間設定（@FixedCostPeriod.Summary(fi)）
+        </button>
+
+        @if (ExpandedIncomeIds.Contains(fi.Id))
+        {
+            <div class="fc-detail">
+                @if (expired)
+                {
+                    <div class="fc-expired-hint">期限切れのため終了年月以外は編集できません。終了年月を延長すると編集できるようになります。</div>
+                }
+                <div class="detail-row">
+                    <span class="detail-lab">金額未固定</span>
+                    <label class="fc-variable-toggle">
+                        <input type="checkbox" checked="@fi.IsVariable" disabled="@expired"
+                               @onchange="e => SetIncomeVariable(fi, (bool)(e.Value ?? false))" />
+                        <span>毎月金額が変わる（例：売電収入）。項目だけ自動展開し、月次管理タブでその月の金額を確定します。</span>
+                    </label>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-lab">開始年月</span>
+                    <select value="@StartYear(fi)" @onchange="e => SetStartYear(fi, e.Value?.ToString())" disabled="@expired">
+                        <option value="">未設定</option>
+                        @foreach (var y in YearRange())
+                        {
+                            <option value="@y">@y 年</option>
+                        }
+                    </select>
+                    <select value="@StartMonth(fi)" @onchange="e => SetStartMonth(fi, e.Value?.ToString())" disabled="@expired">
+                        <option value="">—</option>
+                        @for (int mi = 1; mi <= 12; mi++)
+                        {
+                            var val = mi.ToString();
+                            <option value="@val">@mi 月</option>
+                        }
+                    </select>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-lab">終了年月</span>
+                    <select value="@EndYear(fi)" @onchange="e => SetEndYear(fi, e.Value?.ToString())">
+                        <option value="">未設定</option>
+                        @foreach (var y in YearRange())
+                        {
+                            <option value="@y">@y 年</option>
+                        }
+                    </select>
+                    <select value="@EndMonth(fi)" @onchange="e => SetEndMonth(fi, e.Value?.ToString())">
+                        <option value="">—</option>
+                        @for (int mi = 1; mi <= 12; mi++)
+                        {
+                            var val = mi.ToString();
+                            <option value="@val">@mi 月</option>
+                        }
+                    </select>
+                </div>
+            </div>
+        }
+    </div>;
+}
+<div class="fc-wrap">
+    <div class="set-head">
+        @if (!IsMobile)
+        {
+            <span class="set-chip c-card msym">payments</span>
+            <span class="set-title">固定費（収入）</span>
+        }
+        @if (fiCount > 0)
+        {
+            <span class="set-count">@fiCount 件</span>
+        }
+        <span class="set-spacer"></span>
+        @if (fiCount > 0)
+        {
+            <span class="set-total">
+                <span class="set-total-lab">月合計</span>
+                <span class="set-total-val">@MaskedYen(IsMasked, fiTotal)</span>
+            </span>
+        }
+        @if (!IsMobile && fiCount > 0)
+        {
+            <span class="set-filter-wrap">
+                <button class="set-filter @(IsFilterIncomeActive ? "active" : "")" @onclick="ToggleFilterIncomeMenu" title="口座でフィルター">
+                    <span class="msym">filter_alt</span>
+                </button>
+                @if (_filterIncomeOpen)
+                {
+                    <div class="fc-filter-menu" @onclick:stopPropagation="true">
+                        @foreach (var a in Svc.ActiveAccounts)
+                        {
+                            <label class="fc-filter-item">
+                                <input type="checkbox" checked="@IsCheckedIncome(a.Id)" @onchange="() => ToggleAccountIncome(a.Id)" />
+                                <span>@a.Name</span>
+                            </label>
+                        }
+                        <div class="fc-filter-actions">
+                            <button class="btn" @onclick="ClearIncomeFilter">すべて表示</button>
+                        </div>
+                    </div>
+                }
+            </span>
+        }
+        <button class="set-add" @onclick="AddIncomeClicked"><span class="msym">add</span>追加</button>
+    </div>
+
+    @if (fiCount == 0)
+    {
+        <div class="none">固定費（収入）が登録されていません。</div>
+    }
+    else
+    {
+        @if (IsFilterIncomeActive)
+        {
+            <div class="fc-filter-note">口座でフィルター中（ドラッグ並べ替えは無効）</div>
+        }
+        @if (_filterIncomeOpen)
+        {
+            <div class="fc-filter-backdrop" @onclick="() => _filterIncomeOpen = false"></div>
+        }
+        @if (!DisplayedFixedIncomes.Any())
+        {
+            <div class="none">該当する固定費（収入）がありません。</div>
+        }
+
+        <div class="fc-list">
+            @foreach (var fi in DisplayedFixedIncomes)
+            {
+                @(IsMobile ? RenderIncomeMobileCard(fi, false, true) : RenderIncomePcRow(fi, false, true))
+            }
+        </div>
+
+        @if (ExpiredFixedIncomes.Count > 0)
+        {
+            <div class="fc-expired-group">
+                <button class="fc-expired-toggle" @onclick="ToggleExpiredIncomeGroup">
+                    <span class="msym">@(_expiredIncomeOpen ? "expand_more" : "chevron_right")</span>
+                    期限切れ（@ExpiredFixedIncomes.Count 件）
+                </button>
+                @if (_expiredIncomeOpen)
+                {
+                    <div class="fc-list fc-list-expired">
+                        @foreach (var fi in ExpiredFixedIncomes)
+                        {
+                            @(IsMobile ? RenderIncomeMobileCard(fi, true, false) : RenderIncomePcRow(fi, true, false))
+                        }
+                    </div>
+                }
+            </div>
+        }
+    }
+
+    <div class="set-note set-note-center">
+        「金額未固定」は項目のみ毎月自動展開され、金額は月次管理タブで都度手入力します（例：売電収入）。<br />
+        開始・終了年月は任意です（未設定 = 開始なし / 無期限）。終了月はその月を含みます。
+    </div>
+</div>
+
+<!-- 口座未登録警告 -->
+<WarnDialog IsVisible="@ShowNoAccountWarn"
+            Title="口座が登録されていません"
+            Messages="@(new List<string> { "固定費を追加するには、先に口座設定タブで口座を登録してください。" })"
+            SubMessage=""
+            OnClose="() => ShowNoAccountWarn = false" />
+
+<!-- 追加ダイアログ（PC） -->
+@if (ShowAddIncomeDialog)
+{
+    <div class="dialog-overlay" @onclick="CloseAddIncomeDialog">
+        <div class="dialog-box" @onclick:stopPropagation="true">
+            <h4>固定費（収入）を追加</h4>
+            <div class="dialog-form">
+                <label>項目名</label>
+                <input @bind="NewIncomeName" placeholder="例：家賃収入" @bind:event="oninput" />
+                <label>口座</label>
+                <select @bind="NewIncomeAccountId">
+                    <option value="">口座を選択</option>
+                    @foreach (var a in Svc.NonWalletAccounts)
+                    {
+                        <option value="@a.Id">@a.Name</option>
+                    }
+                </select>
+                <label class="fc-variable-toggle">
+                    <input type="checkbox" @bind="NewIncomeIsVariable" />
+                    <span>金額未固定にする（毎月金額が変わる。例：売電収入）</span>
+                </label>
+                @if (!NewIncomeIsVariable)
+                {
+                    <label>金額</label>
+                    <AmountInput CssClass="ra" Value="@NewIncomeAmount" ValueChanged="v => NewIncomeAmount = v" />
+                }
+                <label>開始年月</label>
+                <div class="detail-row">
+                    <select value="@StartYear(NewIncomePeriod)" @onchange="e => ApplyStartYear(NewIncomePeriod, e.Value?.ToString())">
+                        <option value="">未設定</option>
+                        @foreach (var y in YearRange())
+                        {
+                            <option value="@y">@y 年</option>
+                        }
+                    </select>
+                    <select value="@StartMonth(NewIncomePeriod)" @onchange="e => ApplyStartMonth(NewIncomePeriod, e.Value?.ToString())">
+                        <option value="">—</option>
+                        @for (int mi = 1; mi <= 12; mi++)
+                        {
+                            var val = mi.ToString();
+                            <option value="@val">@mi 月</option>
+                        }
+                    </select>
+                </div>
+                <label>終了年月</label>
+                <div class="detail-row">
+                    <select value="@EndYear(NewIncomePeriod)" @onchange="e => ApplyEndYear(NewIncomePeriod, e.Value?.ToString())">
+                        <option value="">未設定</option>
+                        @foreach (var y in YearRange())
+                        {
+                            <option value="@y">@y 年</option>
+                        }
+                    </select>
+                    <select value="@EndMonth(NewIncomePeriod)" @onchange="e => ApplyEndMonth(NewIncomePeriod, e.Value?.ToString())">
+                        <option value="">—</option>
+                        @for (int mi = 1; mi <= 12; mi++)
+                        {
+                            var val = mi.ToString();
+                            <option value="@val">@mi 月</option>
+                        }
+                    </select>
+                </div>
+            </div>
+            @if (!string.IsNullOrEmpty(AddIncomeError))
+            {
+                <div class="dialog-error">@AddIncomeError</div>
+            }
+            <div class="dialog-btns">
+                <button class="btn" @onclick="CloseAddIncomeDialog">キャンセル</button>
+                <button class="btn primary" @onclick="ExecuteAddIncome">追加する</button>
+            </div>
+        </div>
+    </div>
+}
+
+<ConfirmDialog IsVisible="@ShowIncomeConfirm"
+               Title="固定費（収入）を削除しますか？"
+               Message="@("この操作は取り消せません。\n当月以降の月次からは自動的に削除されます。\n過去月の明細はそのまま残ります。")"
+               ConfirmText="削除する"
+               OnConfirm="ExecuteIncomeDelete"
+               OnCancel="CancelIncomeDelete" />
+
+<!-- スマホ：サマリーカードのタップで開く編集シート -->
+<BottomSheet IsVisible="@(EditingIncome is not null)" Title="固定費（収入）を編集" OnClose="CloseEditIncome">
+    <ChildContent>
+        @if (EditingIncome is not null)
+        {
+            @if (EditingIncomeExpired)
+            {
+                <div class="fc-expired-hint">期限切れのため終了年月以外は編集できません。終了年月を延長すると編集できるようになります。</div>
+            }
+            <div class="sheet-field">
+                <label>項目名</label>
+                <input @bind="EditingIncome.Name" @bind:after="SaveIncomeWithReload" placeholder="項目名（例：家賃収入）" disabled="@EditingIncomeExpired" />
+            </div>
+            <div class="sheet-field">
+                <label>口座</label>
+                <select @bind="EditingIncome.AccountId" @bind:after="SaveIncomeWithReload" disabled="@EditingIncomeExpired">
+                    <option value="">口座を選択</option>
+                    @foreach (var a in Svc.NonWalletAccounts)
+                    {
+                        <option value="@a.Id">@a.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="sheet-field">
+                <label class="sheet-check">
+                    <input type="checkbox" checked="@EditingIncome.IsVariable" disabled="@EditingIncomeExpired"
+                           @onchange="e => SetIncomeVariable(EditingIncome, (bool)(e.Value ?? false))" />
+                    金額未固定にする（毎月金額が変わる。例：売電収入。月次管理タブでその月の金額を確定します）
+                </label>
+            </div>
+            @if (!EditingIncome.IsVariable)
+            {
+                <div class="sheet-field">
+                    <label>毎月の金額</label>
+                    <AmountInput CssClass="ra" Value="@EditingIncome.Amount" ValueChanged="v => { EditingIncome.Amount = v; RequestSaveIncomeWithReload(); }" Disabled="@EditingIncomeExpired" />
+                </div>
+            }
+            <div class="sheet-field">
+                <label>開始年月</label>
+                <div class="sheet-inline">
+                    <select value="@StartYear(EditingIncome)" @onchange="e => SetStartYear(EditingIncome, e.Value?.ToString())" disabled="@EditingIncomeExpired">
+                        <option value="">未設定</option>
+                        @foreach (var y in YearRange())
+                        {
+                            <option value="@y">@y 年</option>
+                        }
+                    </select>
+                    <select value="@StartMonth(EditingIncome)" @onchange="e => SetStartMonth(EditingIncome, e.Value?.ToString())" disabled="@EditingIncomeExpired">
+                        <option value="">—</option>
+                        @for (int mi = 1; mi <= 12; mi++)
+                        {
+                            var val = mi.ToString();
+                            <option value="@val">@mi 月</option>
+                        }
+                    </select>
+                </div>
+            </div>
+            <div class="sheet-field">
+                <label>終了年月</label>
+                <div class="sheet-inline">
+                    <select value="@EndYear(EditingIncome)" @onchange="e => SetEndYear(EditingIncome, e.Value?.ToString())">
+                        <option value="">未設定</option>
+                        @foreach (var y in YearRange())
+                        {
+                            <option value="@y">@y 年</option>
+                        }
+                    </select>
+                    <select value="@EndMonth(EditingIncome)" @onchange="e => SetEndMonth(EditingIncome, e.Value?.ToString())">
+                        <option value="">—</option>
+                        @for (int mi = 1; mi <= 12; mi++)
+                        {
+                            var val = mi.ToString();
+                            <option value="@val">@mi 月</option>
+                        }
+                    </select>
+                </div>
+            </div>
+        }
+    </ChildContent>
+    <FooterContent>
+        <button class="btn danger" @onclick="DeleteEditingIncome">削除</button>
+        <button class="btn primary" style="margin-left:auto" @onclick="CloseEditIncome">完了</button>
+    </FooterContent>
+</BottomSheet>

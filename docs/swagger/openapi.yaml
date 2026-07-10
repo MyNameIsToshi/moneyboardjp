@@ -1162,6 +1162,18 @@ components:
         unrealizedPnlJpy:
           type: number
           description: 含み損益（円）
+        prevPriceNative:
+          type: number
+          nullable: true
+          description: 前日終値/前日基準価額（建て通貨）。休場・データなし等で取得できない場合は null
+        dayChangePct:
+          type: number
+          nullable: true
+          description: 前日比（%・建て通貨ベース）。取得できない場合は null
+        dayChangeValuationJpy:
+          type: number
+          nullable: true
+          description: 前日比評価額（円）。取得できない場合は null
 
     SnapshotPnlPoint:
       type: object

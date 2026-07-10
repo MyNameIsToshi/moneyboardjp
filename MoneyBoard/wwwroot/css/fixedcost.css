@@ -1,5 +1,5 @@
 /* =====================================================
-   固定費設定タブ (FixedCostTab.razor)
+   固定費設定（FixedCostTab.razor＝支出／FixedIncomeTab.razor＝収入・#125 で2カードへ分割）
    ヘッダー/入力の主役は mypage.css（set-head / set-row / set-input / set-select-wrap）。
    ここは固定費固有：口座フィルター・カードのグリッド・期間/ボーナスの詳細パネル。
    ===================================================== */
@@ -61,12 +61,19 @@
   gap: 9px;
 }
 
-/* PC：カード内を 2 列に（幅が狭い時だけ 1 列へ） */
+/* PC：固定費（支出）・固定費（収入）は各カードが全幅の1行を占有するため（#125）、
+   カード内の一覧は3列に（幅が狭くなるにつれ2列→1列へ段階的に縮退）。 */
 .app-shell.has-sidenav .fc-list {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   align-items: start;
+}
+
+@media (max-width: 1300px) {
+  .app-shell.has-sidenav .fc-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 900px) {
@@ -258,6 +265,12 @@
   accent-color: var(--accent);
   cursor: pointer;
   flex: 0 0 auto;
+}
+
+/* 追加ダイアログ内の開始/終了年月 select は横並びのため、上記と同じ理由で
+   dialog.css の「.dialog-form select{width:100%}」の上書きを打ち消す（#128）。 */
+.dialog-form .detail-row select {
+  width: auto;
 }
 
 .fc-variable-toggle span {
