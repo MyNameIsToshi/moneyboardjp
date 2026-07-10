@@ -104,12 +104,15 @@ public partial class FixedIncomeTab
         else OpenAddIncomeDialog();
     }
 
-    // ── 追加ダイアログ（PC・#95）──────────────────────
+    // ── 追加ダイアログ（PC・#95。#128でスマホの編集シートに合わせ期間設定も追加時に対応）──
+    // 期間は NewIncomePeriod（未コミットの FixedIncome）上で、既存項目編集と同じ Apply* 純粋ロジックを使って組み立て、
+    // ExecuteAddIncome で確定するまで保存しない（Svc.State には未追加のため SaveIncomeWithReload は呼ばない）。
     private bool ShowAddIncomeDialog = false;
     private string NewIncomeName = "";
     private string NewIncomeAccountId = "";
     private decimal NewIncomeAmount = 0;
     private bool NewIncomeIsVariable = false;
+    private FixedIncome NewIncomePeriod = new();
     private string AddIncomeError = "";
 
     private void OpenAddIncomeDialog()
@@ -123,6 +126,7 @@ public partial class FixedIncomeTab
         NewIncomeAccountId  = Svc.NonWalletAccounts.FirstOrDefault()?.Id ?? "";
         NewIncomeAmount     = 0;
         NewIncomeIsVariable = false;
+        NewIncomePeriod     = new();
         AddIncomeError      = "";
         ShowAddIncomeDialog = true;
     }
@@ -140,6 +144,8 @@ public partial class FixedIncomeTab
             AccountId  = NewIncomeAccountId,
             Amount     = NewIncomeIsVariable ? 0 : NewIncomeAmount,
             IsVariable = NewIncomeIsVariable,
+            StartYm    = NewIncomePeriod.StartYm,
+            EndYm      = NewIncomePeriod.EndYm,
             SortOrder  = Svc.State.FixedIncomes.Count
         });
         SaveIncomeWithReload();
@@ -225,8 +231,15 @@ public partial class FixedIncomeTab
     private static string EndYear(FixedIncome fi)    => FixedCostPeriod.YearPart(fi.EndYm);
     private static string EndMonth(FixedIncome fi)   => FixedCostPeriod.MonthPart(fi.EndYm);
 
-    private void SetStartYear(FixedIncome fi, string? y)  { fi.StartYm = FixedCostPeriod.ComposeYm(y, StartMonth(fi)); SaveIncomeWithReload(); }
-    private void SetStartMonth(FixedIncome fi, string? m) { fi.StartYm = FixedCostPeriod.ComposeYm(StartYear(fi), m);  SaveIncomeWithReload(); }
-    private void SetEndYear(FixedIncome fi, string? y)    { fi.EndYm   = FixedCostPeriod.ComposeYm(y, EndMonth(fi));    SaveIncomeWithReload(); }
-    private void SetEndMonth(FixedIncome fi, string? m)   { fi.EndYm   = FixedCostPeriod.ComposeYm(EndYear(fi), m);     SaveIncomeWithReload(); }
+    // 書き換えのみ（保存はしない）。追加ダイアログの未コミットドラフト（NewIncomePeriod）と、
+    // 保存を伴う既存項目編集（下の Set*）の両方から使う純粋ロジック。
+    private static void ApplyStartYear(FixedIncome fi, string? y)  => fi.StartYm = FixedCostPeriod.ComposeYm(y, StartMonth(fi));
+    private static void ApplyStartMonth(FixedIncome fi, string? m) => fi.StartYm = FixedCostPeriod.ComposeYm(StartYear(fi), m);
+    private static void ApplyEndYear(FixedIncome fi, string? y)    => fi.EndYm   = FixedCostPeriod.ComposeYm(y, EndMonth(fi));
+    private static void ApplyEndMonth(FixedIncome fi, string? m)   => fi.EndYm   = FixedCostPeriod.ComposeYm(EndYear(fi), m);
+
+    private void SetStartYear(FixedIncome fi, string? y)  { ApplyStartYear(fi, y);  SaveIncomeWithReload(); }
+    private void SetStartMonth(FixedIncome fi, string? m) { ApplyStartMonth(fi, m); SaveIncomeWithReload(); }
+    private void SetEndYear(FixedIncome fi, string? y)    { ApplyEndYear(fi, y);    SaveIncomeWithReload(); }
+    private void SetEndMonth(FixedIncome fi, string? m)   { ApplyEndMonth(fi, m);   SaveIncomeWithReload(); }
 }

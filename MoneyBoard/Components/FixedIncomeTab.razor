@@ -268,6 +268,42 @@
                     <label>金額</label>
                     <AmountInput CssClass="ra" Value="@NewIncomeAmount" ValueChanged="v => NewIncomeAmount = v" />
                 }
+                <label>開始年月</label>
+                <div class="detail-row">
+                    <select value="@StartYear(NewIncomePeriod)" @onchange="e => ApplyStartYear(NewIncomePeriod, e.Value?.ToString())">
+                        <option value="">未設定</option>
+                        @foreach (var y in YearRange())
+                        {
+                            <option value="@y">@y 年</option>
+                        }
+                    </select>
+                    <select value="@StartMonth(NewIncomePeriod)" @onchange="e => ApplyStartMonth(NewIncomePeriod, e.Value?.ToString())">
+                        <option value="">—</option>
+                        @for (int mi = 1; mi <= 12; mi++)
+                        {
+                            var val = mi.ToString();
+                            <option value="@val">@mi 月</option>
+                        }
+                    </select>
+                </div>
+                <label>終了年月</label>
+                <div class="detail-row">
+                    <select value="@EndYear(NewIncomePeriod)" @onchange="e => ApplyEndYear(NewIncomePeriod, e.Value?.ToString())">
+                        <option value="">未設定</option>
+                        @foreach (var y in YearRange())
+                        {
+                            <option value="@y">@y 年</option>
+                        }
+                    </select>
+                    <select value="@EndMonth(NewIncomePeriod)" @onchange="e => ApplyEndMonth(NewIncomePeriod, e.Value?.ToString())">
+                        <option value="">—</option>
+                        @for (int mi = 1; mi <= 12; mi++)
+                        {
+                            var val = mi.ToString();
+                            <option value="@val">@mi 月</option>
+                        }
+                    </select>
+                </div>
             </div>
             @if (!string.IsNullOrEmpty(AddIncomeError))
             {

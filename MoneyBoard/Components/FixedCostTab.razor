@@ -282,6 +282,71 @@
                     <input type="checkbox" @bind="NewIsVariable" />
                     <span>毎月金額が変わる（変動費・水道電気など）</span>
                 </label>
+                <label>開始年月</label>
+                <div class="detail-row">
+                    <select value="@StartYear(NewPeriod)" @onchange="e => ApplyStartYear(NewPeriod, e.Value?.ToString())">
+                        <option value="">未設定</option>
+                        @foreach (var y in YearRange())
+                        {
+                            <option value="@y">@y 年</option>
+                        }
+                    </select>
+                    <select value="@StartMonth(NewPeriod)" @onchange="e => ApplyStartMonth(NewPeriod, e.Value?.ToString())">
+                        <option value="">—</option>
+                        @for (int mi = 1; mi <= 12; mi++)
+                        {
+                            var val = mi.ToString();
+                            <option value="@val">@mi 月</option>
+                        }
+                    </select>
+                </div>
+                <label>終了年月</label>
+                <div class="detail-row">
+                    <select value="@EndYear(NewPeriod)" @onchange="e => ApplyEndYear(NewPeriod, e.Value?.ToString())">
+                        <option value="">未設定</option>
+                        @foreach (var y in YearRange())
+                        {
+                            <option value="@y">@y 年</option>
+                        }
+                    </select>
+                    <select value="@EndMonth(NewPeriod)" @onchange="e => ApplyEndMonth(NewPeriod, e.Value?.ToString())">
+                        <option value="">—</option>
+                        @for (int mi = 1; mi <= 12; mi++)
+                        {
+                            var val = mi.ToString();
+                            <option value="@val">@mi 月</option>
+                        }
+                    </select>
+                </div>
+                <label>ボーナス払い</label>
+                <div class="detail-row" style="flex-direction:column;align-items:flex-start;gap:6px">
+                    @if (NewPeriod.BonusSettings.Count > 0)
+                    {
+                        <div class="bonus-list">
+                            <div class="bonus-row-head">
+                                <span>対象月</span><span>種別</span><span>金額</span><span></span>
+                            </div>
+                            @foreach (var b in NewPeriod.BonusSettings)
+                            {
+                                <div class="bonus-row">
+                                    <select @bind="b.Month">
+                                        @for (int mi = 1; mi <= 12; mi++)
+                                        {
+                                            <option value="@mi">@mi 月</option>
+                                        }
+                                    </select>
+                                    <select @bind="b.Type">
+                                        <option value="@BonusType.Add">上乗せ</option>
+                                        <option value="@BonusType.Separate">別額</option>
+                                    </select>
+                                    <AmountInput CssClass="ra" Value="@b.Amount" ValueChanged="v => b.Amount = v" />
+                                    <button class="x" @onclick="() => ApplyRemoveBonus(NewPeriod, b.Id)">✕</button>
+                                </div>
+                            }
+                        </div>
+                    }
+                    <button class="add-line" @onclick="() => ApplyAddBonus(NewPeriod)"><span class="msym">add</span>ボーナス月を追加</button>
+                </div>
             </div>
             @if (!string.IsNullOrEmpty(AddError))
             {

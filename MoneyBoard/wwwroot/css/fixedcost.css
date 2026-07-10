@@ -267,6 +267,12 @@
   flex: 0 0 auto;
 }
 
+/* 追加ダイアログ内の開始/終了年月 select は横並びのため、上記と同じ理由で
+   dialog.css の「.dialog-form select{width:100%}」の上書きを打ち消す（#128）。 */
+.dialog-form .detail-row select {
+  width: auto;
+}
+
 .fc-variable-toggle span {
   flex: 1 1 auto;
   min-width: 0;
