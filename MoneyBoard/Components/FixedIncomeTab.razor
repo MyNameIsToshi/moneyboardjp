@@ -140,8 +140,11 @@
 }
 <div class="fc-wrap">
     <div class="set-head">
-        <span class="set-chip c-card msym">payments</span>
-        <span class="set-title">固定費（収入）</span>
+        @if (!IsMobile)
+        {
+            <span class="set-chip c-card msym">payments</span>
+            <span class="set-title">固定費（収入）</span>
+        }
         @if (fiCount > 0)
         {
             <span class="set-count">@fiCount 件</span>

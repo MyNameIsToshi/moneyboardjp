@@ -1,8 +1,11 @@
 @inject LedgerService Svc
 
 <div class="set-head">
-    <span class="set-chip c-account msym">account_balance</span>
-    <span class="set-title">口座</span>
+    @if (!IsMobile)
+    {
+        <span class="set-chip c-account msym">account_balance</span>
+        <span class="set-title">口座</span>
+    }
     @if (!Svc.HasActiveWallet)
     {
         <button class="set-add" @onclick="AddWallet"><span class="msym">account_balance_wallet</span>財布を追加</button>

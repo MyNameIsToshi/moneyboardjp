@@ -1,8 +1,11 @@
 @inject LedgerService Svc
 
 <div class="set-head">
-    <span class="set-chip c-card msym">credit_card</span>
-    <span class="set-title">カード</span>
+    @if (!IsMobile)
+    {
+        <span class="set-chip c-card msym">credit_card</span>
+        <span class="set-title">カード</span>
+    }
     <button class="set-add" @onclick="Add"><span class="msym">add</span>追加</button>
 </div>
 

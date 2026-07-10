@@ -52,7 +52,7 @@
         {
             <div class="mypage-section">
                 <button class="mypage-collapse" @onclick='() => ToggleSection("access")'>
-                    <span>アクセス管理@(PendingCount > 0 ? $"（承認待ち {PendingCount}）" : "")</span>
+                    <span class="mypage-collapse-label"><span class="set-chip c-access msym">group</span>アクセス管理@(PendingCount > 0 ? $"（承認待ち {PendingCount}）" : "")</span>
                     <span class="mypage-chevron msym">@(IsOpen("access") ? "expand_more" : "chevron_right")</span>
                 </button>
                 @if (IsOpen("access"))
@@ -64,7 +64,7 @@
 
         <div class="mypage-section">
             <button class="mypage-collapse" @onclick='() => ToggleSection("account")'>
-                <span>口座設定</span>
+                <span class="mypage-collapse-label"><span class="set-chip c-account msym">account_balance</span>口座設定</span>
                 <span class="mypage-chevron msym">@(IsOpen("account") ? "expand_more" : "chevron_right")</span>
             </button>
             @if (IsOpen("account")) { <div class="mypage-collapse-body"><AccountsTab /></div> }
@@ -72,7 +72,7 @@
 
         <div class="mypage-section">
             <button class="mypage-collapse" @onclick='() => ToggleSection("fixedExpense")'>
-                <span>固定費（支出）</span>
+                <span class="mypage-collapse-label"><span class="set-chip c-fixed msym">receipt_long</span>固定費（支出）</span>
                 <span class="mypage-chevron msym">@(IsOpen("fixedExpense") ? "expand_more" : "chevron_right")</span>
             </button>
             @if (IsOpen("fixedExpense")) { <div class="mypage-collapse-body"><FixedCostTab /></div> }
@@ -80,7 +80,7 @@
 
         <div class="mypage-section">
             <button class="mypage-collapse" @onclick='() => ToggleSection("fixedIncome")'>
-                <span>固定費（収入）</span>
+                <span class="mypage-collapse-label"><span class="set-chip c-card msym">payments</span>固定費（収入）</span>
                 <span class="mypage-chevron msym">@(IsOpen("fixedIncome") ? "expand_more" : "chevron_right")</span>
             </button>
             @if (IsOpen("fixedIncome")) { <div class="mypage-collapse-body"><FixedIncomeTab /></div> }
@@ -88,7 +88,7 @@
 
         <div class="mypage-section">
             <button class="mypage-collapse" @onclick='() => ToggleSection("card")'>
-                <span>カード設定</span>
+                <span class="mypage-collapse-label"><span class="set-chip c-card msym">credit_card</span>カード設定</span>
                 <span class="mypage-chevron msym">@(IsOpen("card") ? "expand_more" : "chevron_right")</span>
             </button>
             @if (IsOpen("card")) { <div class="mypage-collapse-body"><CardSettings /></div> }
@@ -96,7 +96,7 @@
 
         <div class="mypage-section">
             <button class="mypage-collapse" @onclick='() => ToggleSection("category")'>
-                <span>カード明細カテゴリー設定</span>
+                <span class="mypage-collapse-label"><span class="set-chip c-category msym">sell</span>カード明細カテゴリー設定</span>
                 <span class="mypage-chevron msym">@(IsOpen("category") ? "expand_more" : "chevron_right")</span>
             </button>
             @if (IsOpen("category")) { <div class="mypage-collapse-body"><CategorySettings /></div> }

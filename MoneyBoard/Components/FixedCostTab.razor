@@ -157,8 +157,11 @@
 }
 <div class="fc-wrap">
     <div class="set-head">
-        <span class="set-chip c-fixed msym">receipt_long</span>
-        <span class="set-title">固定費（支出）</span>
+        @if (!IsMobile)
+        {
+            <span class="set-chip c-fixed msym">receipt_long</span>
+            <span class="set-title">固定費（支出）</span>
+        }
         @if (fcCount > 0)
         {
             <span class="set-count">@fcCount 件</span>
