@@ -2,6 +2,7 @@ namespace MoneyBoard.Pages;
 
 using ApexCharts;
 using Microsoft.AspNetCore.Components;
+using Microsoft.JSInterop;
 using MoneyBoard.Components;
 using MoneyBoard.Services;
 using MoneyBoardShared;
@@ -45,6 +46,24 @@ public partial class GraphPage
     private record IncomeSeries(string Name, List<ChartPoint> Data);
 
     [CascadingParameter(Name = "IsMasked")] public bool IsMasked { get; set; }
+
+    // いずれかのダイアログ表示中は背面スクロールをロック（明細ドリルダウン/内訳ダイアログ）。
+    private bool AnyDialogOpen => _detail is not null || _breakdown is not null;
+    private bool _scrollLocked;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (AnyDialogOpen != _scrollLocked)
+        {
+            _scrollLocked = AnyDialogOpen;
+            await JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", _scrollLocked);
+        }
+    }
+
+    public void Dispose()
+    {
+        if (_scrollLocked) _ = JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", false);
+    }
 
     // マスク切替のたびにインクリメント → チャート @key に含めて強制再生成。
     private int _maskRev;

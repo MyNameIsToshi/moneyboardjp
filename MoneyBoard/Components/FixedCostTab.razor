@@ -1,4 +1,6 @@
 @inject LedgerService Svc
+@inject IJSRuntime JS
+@implements IDisposable
 
 @{
     var fcCount = Svc.State.FixedCosts.Count;

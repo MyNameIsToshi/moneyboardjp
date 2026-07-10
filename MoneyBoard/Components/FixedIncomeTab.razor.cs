@@ -1,6 +1,7 @@
 namespace MoneyBoard.Components;
 
 using Microsoft.AspNetCore.Components;
+using Microsoft.JSInterop;
 using MoneyBoard.Services;
 using MoneyBoardShared;
 
@@ -12,6 +13,24 @@ public partial class FixedIncomeTab
 {
     [CascadingParameter(Name = "IsMobile")] public bool IsMobile { get; set; }
     [CascadingParameter(Name = "IsMasked")] public bool IsMasked { get; set; }
+
+    // いずれかのダイアログ表示中は背面スクロールをロック（追加/削除確認/口座未登録警告/編集シート）。
+    private bool AnyDialogOpen => ShowAddIncomeDialog || ShowIncomeConfirm || ShowNoAccountWarn || EditingIncome is not null;
+    private bool _scrollLocked;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (AnyDialogOpen != _scrollLocked)
+        {
+            _scrollLocked = AnyDialogOpen;
+            await JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", _scrollLocked);
+        }
+    }
+
+    public void Dispose()
+    {
+        if (_scrollLocked) _ = JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", false);
+    }
 
     private static Ym CurrentCycleStart => Ym.Parse(LedgerService.CurrentCycleStartYm());
     private static IEnumerable<int> YearRange() => Enumerable.Range(DateTime.Today.Year - 5, 31);
