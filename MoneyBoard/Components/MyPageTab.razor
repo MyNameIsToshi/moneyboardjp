@@ -1,6 +1,8 @@
 @inject LedgerService Svc
 @inject AuthService Auth
 @inject AccessService Access
+@inject IJSRuntime JS
+@implements IDisposable
 
 @{
     var accountCount = Svc.ActiveAccounts.Count;
@@ -135,6 +137,24 @@
 @code {
     [CascadingParameter(Name = "IsMobile")] public bool IsMobile { get; set; }
     [CascadingParameter(Name = "IsMasked")] public bool IsMasked { get; set; }
+
+    // ログアウト確認ダイアログ表示中は背面スクロールをロック（配下タブ各自のダイアログは各タブ側で対応）。
+    private bool AnyDialogOpen => ShowLogoutConfirm;
+    private bool _scrollLocked;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (AnyDialogOpen != _scrollLocked)
+        {
+            _scrollLocked = AnyDialogOpen;
+            await JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", _scrollLocked);
+        }
+    }
+
+    public void Dispose()
+    {
+        if (_scrollLocked) _ = JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", false);
+    }
 
     // 各設定セクションは折りたたみ式（スマホのみ・既定は畳んだ状態）
     private readonly HashSet<string> _open = new();

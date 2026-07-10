@@ -57,4 +57,49 @@ public class AnnouncementMathTests
     {
         Assert.Null(AnnouncementMath.LatestId(Array.Empty<int>()));
     }
+
+    // ── ParseChangeItems ──
+    [Fact]
+    public void ParseChangeItems_ExtractsLabelAndText()
+    {
+        var items = AnnouncementMath.ParseChangeItems("- 【新機能】機能Aを追加しました\n- 【修正】不具合Bを修正しました");
+
+        Assert.Equal(2, items.Count);
+        Assert.Equal(("新機能", "機能Aを追加しました"), (items[0].TypeLabel, items[0].Text));
+        Assert.Equal(("修正", "不具合Bを修正しました"), (items[1].TypeLabel, items[1].Text));
+    }
+
+    [Fact]
+    public void ParseChangeItems_LineWithoutLabel_EmptyTypeLabel()
+    {
+        var items = AnnouncementMath.ParseChangeItems("- ラベル無しの行です");
+
+        Assert.Single(items);
+        Assert.Equal("", items[0].TypeLabel);
+        Assert.Equal("ラベル無しの行です", items[0].Text);
+    }
+
+    [Fact]
+    public void ParseChangeItems_SkipsBlankLines()
+    {
+        var items = AnnouncementMath.ParseChangeItems("- 【改善】改善しました\n\n- 【改善】もう1件");
+
+        Assert.Equal(2, items.Count);
+    }
+
+    [Fact]
+    public void ParseChangeItems_EmptyBody_Empty()
+    {
+        Assert.Empty(AnnouncementMath.ParseChangeItems(""));
+    }
+
+    [Fact]
+    public void ParseChangeItems_UnclosedBracket_TreatedAsPlainText()
+    {
+        var items = AnnouncementMath.ParseChangeItems("- 【閉じていない行です");
+
+        Assert.Single(items);
+        Assert.Equal("", items[0].TypeLabel);
+        Assert.Equal("【閉じていない行です", items[0].Text);
+    }
 }

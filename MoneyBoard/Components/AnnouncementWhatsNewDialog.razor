@@ -1,16 +1,21 @@
 @using MoneyBoard.Services
 
-@* 更新後の初回表示で、未読分のお知らせ（新しい順・全件）を提示するモーダル（What's New）。 *@
+@* 更新後の初回表示で、未読分のお知らせ（新しい順・全件）を提示するモーダル（What's New）。
+   一覧ダイアログと同じタイムライン表示（#130）だが、全件が未読分のため未読ドット・フィルタは出さず、
+   最新版のみ NEW ピルを付ける。 *@
 <div class="dialog-overlay" @onclick="Close">
     <div class="dialog-box ann-dialog-box" @onclick:stopPropagation="true">
         <div class="ann-dialog-head">
-            <h4>@(Items.Count > 1 ? $"新着のお知らせ（{Items.Count}件）" : "最新のお知らせ")</h4>
+            <div class="ann-head-title">
+                <span class="msym ann-head-icon">notifications</span>
+                <h4>@(Items.Count > 1 ? $"新着のお知らせ（{Items.Count}件）" : "最新のお知らせ")</h4>
+            </div>
             <button class="ann-close-btn" @onclick="Close" aria-label="閉じる"><span class="msym">close</span></button>
         </div>
-        <div class="ann-list">
+        <div class="ann-list ann-timeline">
             @foreach (var item in Items)
             {
-                <AnnouncementCard Item="item" />
+                <AnnouncementCard Item="item" IsLatest="@(item.Id == LatestId)" />
             }
         </div>
         <div class="dialog-btns">
@@ -22,6 +27,8 @@
 @code {
     [Parameter] public IReadOnlyList<Announcement> Items { get; set; } = Array.Empty<Announcement>();
     [Parameter] public EventCallback OnClose { get; set; }
+
+    private int? LatestId => Items.Count > 0 ? Items[0].Id : null;
 
     private Task Close() => OnClose.InvokeAsync();
 }

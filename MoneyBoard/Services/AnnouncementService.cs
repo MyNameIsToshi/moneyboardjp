@@ -30,6 +30,17 @@ public class AnnouncementService
     /// <summary>お知らせ一覧ダイアログの表示状態（ベル押下で true）。</summary>
     public bool ShowList { get; private set; }
 
+    /// <summary>
+    /// 一覧ダイアログを開いた瞬間の未読件数・既読基準idのスナップショット（#130）。
+    /// OpenListAsync は開くと同時に実既読化（lastSeen 更新）するため、UnreadCount 自体は
+    /// 直後に 0 になる。ダイアログ側の「未読 N」ピル・各バージョンの未読ドット表示は、
+    /// 既読化前のこのスナップショットを見て描画する（未読判定ロジック自体は変更しない）。
+    /// </summary>
+    public int UnreadCountAtOpen { get; private set; }
+    public int LastSeenIdAtOpen { get; private set; }
+
+    private int _lastSeenId;
+
     /// <summary>件数・UnreadItems・ShowList が変化したとき。購読側は InvokeAsync(StateHasChanged) すること。</summary>
     public event Action? Changed;
 
@@ -63,6 +74,7 @@ public class AnnouncementService
         }
 
         var lastSeen = await ReadLastSeenAsync();
+        _lastSeenId = lastSeen;
         var ids = Items.Select(a => a.Id).ToList();
         UnreadCount = AnnouncementMath.CountUnread(ids, lastSeen);
         // Items は新しい順（id降順）のため、Where で絞ってもその順序のまま保たれる。
@@ -75,6 +87,8 @@ public class AnnouncementService
     /// 描画上の重なりだけに頼らず、状態としても保証する）。</summary>
     public async Task OpenListAsync()
     {
+        UnreadCountAtOpen = UnreadCount;
+        LastSeenIdAtOpen = _lastSeenId;
         ShowList = true;
         UnreadItems = Array.Empty<Announcement>();
         await MarkAllReadAsync();
@@ -92,7 +106,10 @@ public class AnnouncementService
     {
         if (UnreadCount == 0) return;
         if (AnnouncementMath.LatestId(Items.Select(a => a.Id).ToList()) is { } latest)
+        {
             await WriteLastSeenAsync(latest);
+            _lastSeenId = latest;
+        }
         UnreadCount = 0;
     }
 

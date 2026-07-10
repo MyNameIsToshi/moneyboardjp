@@ -1,4 +1,6 @@
 @inject LedgerService Svc
+@inject IJSRuntime JS
+@implements IDisposable
 
 <div class="set-head">
     @if (!IsMobile)
@@ -107,7 +109,7 @@ else
 <!-- 追加ダイアログ -->
 @if (ShowAddDialog)
 {
-    <div class="dialog-overlay" @onclick="CloseAddDialog">
+    <div class="dialog-overlay">
         <div class="dialog-box" @onclick:stopPropagation="true">
             <h4>口座を追加</h4>
             <div class="dialog-form">
@@ -184,6 +186,24 @@ else
 
 @code {
     [CascadingParameter(Name = "IsMobile")] public bool IsMobile { get; set; }
+
+    // いずれかのダイアログ表示中は背面スクロールをロック（追加/削除確認/削除不可警告/編集シート）。
+    private bool AnyDialogOpen => ShowAddDialog || ShowConfirm || ShowWarn || Editing is not null;
+    private bool _scrollLocked;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (AnyDialogOpen != _scrollLocked)
+        {
+            _scrollLocked = AnyDialogOpen;
+            await JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", _scrollLocked);
+        }
+    }
+
+    public void Dispose()
+    {
+        if (_scrollLocked) _ = JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", false);
+    }
 
     // スマホ：編集シートで開いている口座。既存は State の実体を直接編集（即時保存）、
     // ＋追加は未コミットのドラフトを編集し、決定（完了）時にだけ State へ追加・保存する。

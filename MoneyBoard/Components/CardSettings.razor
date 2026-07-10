@@ -1,4 +1,6 @@
 @inject LedgerService Svc
+@inject IJSRuntime JS
+@implements IDisposable
 
 <div class="set-head">
     @if (!IsMobile)
@@ -116,6 +118,24 @@ else
 
 @code {
     [CascadingParameter(Name = "IsMobile")] public bool IsMobile { get; set; }
+
+    // いずれかのダイアログ表示中は背面スクロールをロック（削除確認/口座未登録警告/編集シート）。
+    private bool AnyDialogOpen => ShowConfirm || ShowNoAccountWarn || Editing is not null;
+    private bool _scrollLocked;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (AnyDialogOpen != _scrollLocked)
+        {
+            _scrollLocked = AnyDialogOpen;
+            await JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", _scrollLocked);
+        }
+    }
+
+    public void Dispose()
+    {
+        if (_scrollLocked) _ = JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", false);
+    }
 
     private IEnumerable<Card> Ordered => Svc.State.Cards.Where(c => !c.IsDeleted).OrderBy(c => c.SortOrder);
 

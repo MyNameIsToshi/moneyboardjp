@@ -1,5 +1,6 @@
 @inject LedgerService Svc
 @inject IJSRuntime JS
+@implements IDisposable
 
 @{ var accts = ActiveAccountsForMonth; }
 <div>
@@ -534,6 +535,24 @@
     // スマホ=折りたたみ / PC=展開を既定にするため IsMobile を受ける。
     [CascadingParameter(Name = "IsMobile")] public bool IsMobile { get; set; }
     [CascadingParameter(Name = "IsMasked")] public bool IsMasked { get; set; }
+
+    // ダイアログ（現金支出の編集シート）表示中は背面スクロールをロック。
+    private bool AnyDialogOpen => EditingCashDebit is not null;
+    private bool _scrollLocked;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (AnyDialogOpen != _scrollLocked)
+        {
+            _scrollLocked = AnyDialogOpen;
+            await JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", _scrollLocked);
+        }
+    }
+
+    public void Dispose()
+    {
+        if (_scrollLocked) _ = JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", false);
+    }
 
     // 開閉状態（口座IDを保持）。_toggled＝口座カードを既定から反転した口座。
     // カード/固定費ブロックは既定折りたたみで、_cardOpen/_fixedOpen は展開中の口座。

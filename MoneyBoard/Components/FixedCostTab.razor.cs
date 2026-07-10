@@ -1,6 +1,7 @@
 namespace MoneyBoard.Components;
 
 using Microsoft.AspNetCore.Components;
+using Microsoft.JSInterop;
 using MoneyBoard.Services;
 using MoneyBoardShared;
 
@@ -11,6 +12,24 @@ public partial class FixedCostTab
 {
     [CascadingParameter(Name = "IsMobile")] public bool IsMobile { get; set; }
     [CascadingParameter(Name = "IsMasked")] public bool IsMasked { get; set; }
+
+    // いずれかのダイアログ表示中は背面スクロールをロック（追加/削除確認/口座未登録警告/編集シート）。
+    private bool AnyDialogOpen => ShowAddDialog || ShowConfirm || ShowNoAccountWarn || Editing is not null;
+    private bool _scrollLocked;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (AnyDialogOpen != _scrollLocked)
+        {
+            _scrollLocked = AnyDialogOpen;
+            await JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", _scrollLocked);
+        }
+    }
+
+    public void Dispose()
+    {
+        if (_scrollLocked) _ = JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", false);
+    }
 
     // スマホ：編集シートで開いている固定費。既存は State の実体を直接編集（即時保存）、
     // ＋追加は未コミットのドラフトを編集し、決定（完了）時にだけ State へ追加・保存する。

@@ -85,10 +85,13 @@
 }
 
 /* =====================================================
-   お知らせ一覧 / What's New (AnnouncementListDialog / AnnouncementWhatsNewDialog・#38)
+   お知らせ一覧 / What's New (AnnouncementListDialog / AnnouncementWhatsNewDialog)
+   案A・タイムライン改良型（#38 初期実装 → #130 UI/UX刷新）。新色は足さず既存トークンで統一
+  （#f4f1ea・#f0eee9 は cards.css/graph.css/mypage.css/portfolio.css 等で既に使われている
+  「--paper より一段濃いニュートラル」の既存慣用色を踏襲）。
    ===================================================== */
 .ann-dialog-box {
-  max-width: 520px;
+  max-width: 640px;
   max-height: 80vh;
   overflow: hidden; /* はみ出し禁止：スクロールは内側の .ann-list だけに閉じ込める */
   display: flex;
@@ -100,28 +103,93 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
+}
+
+.ann-head-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ann-head-icon {
+  font-size: 22px;
+  color: var(--accent);
 }
 
 .ann-dialog-head h4 {
   margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+}
+
+.ann-unread-pill {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 9px;
+  border-radius: 20px;
+  background: var(--badbg);
+  color: var(--bad);
+  white-space: nowrap;
 }
 
 .ann-close-btn {
+  flex: none;
   border: none;
-  background: none;
+  background: #f4f1ea;
+  border-radius: 9px;
   cursor: pointer;
   color: var(--sub);
   font-size: 18px;
   line-height: 1;
-  padding: 2px;
+  padding: 5px;
 }
 
 .ann-close-btn:hover {
   color: var(--ink);
 }
 
+/* ── フィルタ行（種別セグメントコントロール） ── */
+.ann-filter-row {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.ann-segment {
+  display: flex;
+  gap: 2px;
+  background: #f4f1ea;
+  border-radius: 9px;
+  padding: 3px;
+}
+
+.ann-segment-btn {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--sub);
+  font-size: 12.5px;
+  padding: 5px 10px;
+  border-radius: 7px;
+}
+
+.ann-segment-btn.active {
+  background: #fff;
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .06);
+}
+
 .ann-empty {
+  height: 440px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 13px;
   color: var(--sub);
 }
@@ -133,78 +201,176 @@
 }
 
 .ann-list {
-  /* flex:1 1 auto だけだと子要素の内容サイズが min-height の下限になり縮まない
-     （flexアイテムの既定 min-height:auto）ため、min-height:0 を明示して初めて
-     overflow-y:auto が効き、多件表示時にここだけがスクロールするようになる。 */
-  flex: 1 1 auto;
+  /* 高さは件数に関わらず固定（440px）。フィルタ切替のたびに表示件数が変わっても
+     ダイアログ全体の縦サイズ・ボタン位置が動いてクリック位置がズレないようにするため
+     （件数が少ない時は下に余白ができるが、位置の安定を優先）。
+     flex-shrink は残し、狭い画面（.ann-dialog-box の max-height:80vh）では縮められるようにする。 */
+  flex: 0 1 auto;
+  height: 440px;
   min-height: 0;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+
+.ann-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.ann-list::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 3px;
+}
+
+/* ── タイムライン（1バージョン=1エントリ。レール＋本文の2列グリッド） ── */
+.ann-timeline {
   display: flex;
   flex-direction: column;
-  gap: 12px;
 }
 
-.ann-card {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 12px 14px;
+.ann-entry {
+  display: grid;
+  grid-template-columns: 14px 1fr;
+  gap: 10px;
+  padding-bottom: 16px;
 }
 
-.ann-head {
+.ann-entry:last-child {
+  padding-bottom: 0;
+}
+
+.ann-rail {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+.ann-rail::before {
+  content: "";
+  position: absolute;
+  top: 13px;
+  bottom: -16px;
+  left: 50%;
+  width: 2px;
+  background: #f0eee9;
+  transform: translateX(-50%);
+}
+
+.ann-entry:last-child .ann-rail::before {
+  display: none;
+}
+
+.ann-node {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  margin-top: 2px;
+  background: #fff;
+  border: 2px solid var(--line);
+  z-index: 1;
+}
+
+.ann-node-latest {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.ann-entry-body {
+  min-width: 0;
+}
+
+.ann-meta {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
+}
+
+.ann-version {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.ann-version-latest {
+  color: var(--accent);
+}
+
+.ann-date {
+  font-size: 11.5px;
+  color: var(--sub);
+  font-variant-numeric: tabular-nums;
+}
+
+.ann-new-pill {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  letter-spacing: .02em;
+}
+
+.ann-unread-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--bad);
+  margin-left: auto;
+}
+
+.ann-title {
+  margin: 2px 0 6px;
+  font-size: 14.5px;
+  font-weight: 700;
+  overflow-wrap: break-word;
+  text-wrap: pretty;
+}
+
+.ann-changes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ann-change-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: 8px;
 }
 
 .ann-badge {
   font-size: 11px;
   font-weight: 700;
   padding: 2px 8px;
-  border-radius: 10px;
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--sub);
+  white-space: nowrap;
+}
+
+.ann-badge-new {
+  background: rgba(31, 58, 95, .08); /* navy(--accent)淡。base.css の同パターンに合わせる */
+  color: var(--accent);
+}
+
+.ann-badge-improve {
+  background: var(--okbg);
+  color: var(--ok);
+}
+
+.ann-badge-fix {
   background: var(--paper);
   color: var(--sub);
 }
 
-.ann-badge-release {
-  background: rgba(31, 58, 95, .1); /* navy(--accent)淡 */
-  color: var(--accent);
-}
-
-.ann-badge-maintenance {
-  background: var(--badbg);
-  color: var(--bad);
-}
-
-.ann-date {
-  font-size: 12px;
-  color: var(--sub);
-}
-
-.ann-title {
-  margin: 0 0 6px;
-  font-size: 14px;
-  font-weight: 600;
-  overflow-wrap: break-word;
-}
-
-.ann-body {
-  font-size: 13px;
-  color: var(--ink);
+.ann-change-text {
+  font-size: 12.8px;
   line-height: 1.6;
+  color: var(--ink);
   overflow-wrap: break-word; /* 長いURL等の未分割トークンで横はみ出ししないように */
-}
-
-.ann-body p {
-  margin: 0 0 8px;
-}
-
-.ann-body ul,
-.ann-body ol {
-  margin: 0 0 8px;
-  padding-left: 20px;
-}
-
-.ann-body :last-child {
-  margin-bottom: 0;
 }

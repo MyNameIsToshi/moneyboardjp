@@ -1,29 +1,62 @@
-@using Markdig
 @using MoneyBoard.Services
+@using MoneyBoardShared
 
-@* お知らせ1件の表示（バッジ＋日付/版＋タイトル＋本文）。一覧・What's Newダイアログで共用。
-   本文は Markdown → HTML 変換だが、自前の信頼コンテンツ前提とはいえ念のため生HTMLは無効化する。 *@
-<div class="ann-card">
-    <div class="ann-head">
-        <span class="ann-badge ann-badge-@Item.Type">@TypeLabel</span>
-        <span class="ann-date">@Item.Date@(string.IsNullOrEmpty(Item.Version) ? "" : $" ・ v{Item.Version}")</span>
+@* お知らせ1バージョン分の表示（タイムラインのレール+ノード＋バージョン/日付＋変更項目バッジ）。
+   一覧・What's Newダイアログで共用。バッジ種別（新機能/改善/修正）は本文の【…】から抽出する（#130）。
+   Changes 未指定時は Item.Body から自前で解析する（What's New 側は全件・フィルタ無しのため）。 *@
+<div class="ann-entry">
+    <div class="ann-rail">
+        <span class="ann-node @(IsLatest ? "ann-node-latest" : "")"></span>
     </div>
-    <h5 class="ann-title">@Item.Title</h5>
-    <div class="ann-body">@Html</div>
+    <div class="ann-entry-body">
+        <div class="ann-meta">
+            <span class="ann-version @(IsLatest ? "ann-version-latest" : "")">@(string.IsNullOrEmpty(Item.Version) ? "" : $"v{Item.Version}")</span>
+            <span class="ann-date">@Item.Date</span>
+            @if (IsLatest)
+            {
+                <span class="ann-new-pill">NEW</span>
+            }
+            @if (IsUnread)
+            {
+                <span class="ann-unread-dot" title="未読" aria-label="未読"></span>
+            }
+        </div>
+        <h5 class="ann-title">@Item.Title</h5>
+        <div class="ann-changes">
+            @foreach (var change in ResolvedChanges)
+            {
+                <div class="ann-change-row">
+                    @if (!string.IsNullOrEmpty(change.TypeLabel))
+                    {
+                        <span class="ann-badge @BadgeClass(change.TypeLabel)">@change.TypeLabel</span>
+                    }
+                    <span class="ann-change-text">@change.Text</span>
+                </div>
+            }
+        </div>
+    </div>
 </div>
 
 @code {
     [Parameter, EditorRequired] public Announcement Item { get; set; } = null!;
 
-    private static readonly MarkdownPipeline Pipeline =
-        new MarkdownPipelineBuilder().DisableHtml().Build();
+    /// <summary>絞り込み後の変更項目。未指定なら Item.Body を全件解析する。</summary>
+    [Parameter] public IReadOnlyList<AnnouncementChangeItem>? Changes { get; set; }
 
-    private string TypeLabel => Item.Type switch
+    /// <summary>全体の最新バージョンか（NEW ピル＋レールノードの塗り）。</summary>
+    [Parameter] public bool IsLatest { get; set; }
+
+    /// <summary>端末未読か（右端の未読ドット）。</summary>
+    [Parameter] public bool IsUnread { get; set; }
+
+    private IReadOnlyList<AnnouncementChangeItem> ResolvedChanges =>
+        Changes ?? AnnouncementMath.ParseChangeItems(Item.Body);
+
+    private static string BadgeClass(string label) => label switch
     {
-        "release" => "リリース",
-        "maintenance" => "メンテナンス",
-        _ => "お知らせ",
+        "新機能" => "ann-badge-new",
+        "改善" => "ann-badge-improve",
+        "修正" => "ann-badge-fix",
+        _ => "ann-badge-plain",
     };
-
-    private MarkupString Html => new(Markdown.ToHtml(Item.Body, Pipeline));
 }

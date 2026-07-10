@@ -1,4 +1,6 @@
 @inject LedgerService Svc
+@inject IJSRuntime JS
+@implements IDisposable
 
 <div class="set-head">
     @if (!IsMobile)
@@ -104,6 +106,24 @@ else
 
 @code {
     [CascadingParameter(Name = "IsMobile")] public bool IsMobile { get; set; }
+
+    // いずれかのダイアログ表示中は背面スクロールをロック（削除確認/編集シート）。
+    private bool AnyDialogOpen => ShowConfirm || Editing is not null;
+    private bool _scrollLocked;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (AnyDialogOpen != _scrollLocked)
+        {
+            _scrollLocked = AnyDialogOpen;
+            await JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", _scrollLocked);
+        }
+    }
+
+    public void Dispose()
+    {
+        if (_scrollLocked) _ = JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", false);
+    }
 
     // スマホ：編集シートで開いているカテゴリ。既存は State の実体を直接編集（即時保存）、
     // ＋追加は未コミットのドラフトを編集し、決定（完了）時にだけ State へ追加・保存する。

@@ -49,9 +49,19 @@ public partial class CardTab
 
     protected override void OnInitialized() => Mo = Svc.EnsureMonth(Svc.CardMonth);
 
+    // いずれかのダイアログ表示中は背面スクロールをロック（CSV種別選択/AI読取/一括カテゴリ/破棄確認/明細編集シート）。
+    private bool AnyDialogOpen => _importCardId != null || _shotCardId != null || ShowBulk || _bulkConfirmCancel || EditingDetail is not null;
+    private bool _scrollLocked;
+
     // 月次タブから遷移したとき：対象カードだけ展開し他は畳んで、その位置までスクロールする。
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (AnyDialogOpen != _scrollLocked)
+        {
+            _scrollLocked = AnyDialogOpen;
+            await JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", _scrollLocked);
+        }
+
         var target = Svc.ScrollToCardId;
         if (target == null) return;
         Svc.ScrollToCardId = null;            // 一度きりで消費
@@ -366,7 +376,11 @@ public partial class CardTab
         await OpenBulkWithAutoClassifyIfNeeded();
     }
 
-    public void Dispose() => _shotRef?.Dispose();
+    public void Dispose()
+    {
+        _shotRef?.Dispose();
+        if (_scrollLocked) _ = JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", false);
+    }
 
     public sealed class ProcessedImage
     {

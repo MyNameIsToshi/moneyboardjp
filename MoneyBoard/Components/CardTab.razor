@@ -232,7 +232,7 @@
 
 @if (_importCardId != null)
 {
-    <div class="dialog-overlay" @onclick="() => _importCardId = null">
+    <div class="dialog-overlay">
         <div class="dialog-box import-pick" @onclick:stopPropagation="true">
             <h4>CSVの種別を選択</h4>
             <p class="dialog-lead">@(Svc.CardById(_importCardId)?.Name) に取り込む明細CSVの発行元を選んでください。</p>
@@ -255,7 +255,7 @@
 
 @if (_shotCardId != null)
 {
-    <div class="dialog-overlay" @onclick="CloseShot">
+    <div class="dialog-overlay">
         <div class="dialog-box import-pick shot-box" @onclick:stopPropagation="true">
             <div class="dialog-head-icon">
                 <span class="dialog-icon-chip msym">auto_awesome</span>
@@ -314,7 +314,7 @@
 
 @if (ShowBulk)
 {
-    <div class="dialog-overlay" @onclick="RequestCloseBulk">
+    <div class="dialog-overlay">
         <div class="dialog-box bulk-box" @onclick:stopPropagation="true">
             <div class="bulk-head-row">
                 <h4>一括カテゴリ設定<span class="bulk-head-month">（@monthLabel）</span></h4>
