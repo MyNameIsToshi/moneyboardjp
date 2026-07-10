@@ -128,7 +128,9 @@
 }
 
 /* ── PC：設定カードのグリッド（3列） ──
-   1行目=アクセス管理（全幅）／2行目=口座（1列）・固定費（2列）／3行目=カード・カテゴリ（各1列）。 */
+   1行目=アクセス管理（全幅）／2行目=口座・カード・カードカテゴリ（各1列）／
+   3・4行目=固定費（支出）・固定費（収入）（各 .mypage-grid-full で全幅・各1行・#125。
+   カード内の一覧は3列化（fixedcost.css の .fc-list）で情報密度を確保）。 */
 .mypage-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -137,23 +139,15 @@
   margin-bottom: 18px;
 }
 
-/* アクセス管理は最上部で全幅に渡す */
+/* アクセス管理・固定費（支出/収入）は全幅に渡す */
 .mypage-grid-full {
   grid-column: 1 / -1;
 }
 
-/* 固定費は横2列ぶんを占める */
-.mypage-grid-wide {
-  grid-column: span 2;
-}
-
-/* 中幅：3列は窮屈なので2列に。固定費も通常幅へ戻す（口座｜固定費／カード｜カテゴリ）。 */
+/* 中幅：3列は窮屈なので2列に */
 @media (max-width: 1400px) {
   .app-shell.has-sidenav .mypage-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .mypage-grid-wide {
-    grid-column: auto;
   }
 }
 

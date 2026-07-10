@@ -71,11 +71,19 @@
         </div>
 
         <div class="mypage-section">
-            <button class="mypage-collapse" @onclick='() => ToggleSection("fixed")'>
-                <span>固定費設定</span>
-                <span class="mypage-chevron msym">@(IsOpen("fixed") ? "expand_more" : "chevron_right")</span>
+            <button class="mypage-collapse" @onclick='() => ToggleSection("fixedExpense")'>
+                <span>固定費（支出）</span>
+                <span class="mypage-chevron msym">@(IsOpen("fixedExpense") ? "expand_more" : "chevron_right")</span>
             </button>
-            @if (IsOpen("fixed")) { <div class="mypage-collapse-body"><FixedCostTab /></div> }
+            @if (IsOpen("fixedExpense")) { <div class="mypage-collapse-body"><FixedCostTab /></div> }
+        </div>
+
+        <div class="mypage-section">
+            <button class="mypage-collapse" @onclick='() => ToggleSection("fixedIncome")'>
+                <span>固定費（収入）</span>
+                <span class="mypage-chevron msym">@(IsOpen("fixedIncome") ? "expand_more" : "chevron_right")</span>
+            </button>
+            @if (IsOpen("fixedIncome")) { <div class="mypage-collapse-body"><FixedIncomeTab /></div> }
         </div>
 
         <div class="mypage-section">
@@ -96,7 +104,7 @@
     }
     else
     {
-        @* PC：2列グリッド。アクセス管理=最上部で全幅／口座・固定費＝横並び／カード・カテゴリ＝最下段 *@
+        @* PC：3列グリッド。アクセス管理・固定費（支出）・固定費（収入）は全幅で各1行／口座・カード・カードカテゴリ＝1段目 *@
         <div class="mypage-grid">
             @if (Svc.IsOwner)
             {
@@ -109,9 +117,10 @@
                 </section>
             }
             <section class="set-card"><AccountsTab /></section>
-            <section class="set-card mypage-grid-wide"><FixedCostTab /></section>
             <section class="set-card"><CardSettings /></section>
             <section class="set-card"><CategorySettings /></section>
+            <section class="set-card mypage-grid-full"><FixedCostTab /></section>
+            <section class="set-card mypage-grid-full"><FixedIncomeTab /></section>
         </div>
     }
 
