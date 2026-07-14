@@ -501,6 +501,11 @@ Transfer
   - **コーチマークの対象は「マイページ」ナビ項目1点のみ（PoC範囲）**：？ボタンの置き場所をマイページタブに決めたため（月次管理タブに紐づかない内容のため）、初回はまず「マイページ」ナビ（`BottomNav`/`SideNav`。両者に共通 `id="tutorial-target-mypage"` を付与）をコーチマークで示し、「次へ」でPWA追加方法のモーダルへ進む2段階フローにした。対象要素の位置取得は JS interop（`wwwroot/js/tutorial.js` の `getBoundingClientRect`）をフロント側に配置し、`CoachMark.razor` は複数対象のステップ送りにも拡張できる形（`Selector` 差し替えのみ）にしてある。
   - **コーチマーク／モーダルは `MainLayout` の app-shell 直下でレンダー**：お知らせダイアログ（#38）と同じ理由で、`SideNav` の `position:sticky` が作る独立した重ね合わせコンテキストの影響を受けないようにするため。あわせてモーダル表示中のみ（コーチマークは対象のナビ項目を見せる必要があるため対象外）`viewport.js` の `setBodyScrollLock` で背面スクロールをロックする。
   - **モーダル図解基盤は「タブ切替」と「戻る/次へ」の両方でステップ間を移動できる汎用エンジンに設計**：`TutorialModal.razor` はタイトル・`TutorialStepMeta`（タブ見出し）のリストと `RenderFragment<int> ChildContent` だけを受け取り、内容は呼び出し側（`PwaTutorialModal.razor`）が組み立てる。今後の画面別チュートリアル（月次管理タブ等・別issue）もこの基盤をそのまま再利用する想定。
+- **iOS standalone PWA の再認証要求＝プラットフォーム制約として受容し、対策実装は見送り（#83・#67/#76の追実装）** … iOS Safari で MoneyBoard をホーム画面に追加すると、Safari 本体でログイン済みでも standalone 起動時に Google 再認証を要求される事象について、issue は「サーバーサイドセッション Cookie 化（GitHub 方式）」を対策候補として挙げていたが、技術調査の結果**この前提が成立しないと判明**したため実装を見送った。
+  - **原因＝WebKit のストレージパーティション分離（iOS 13+の既知仕様）**：iOS の standalone home screen web app は Safari 本体と**完全に独立したストレージコンテキスト**で動作し、これは localStorage・IndexedDB だけでなく **Cookie も対象**（`document.cookie` はもちろん `Set-Cookie` によるサーバー発行 Cookie も分離される）。したがって Firebase Auth の永続化を localStorage/IndexedDB から Cookie ベースのサーバーセッションへ切り替えても、standalone との共有は実現できず**同じ事象が再発する**。issue が根拠とした「GitHub は Cookie ベースだから standalone でも共有される」という推測は、GitHub の「ホーム画面に追加」が `display:standalone` の完全独立コンテキストではなく通常の Safari タブとして開く実装である可能性が高く、本アプリの PWA（`display:standalone`・#76）とは前提が異なる。
+  - **Cache Storage 経由の裏技は不採用**：iOS 14+ では Cache Storage API のみ Safari と standalone 間で共有されるため、これを使って認証トークンや状態を受け渡す非標準の回避策が一部の開発者コミュニティで報告されている。ただし (1) Cache Storage は Response オブジェクトの保管が本来用途でありトークンの置き場として想定外、(2) 将来の iOS/WebKit 更新で仕様が変わり無警告で壊れるリスクがある、(3) 本アプリは承認制・少数ユーザー限定の個人アプリ（#67 で確認済みの前提）でありコストに見合わないと判断し、実装しない。
+  - **`signInWithPopup`／`signInWithRedirect` いずれも iOS standalone PWA で既知の不具合報告がある**（`firebase-js-sdk` issue #7443・#332 等）が、現行の `AuthService.cs`/`App.razor`（`Ready` フラグで初期化完了を待ってから描画）にはレースコンディション等の自作バグは見当たらず、再認証要求はコード起因ではなく WebKit の仕様起因と判断した。
+  - **結論**：再認証要求自体は Web プラットフォームの制約として受容し、コード変更は行わない（既存の Google ログイン画面のまま）。再認証時のログイン操作は同一 Google アカウントであれば通常 1〜2 タップで完了するため、実利用上の負担は限定的と評価。将来 iOS/WebKit 側でストレージ共有の挙動が変わった場合、または生体認証・ネイティブ実装（#67 で見送り済みの MAUI Hybrid）を再検討する明確な理由が生じた場合のみ再検討する。
 
 > **Claude API 連携（土台）／カード画像（スクショ）読み取り** は **v1.4.0 で本番リリース済み**（下記「実装済み機能」表・「Phase 4」節を参照）。
 
@@ -708,6 +713,7 @@ Chrome の mobile emulator と **iOS Safari 実機で挙動差**があると判�
 
 ### Firebase セッション永続化（v1.3.2）
 - `wwwroot/js/auth.js` で `setPersistence(LOCAL)` を明示（既定でも LOCAL）。**会社PC等でブラウザがサイトデータ（localStorage/IndexedDB）を消す設定だと保持できず毎回ログインになる**（Google 側 Cookie のみ残るのはそのため。アプリ側では上書き不可）。ID トークンの1時間期限は `getIdToken()` が自動更新するので全ログアウトの原因ではない。
+- **iOS standalone PWA では Safari 本体と別ストレージのため毎回要再認証（対策見送り・#83）**：詳細は「設計判断の記録（ADR）」参照。localStorage/IndexedDB だけでなく Cookie も standalone とは共有されないため、Cookie ベースのセッション化では解決しない。
 
 ### JSON シリアライズ
 Blazor は camelCase 送信、C# は PascalCase。
