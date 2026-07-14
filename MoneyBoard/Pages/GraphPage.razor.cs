@@ -161,9 +161,29 @@ public partial class GraphPage
     }
     private void CloseDetail() => _detail = null;
 
-    // 未分類明細の「カテゴリ設定」操作。複数選択→一括更新の実処理は別 issue（dialog-spec §8 スコープ外）。
-    // 本リデザインでは UI の枠（ボタン表示）までとし、ここはプレースホルダにとどめる。
-    private void OnCategorize() { }
+    // 「選択してカテゴリ設定」（#118）：DetailRow.Id → 実体（CardDetail/Debit）へ反映するデリゲート。
+    // 月をまたいだ複数の CardDetail/Debit を直接書き換えるため、BuildCategorySpend の再構築ごとに作り直す。
+    private Dictionary<string, Action<string?>> _categorizeTargets = new();
+
+    // DetailDialog から選択された行 Id 群へまとめてカテゴリを反映し、保存・再集計する。
+    private void ApplyCategorize((HashSet<string> Ids, string? CategoryId) req)
+    {
+        foreach (var id in req.Ids)
+            if (_categorizeTargets.TryGetValue(id, out var setter))
+                setter(req.CategoryId);
+        _ = Svc.SaveAsync();
+        BuildChartData();
+        RefreshCategorizeDialog();
+    }
+
+    // 反映後、開いている「未分類」ドリルダウンを最新の集計で更新する（対象が0件になった場合は閉じる）。
+    private void RefreshCategorizeDialog()
+    {
+        var s = CategorySpendData.FirstOrDefault(x => x.Key == "");
+        _detail = s != null
+            ? new(s.Label, s.Color, s.Count, s.Value, CategoryDetails.GetValueOrDefault("") ?? new(), true)
+            : null;
+    }
 
     // ドーナツのスライス選択でも同じモーダルを開く（スライス順=各 SpendData 順）
     private void OnSliceSelected(SelectedData<SpendSlice> sel)
@@ -380,10 +400,13 @@ public partial class GraphPage
     // cardId → ドーナツ/バッジで使う色（BuildCardSpend で確定）
     private Dictionary<string, string> _cardColors = new();
 
-    // 期間中の全カード明細＋財布の現金支出（カテゴリ付き Debit・#77）を CategoryId で集計
-    // （未分類＝カードの CategoryId 空欄、および参照切れ（削除済み等で解決できない CategoryId）は
-    //  すべて空キー "" に正規化して1つの「未分類」に集約する（#117）。カテゴリ未設定の現金支出は
-    //  CategoryId が null のため CashDebitsIn に含まれず、そもそも集計に混ざらない＝二重計上なし）。
+    // 期間中の全カード明細＋財布の現金支出（#77）を CategoryId で集計
+    // （未分類＝カードの CategoryId 空欄、現金支出の CategoryId 未設定/空欄、および参照切れ
+    //  （削除済み等で解決できない CategoryId）は、すべて空キー "" に正規化して1つの「未分類」に
+    //  集約する（#117）。現金支出はカードと同じく未分類のものも集計対象に含める（#118フォローアップ。
+    //  当初 CategoryId が null/空の現金支出を集計から除外していたが、新規追加した現金支出は
+    //  カテゴリ未選択のまま CategoryId=null になる＝実質すべての「未分類」現金支出が統計に
+    //  一切反映されない不具合だったため、CashDebitsIn 側で財布口座かどうかで絞り込む方式に変更した）。
     private void BuildCategorySpend(List<string> yms)
     {
         // 解決できない CategoryId（空・参照切れ）は "" に正規化してグルーピングキーを統一する（#117）。
@@ -417,18 +440,28 @@ public partial class GraphPage
 
         // ドリルダウン用：カテゴリごとの明細（日付降順）。補足列＝カード名/口座名・色はカードドーナツと共有
         // （現金支出は利用日を持たないため ym を代用し、月単位で日付降順に近い並びにする）。
+        // 併せて DetailRow.Id → 実体への setter を記録する（「選択してカテゴリ設定」#118 用）。
+        _categorizeTargets = new();
         CategoryDetails = allKeys.ToDictionary(
             key => key,
             key =>
             {
                 var cardRows = cardGroups.GetValueOrDefault(key, new())
-                    .Select(d => new DetailDialog.DetailRow(
-                        d.Date, d.Name, Svc.CardById(d.CardId)?.Name ?? "", d.Amount,
-                        _cardColors.GetValueOrDefault(d.CardId ?? "", "#bdbdbd")));
+                    .Select(d =>
+                    {
+                        _categorizeTargets[d.Id] = catId => d.CategoryId = catId;
+                        return new DetailDialog.DetailRow(
+                            d.Date, d.Name, Svc.CardById(d.CardId)?.Name ?? "", d.Amount,
+                            _cardColors.GetValueOrDefault(d.CardId ?? "", "#bdbdbd"), d.Id);
+                    });
                 var cashRows = cashGroups.GetValueOrDefault(key, new())
-                    .Select(x => new DetailDialog.DetailRow(
-                        x.Ym, string.IsNullOrWhiteSpace(x.Debit.Name) ? "（名称なし）" : x.Debit.Name,
-                        Svc.AccountName(x.AccountId) ?? "現金", x.Debit.Amount, "#bdbdbd"));
+                    .Select(x =>
+                    {
+                        _categorizeTargets[x.Debit.Id] = catId => x.Debit.CategoryId = catId;
+                        return new DetailDialog.DetailRow(
+                            x.Ym, string.IsNullOrWhiteSpace(x.Debit.Name) ? "（名称なし）" : x.Debit.Name,
+                            Svc.AccountName(x.AccountId) ?? "現金", x.Debit.Amount, "#bdbdbd", x.Debit.Id);
+                    });
                 return cardRows.Concat(cashRows).OrderByDescending(r => r.Date).ToList();
             });
 
@@ -519,15 +552,22 @@ public partial class GraphPage
     private List<CardDetail> CardDetailsIn(IEnumerable<string> yms) =>
         yms.SelectMany(ym => Svc.State.Months.GetValueOrDefault(ym)?.CardDetails ?? Enumerable.Empty<CardDetail>()).ToList();
 
-    // カテゴリ付きの現金支出（財布の Debit・#77）を ym・口座つきで列挙する。CategoryId が
-    // 未設定（null）または「未分類」選択（""）の Debit はカテゴリ別集計に混ざらないよう除外する
-    // （固定費・カード由来・通常口座の手入力支出は常に null のまま＝同様に除外される）。
-    private IEnumerable<(string Ym, string AccountId, Debit Debit)> CashDebitsIn(IEnumerable<string> yms) =>
-        yms.SelectMany(ym => Svc.State.Months.GetValueOrDefault(ym)?.Ledgers
-            .SelectMany(kv => kv.Value.Debits
-                .Where(d => !string.IsNullOrEmpty(d.CategoryId))
-                .Select(d => (Ym: ym, AccountId: kv.Key, Debit: d)))
+    // 財布の現金支出（#77）を ym・口座つきで列挙する。財布口座（過去に財布だった口座も含め
+    // Svc.State.Accounts から IsWallet で判定・ソフト削除済みでも過去月の参照のため対象に含める）の
+    // Debits はすべて手入力の現金支出のみ（固定費・カード由来の Debit は #124 で財布を引き落とし口座
+    // として選べないため財布のledgerには載らない）なので、口座で絞り込めば取りこぼしなく列挙できる。
+    // 当初は CategoryId が空でない Debit だけに絞っていたが、新規追加した現金支出はカテゴリ未選択のまま
+    // CategoryId=null になる（#118フォローアップで判明・#77起因の不具合）ため、未分類の現金支出も
+    // 集計対象に含むよう口座ベースの判定に変更した（NormalizeCategoryKey が null/""/参照切れを
+    // まとめて「未分類」キーへ正規化するため、ここでは絞り込まず全件渡せばよい）。
+    private IEnumerable<(string Ym, string AccountId, Debit Debit)> CashDebitsIn(IEnumerable<string> yms)
+    {
+        var walletAccountIds = Svc.State.Accounts.Where(a => a.IsWallet).Select(a => a.Id).ToHashSet();
+        return yms.SelectMany(ym => Svc.State.Months.GetValueOrDefault(ym)?.Ledgers
+            .Where(kv => walletAccountIds.Contains(kv.Key))
+            .SelectMany(kv => kv.Value.Debits.Select(d => (Ym: ym, AccountId: kv.Key, Debit: d)))
             ?? Enumerable.Empty<(string, string, Debit)>());
+    }
 
     public class ChartPoint
     {

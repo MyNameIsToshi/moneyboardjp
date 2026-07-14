@@ -181,14 +181,14 @@
 
         <!-- 〔カテゴリ｜カード〕の2列ブロック（ドーナツ＋一覧） -->
         <div class="graph-row2">
-            <SpendBreakdownCard Title="カテゴリ別 支出（カード明細）"
+            <SpendBreakdownCard Title="カテゴリ別 支出"
                                 FullWidth="false"
                                 ItemColumnLabel="カテゴリ"
                                 Items="CategorySpendData"
                                 Total="CategoryTotal"
                                 Options="DonutOptions"
                                 RenderKey="@($"cat-{PeriodKey}-{_maskRev}")"
-                                EmptyMessage="カード明細がありません"
+                                EmptyMessage="カード明細・現金支出がありません"
                                 OnRowClick="OpenCatDetail"
                                 OnSliceSelected="OnSliceSelected" />
 
@@ -211,8 +211,8 @@
     {
         <DetailDialog Title="@_detail.Title" Color="@_detail.Color" Count="_detail.Count"
                       Total="_detail.Total" SubLabel="@RangeLabel" Rows="_detail.Rows"
-                      ShowCategorize="_detail.ShowCategorize" OnCategorize="OnCategorize"
-                      OnClose="CloseDetail" />
+                      ShowCategorize="_detail.ShowCategorize" Categories="Svc.CategoriesOrdered"
+                      OnApplyCategory="ApplyCategorize" OnClose="CloseDetail" />
     }
 
     @if (_breakdown is not null)
