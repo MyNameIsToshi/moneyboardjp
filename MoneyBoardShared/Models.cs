@@ -25,6 +25,9 @@ public class AppState
     public Dictionary<string, MonthData> Months { get; set; } = new();
     // チュートリアル既読版（#111）。TutorialMath.CurrentVersion 未満なら初回強制表示の対象。
     public int TutorialSeenVersion { get; set; } = 0;
+    // ボーナス月（賞与を受け取る月・1-12の集合。#134）。月次管理タブのボーナス入力欄の出し分け、
+    // 想定年収（#107）の見込みにのみ使用。実額（Ledger.Bonus）は別・過去はこの設定を変更しても不変。
+    public List<int> BonusMonths { get; set; } = new() { 6, 12 };
 }
 
 // ── カテゴリ ──────────────────────────────────────

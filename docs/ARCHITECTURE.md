@@ -188,20 +188,21 @@ C:\Development\moneyboard\
     StatsMath.cs              統計（グラフ）の純粋ロジック（SelectPeriodYms=期間選択。GraphPage が委譲・v1.3.3。NormalizeCategoryKey=カテゴリ別集計のグルーピングキー正規化・#117で追加）
     FixedCostPeriod.cs        固定費の有効期間 StartYm/EndYm の解析・組み立て・表示整形＋期限切れ判定（YearPart/MonthPart/ComposeYm/FmtBound/Summary/IsExpired/ParseBound。FixedCostTab が委譲・v1.3.3・IsExpiredは#100。ParseBound・Summary(FixedIncome)は#95で FixedCost/FixedIncome 共用に抽出）
     Portfolio.cs / PortfolioMath.cs  証券ポートフォリオのモデルと集計計算（Phase 3）。PortfolioMath に CostBasisJpyAsOf（指定日元本・円換算）/ YahooSymbol（日本株 .T 付与）を v1.3.3 で抽出。v2.1.0（issue #57）で PnlPct・DayChangePct・GroupValuationJpy を追加（テスト 118件）。issue #36 で BuildSnapshot（スナップショット構築）を追加（テスト 125件）
-  MoneyBoardShared.Tests\     ※ xUnit(net8.0)。LedgerMath / LedgerEngine / PortfolioMath / StatsMath / FixedCostPeriod / CardCsvParser / Ym / SchemaMigration / FixedCost / FixedIncome / AnnouncementMath のユニットテスト（計206・`dotnet test`／カバレッジは `--collect:"XPlat Code Coverage"`）
+    BonusSchedule.cs          ボーナス月（賞与を受け取る月の集合）の判定・正規化（Normalize/IsBonusMonth/ShouldShowBonusInput）。月次管理タブのボーナス入力欄の出し分けに使用（#134）
+  MoneyBoardShared.Tests\     ※ xUnit(net8.0)。LedgerMath / LedgerEngine / PortfolioMath / StatsMath / FixedCostPeriod / CardCsvParser / Ym / SchemaMigration / FixedCost / FixedIncome / AnnouncementMath / BonusSchedule のユニットテスト（計235・`dotnet test`／カバレッジは `--collect:"XPlat Code Coverage"`）
 ```
 
 ### MoneyBoardShared の憲章（役割定義）
 - **= フロント(Blazor WASM)／バック(Functions API) の共有ライブラリ。**「Shared＝契約だけ」ではなく **契約＋純粋ドメインロジック** を載せる場と定義する（命名は据え置き）。
   - **共通の契約・モデル**（`Models` / `StorageContracts`）… **API も使用**。
-  - **UI/永続化に依存しない純粋ドメインロジック**（`LedgerMath` / `LedgerEngine` / `PortfolioMath` / `StatsMath` / `FixedCostPeriod` / `CardCsvParser` / `SchemaMigration` / `Ym`）… **現状フロント専用だが**「純粋＝テスト可能」な置き場としてここに集約。`MoneyBoardShared.Tests` から検証する。razor から純粋ロジックを抽出するときはここに足し、薄いラッパーで委譲する（v1.3.3 で StatsMath/FixedCostPeriod/PortfolioMath.CostBasisJpyAsOf 等を追加）。
+  - **UI/永続化に依存しない純粋ドメインロジック**（`LedgerMath` / `LedgerEngine` / `PortfolioMath` / `StatsMath` / `FixedCostPeriod` / `CardCsvParser` / `SchemaMigration` / `Ym` / `BonusSchedule`）… **現状フロント専用だが**「純粋＝テスト可能」な置き場としてここに集約。`MoneyBoardShared.Tests` から検証する。razor から純粋ロジックを抽出するときはここに足し、薄いラッパーで委譲する（v1.3.3 で StatsMath/FixedCostPeriod/PortfolioMath.CostBasisJpyAsOf 等を追加）。
 - **持ち込まない**：UI(Razor)・JS interop・HTTP・Cosmos など外部依存。これらは各プロジェクト側に置く。
 - 経緯：テスト可能化のため `LedgerService`(フロント) の純粋部分を `LedgerEngine` として切り出した。既に `LedgerMath`/`PortfolioMath` 等の純粋ロジックが Shared にあった慣例に沿った判断（同憲章は `MoneyBoardShared.csproj` 冒頭コメントにも記載）。
 
 ### テスト方針
 - **対象＝自動テスト可能な純粋ロジック**。**API の CRUD/認証は Cosmos オーケストレーションのため対象外**（結合テスト領域・ROI低）。Blazor UI も自動化困難で対象外。
 - **テストプロジェクトは2つ**（いずれも xUnit・net8.0）：
-  - `MoneyBoardShared.Tests`：`LedgerMath` / `LedgerEngine`（残高連鎖・ExpandCards・重複除外・支出/収入固定費）/ `PortfolioMath`（集計・Valuation・CostBasisJpyAsOf・YahooSymbol・PnlPct・DayChangePct・GroupValuationJpy・BuildSnapshot）/ `StatsMath`（期間選択）/ `FixedCostPeriod`（年月の解析・整形。IsExpired/Summaryは FixedCost/FixedIncome 両対応） / `CardCsvParser` / `Ym` / `SchemaMigration`（v4＝CategoryRules正規化統合含む） / `FixedCost` / `FixedIncome`（収入固定費・#95） / `AnnouncementMath`（未読判定・#38）（計**206**・v1.3.3 で 63→102・v2.1.0 で 102→118・issue #36 で 118→125・#27 で 125→130・#38 で 168→178・（間の #100 等の増分を経て）183・#95 で 183→206）。
+  - `MoneyBoardShared.Tests`：`LedgerMath` / `LedgerEngine`（残高連鎖・ExpandCards・重複除外・支出/収入固定費）/ `PortfolioMath`（集計・Valuation・CostBasisJpyAsOf・YahooSymbol・PnlPct・DayChangePct・GroupValuationJpy・BuildSnapshot）/ `StatsMath`（期間選択）/ `FixedCostPeriod`（年月の解析・整形。IsExpired/Summaryは FixedCost/FixedIncome 両対応） / `CardCsvParser` / `Ym` / `SchemaMigration`（v4＝CategoryRules正規化統合含む） / `FixedCost` / `FixedIncome`（収入固定費・#95） / `AnnouncementMath`（未読判定・#38） / `BonusSchedule`（ボーナス月判定・#134）（計**235**・v1.3.3 で 63→102・v2.1.0 で 102→118・issue #36 で 118→125・#27 で 125→130・#38 で 168→178・（間の #100 等の増分を経て）183・#95 で 183→206・#134 で 206→235）。
   - `MoneyBoardApi.Tests`：API の**純粋ロジックのみ**（計36・#54 で 20→26・#27 で 26→35・#95 で 35→36）。`DataApi.IsStructurallyValid`（保存前データ健全性ガード）／価格パーサ `ParseYahooQuote`・`ParseFundCsv`（取得=HTTPと分離した解析部）／`ParseCardImageResponse`（スクショAI応答JSON→CardDetail[]・日付正規化/金額/不正行スキップ）／`ParseCategoryClassifyResponse`（利用先一括分類AI応答JSON→Dictionary<store,categoryId>・null/存在しないID/でっち上げ店名除外・要求店名へ NormalizeStore で突き合わせ表記ゆれ吸収）／`IsAuthorizedSharedSecret`（共有シークレット照合・定数時間比較）。テストのため対象は `internal static`＋`InternalsVisibleTo("MoneyBoardApi.Tests")`。
 - **カバレッジ**：`--collect:"XPlat Code Coverage"`（coverlet）。ロジック層は行/分岐とも高水準（LedgerMath/SchemaMigration=100% など）。DTO/モデルやCRUD/HTTP部は対象外のため class 全体の数値は薄く出る点に注意（=想定どおり）。**カバレッジ100%でもバグ不在の証明ではない**点は前提として共有。
 - **CI**：`.github/workflows/dotnet-test.yml` が dev push / main への PR で**両テストプロジェクト**を `dotnet test`（カバレッジ収集）。main への PR で「必須チェック」に設定すればマージゲートになる（要：Settings→Branches の保護ルール）。
@@ -219,11 +220,12 @@ AppState
   ├─ List<Card> Cards
   ├─ Dictionary<string,string> CategoryRules        // 店名 → categoryId（完全一致の自動分類ルール）
   ├─ Dictionary<string,string> CategoryPrefixRules  // 店名の前方一致(prefix) → categoryId（#70）
-  └─ Dictionary<string, MonthData> Months  // key: "yyyyMM"
+  ├─ Dictionary<string, MonthData> Months  // key: "yyyyMM"
+  └─ List<int> BonusMonths  // ボーナス月（1-12・既定{6,12}）。月次のボーナス欄出し分け・想定年収の見込みにのみ使用（#134）
 
 Account
   ├─ Id, Name, AccountNumber  // AccountNumber は UI 廃止（モデルのみ残置）
-  ├─ SortOrder, IsDeleted, IsBonusAccount
+  ├─ SortOrder, IsDeleted, IsBonusAccount  // IsBonusAccount＝現在の受取口座（1つのみ）。BonusMonthsとは直交（どこに／いつ）
 
 FixedCost
   ├─ Id, Name, AccountId, Amount
@@ -271,6 +273,7 @@ Transfer
 ### 月初残高（OpeningOf）／月末残高（CloseOf）
 - **月初残高は前月末から自動連鎖**（`OpeningOf`）。手入力は廃止し、**起点月（前月の同口座台帳が無い最古月）の「開始残高」(`Confirmed`)のみ**入力する。過去月を直すと将来月の月初・末残高が自動追従する。
 - 月末残高 `CloseOf` ＝ `月初残高 + 給料 + ボーナス + 臨時収入合計 + ATM入金 − 支出(Debits)合計 − ATM出金 ± 送金`。計算式は `LedgerMath.Close`（実行時と移行で共有）。
+- **ボーナスは記録済み `Ledger.Bonus` を受取口座フラグ(`IsBonusAccount`)に依らず常に計上する**（過去凍結・#134）。受取口座を変更しても、旧口座に記録済みの過去ボーナスは旧口座の過去残高から外れない。表示（入力欄の出し分け）は別ロジック `BonusSchedule` が担い、残高計算とは独立。
 - ドリフト補正は残高の手上書きではなく、収入/支出に調整行を足す運用に統一。
 - ATM・臨時収入も実際の口座残高を増減させる（残高グラフ②に反映）。**ただし ATM は統計の収入/支出集計からは除外**（専用フィールドのため Debits.Sum 集計に入らない）。
 
@@ -336,6 +339,7 @@ Transfer
 | 収入の固定費（`FixedIncome`。支出の `FixedCost` の収入版。「金額固定」＝毎月 `Amount` を自動計上、「金額未固定」（`IsVariable`。例：売電収入）＝項目のみ自動展開し `Amount` は使わず毎月0から月次管理タブで手入力して確定（`IncomeItem.AmountOverridden` で当月分のみ保護、翌月以降は毎月あらためて0からの手入力を求める＝変動費 `FixedCost.IsVariable` とは既定値の扱いが異なる）。固定費設定タブに併設し、口座フィルター（Excel風）・期限切れ折りたたみグループ化・D&D/▲▼並び替え・追加ダイアログは支出の固定費と同挙動を踏襲（ボーナス払いのみ収入側に対応概念が無く対象外）。SchemaMigration v7→v8） | ✅ 完了（dev・リリース待ち・#95） |
 | マイページの固定費カード分割（`FixedIncomeTab.razor` を `FixedCostTab.razor` から分離。#95 で同居していた固定費（支出）・（収入）を独立カード化し、PC グリッドの1段目＝口座・カード・カードカテゴリ（3列）、以降＝固定費（支出）・固定費（収入）を各 `.mypage-grid-full` で全幅・各1行に配置（カード内一覧は3列へ拡張）。スマホはマイページ折りたたみを「固定費（支出）」「固定費（収入）」の2セクションに分割） | ✅ 完了（dev・リリース待ち・#125） |
 | チュートリアル基盤（コーチマーク基盤＝対象DOM要素のスポットライト＋吹き出し、モーダル図解基盤＝タブ切替＋ステップ送り。`AppState.TutorialSeenVersion` で既読をサーバー保存し初回のみ強制表示）＋PWA追加方法チュートリアル（iOS/Android/PCの3パターンをタブで切替。基盤の初回PoC） | ✅ 完了（dev・リリース待ち・#111） |
+| ボーナス月設定（マイページの口座設定に `AppState.BonusMonths`（1-12の集合・既定{6,12}）を追加。変更時はダイアログで注意喚起（今月以降反映・過去凍結）。月次管理タブのボーナス入力欄は①現受取口座かつボーナス月／②口座問わず実額記録済み／③「＋ボーナスを追加」で手動追加、のいずれかで表示（`BonusSchedule`）。あわせて受取口座変更時に旧口座の過去ボーナスが残高から外れていた既存挙動を修正（`LedgerMath.Close` は記録済み `Bonus` を受取口座フラグに依らず常に計上）。SchemaMigration v9→v10） | ✅ 完了（dev・リリース待ち・#134） |
 
 ---
 

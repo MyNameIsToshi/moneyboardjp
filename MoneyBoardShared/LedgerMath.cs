@@ -6,13 +6,14 @@ namespace MoneyBoardShared;
 /// </summary>
 public static class LedgerMath
 {
-    /// <summary>月末残高 = 月初残高 + 給料 + ボーナス(受取口座のみ) + 臨時収入 + ATM入金
-    /// - 支出合計 - ATM出金 ± 振替。</summary>
-    public static decimal Close(MonthData mo, string accountId, decimal opening, bool isBonusAccount)
+    /// <summary>月末残高 = 月初残高 + 給料 + ボーナス + 臨時収入 + ATM入金
+    /// - 支出合計 - ATM出金 ± 振替。
+    /// ボーナスは記録済みの Ledger.Bonus をそのまま計上する（受取口座フラグには依らない＝過去凍結。#134）。
+    /// 受取口座を変更しても、旧口座に記録済みの過去ボーナスは旧口座の過去残高に計上され続ける。</summary>
+    public static decimal Close(MonthData mo, string accountId, decimal opening)
     {
         if (!mo.Ledgers.TryGetValue(accountId, out var l)) return 0;
-        decimal bonus = isBonusAccount ? l.Bonus : 0;
-        decimal v = opening + l.Salary + bonus + l.Incomes.Sum(i => i.Amount) + l.AtmDeposit
+        decimal v = opening + l.Salary + l.Bonus + l.Incomes.Sum(i => i.Amount) + l.AtmDeposit
                     - l.Debits.Sum(d => d.Amount) - l.AtmWithdraw;
         foreach (var t in mo.Transfers)
         {

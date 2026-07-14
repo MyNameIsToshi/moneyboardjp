@@ -16,7 +16,7 @@ public class LedgerMathTests
     public void Close_NoLedgerForAccount_ReturnsZero()
     {
         var mo = new MonthData();
-        Assert.Equal(0m, LedgerMath.Close(mo, "acct", opening: 1000m, isBonusAccount: false));
+        Assert.Equal(0m, LedgerMath.Close(mo, "acct", opening: 1000m));
     }
 
     [Fact]
@@ -28,17 +28,18 @@ public class LedgerMathTests
         var mo = OneLedger("a", l);
 
         // 100,000 + 300,000 - 70,000
-        Assert.Equal(330_000m, LedgerMath.Close(mo, "a", opening: 100_000m, isBonusAccount: false));
+        Assert.Equal(330_000m, LedgerMath.Close(mo, "a", opening: 100_000m));
     }
 
     [Fact]
-    public void Close_BonusCountedOnlyForBonusAccount()
+    public void Close_BonusAlwaysCountedRegardlessOfBonusAccountFlag()
     {
+        // #134: 受取口座変更時に旧口座の記録済みボーナスが残高から外れないよう、
+        // Close はフラグに依らず記録済み Bonus を常に計上する（過去凍結）。
         var l = new Ledger { Bonus = 500_000m };
         var mo = OneLedger("a", l);
 
-        Assert.Equal(0m, LedgerMath.Close(mo, "a", opening: 0m, isBonusAccount: false));
-        Assert.Equal(500_000m, LedgerMath.Close(mo, "a", opening: 0m, isBonusAccount: true));
+        Assert.Equal(500_000m, LedgerMath.Close(mo, "a", opening: 0m));
     }
 
     [Fact]
@@ -50,7 +51,7 @@ public class LedgerMathTests
         var mo = OneLedger("a", l);
 
         // 0 + 5,000(incomes) + 10,000 - 4,000
-        Assert.Equal(11_000m, LedgerMath.Close(mo, "a", opening: 0m, isBonusAccount: false));
+        Assert.Equal(11_000m, LedgerMath.Close(mo, "a", opening: 0m));
     }
 
     [Fact]
@@ -60,6 +61,6 @@ public class LedgerMathTests
         mo.Transfers.Add(new Transfer { From = "b", To = "a", Amount = 7_000m });   // a に入る
         mo.Transfers.Add(new Transfer { From = "a", To = "c", Amount = 2_000m });   // a から出る
 
-        Assert.Equal(5_000m, LedgerMath.Close(mo, "a", opening: 0m, isBonusAccount: false));
+        Assert.Equal(5_000m, LedgerMath.Close(mo, "a", opening: 0m));
     }
 }

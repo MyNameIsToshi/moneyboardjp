@@ -34,8 +34,7 @@ public static class LedgerEngine
     {
         if (!state.Months.TryGetValue(ym, out var mo)) return 0;
         if (!mo.Ledgers.ContainsKey(accountId)) return 0;
-        var account = state.Accounts.FirstOrDefault(a => a.Id == accountId);
-        return LedgerMath.Close(mo, accountId, OpeningOf(state, ym, accountId), account?.IsBonusAccount == true);
+        return LedgerMath.Close(mo, accountId, OpeningOf(state, ym, accountId));
     }
 
     // ── カード明細 → 月次 Debit 反映 ──────────────────

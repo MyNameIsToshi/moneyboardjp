@@ -22,7 +22,9 @@ public static class SchemaMigration
     //     追加のみで移行不要。
     // v9: チュートリアル既読管理（#111）。AppState.TutorialSeenVersion を追加。安全な default（0）を持つ
     //     加算的なフィールド追加のみで移行不要。
-    public const int CurrentVersion = 9;
+    // v10: ボーナス月設定（#134）。AppState.BonusMonths を追加。安全な default（{6,12}）を持つ
+    //      加算的なフィールド追加のみで移行不要。
+    public const int CurrentVersion = 10;
 
     /// <summary>最新スキーマへ移行する。実際に変更が発生した場合のみ true を返す（=保存が必要）。</summary>
     public static bool Apply(AppState state)

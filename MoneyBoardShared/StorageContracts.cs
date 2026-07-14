@@ -24,6 +24,7 @@ public class SettingsPart
     public Dictionary<string, string> CategoryRules { get; set; } = new();
     public Dictionary<string, string> CategoryPrefixRules { get; set; } = new();
     public int TutorialSeenVersion { get; set; } = 0;
+    public List<int> BonusMonths { get; set; } = new() { 6, 12 };
 }
 
 /// <summary>月次ドキュメントに対応するパート。</summary>
