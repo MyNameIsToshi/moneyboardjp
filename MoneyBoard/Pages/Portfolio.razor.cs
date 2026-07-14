@@ -194,8 +194,8 @@ public partial class Portfolio
 
     // ドーナツ設定（中央に総資産 total・万単位／凡例は一覧へ集約しOFF／白2pxストロークでスライスを分離）。
     // クラス別・銘柄別で Colors が異なるため別インスタンス（PC は両方を同時描画する）。
-    // IsMasked 変化時は RebuildDonutOptions() で差し替えるため readonly を外す。
-    private int _donutRev;
+    // IsMasked 変化時は RebuildChartOptions() で差し替えるため readonly を外す（推移の折れ線も同様）。
+    private int _maskRev;   // マスク切替のたびにインクリメント → 各チャート @key に含めて強制再生成
     private bool _prevMasked;
 
     private ApexChartOptions<SpendSlice> NewCompDonut() => new()
@@ -245,13 +245,25 @@ public partial class Portfolio
         CompDonutHoldingOpt = NewCompDonut();
         if (clsColors != null) CompDonutClassOpt.Colors = clsColors;
         if (holdColors != null) CompDonutHoldingOpt.Colors = holdColors;
-        _donutRev++;
+    }
+
+    private void RebuildLineOptions()
+    {
+        AssetLineOpt = NewDateLineOpt();
+        PnlLineOpt = NewLineOpt();
+    }
+
+    private void RebuildChartOptions()
+    {
+        RebuildDonutOptions();
+        RebuildLineOptions();
+        _maskRev++;
     }
 
     protected override void OnInitialized()
     {
-        RebuildDonutOptions();
-        _donutRev = 0;
+        RebuildChartOptions();
+        _maskRev = 0;
     }
 
     protected override void OnParametersSet()
@@ -259,7 +271,7 @@ public partial class Portfolio
         if (IsMasked != _prevMasked)
         {
             _prevMasked = IsMasked;
-            RebuildDonutOptions();
+            RebuildChartOptions();
         }
     }
 
@@ -369,15 +381,19 @@ public partial class Portfolio
     };
     private void SetTrendPeriod(string p) { _trendPeriod = p; BuildTimeSeries(); }
 
+    // 折れ線の軸・Tooltip 用フォーマッタ（マスク時は ¥****。家計簿 GraphPage.razor.cs の YFmt/YTip と同流儀）。
+    private string LineYFmt => IsMasked ? "function(v){return '¥****'}" : "function(v){return '¥'+Math.round(v).toLocaleString()}";
+
     // 折れ線設定（家計簿の NewLineOptions と同流儀）。チャートごとに専用インスタンス。
-    private static ApexChartOptions<ChartPoint> NewLineOpt() => new()
+    private ApexChartOptions<ChartPoint> NewLineOpt() => new()
     {
         Chart = new Chart { Height = 220, Toolbar = new Toolbar { Show = false } },
         Stroke = new Stroke { Curve = Curve.Smooth },
-        Yaxis = new List<YAxis> { new YAxis { Labels = new YAxisLabels { Formatter = "function(v){return '¥'+Math.round(v).toLocaleString()}" } } }
+        Tooltip = new Tooltip { Y = new TooltipY { Formatter = LineYFmt } },
+        Yaxis = new List<YAxis> { new YAxis { Labels = new YAxisLabels { Formatter = LineYFmt } } }
     };
     // 総資産・元本は実日付で重ねるため日時軸（総資産=今日以降／元本=全期間でも時間軸で正しく整列）。軸ラベルは yy/MM。
-    private static ApexChartOptions<ChartPoint> NewDateLineOpt()
+    private ApexChartOptions<ChartPoint> NewDateLineOpt()
     {
         var o = NewLineOpt();
         o.Xaxis = new XAxis
@@ -387,8 +403,8 @@ public partial class Portfolio
         };
         return o;
     }
-    private readonly ApexChartOptions<ChartPoint> AssetLineOpt = NewDateLineOpt();
-    private readonly ApexChartOptions<ChartPoint> PnlLineOpt = NewLineOpt();
+    private ApexChartOptions<ChartPoint> AssetLineOpt = default!;
+    private ApexChartOptions<ChartPoint> PnlLineOpt = default!;
 
     // スナップショットの "yyyy-MM-dd HH:mm" → 軸ラベル "M/d"
     private static string SnapLabel(string at) =>

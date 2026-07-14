@@ -194,6 +194,7 @@
 .set-chip.c-category { background: #fbeede; color: #b86a18; }
 .set-chip.c-fixed    { background: #f3ece1; color: #9a6b2e; }
 .set-chip.c-access   { background: #eef1f7; color: var(--accent); }
+.set-chip.c-help     { background: rgba(31, 58, 95, .08); color: var(--accent); } /* navy(--accent)淡。新色は足さず既存トークンで統一（お知らせ#38の.ann-badge-newと同じ配色） */
 
 .set-title {
   font-size: 15.5px;

@@ -58,6 +58,24 @@ public class StatsMathTests
     }
 
     [Fact]
+    public void SelectPeriodYms_Numeric_ExcludesFutureMonthsBeyondCurrentYm()
+    {
+        // 固定費先行展開等で未来月(2026-06)が既に存在していても、
+        // 直近3ヶ月は当月サイクル(currentYm=2026-05)までに限定する(#119)。
+        var r = StatsMath.SelectPeriodYms(Yms, "3", "", "", "2026-05");
+        Assert.Equal(new[] { "2026-03", "2026-04", "2026-05" }, r);
+        Assert.DoesNotContain("2026-06", r);
+    }
+
+    [Fact]
+    public void SelectPeriodYms_Numeric_CurrentYmNull_KeepsIncludingLatestMonth()
+    {
+        // currentYm 未指定時は従来どおり全件を対象に TakeLast する
+        var r = StatsMath.SelectPeriodYms(Yms, "3", "", "", null);
+        Assert.Equal(new[] { "2026-04", "2026-05", "2026-06" }, r);
+    }
+
+    [Fact]
     public void SelectPeriodYms_Custom_InclusiveRange()
     {
         var r = StatsMath.SelectPeriodYms(Yms, "custom", "2026-02", "2026-04");

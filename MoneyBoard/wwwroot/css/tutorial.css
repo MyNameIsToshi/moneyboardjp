@@ -1,0 +1,340 @@
+/* =====================================================
+   チュートリアル基盤（コーチマーク / モーダル図解・#111）
+   ===================================================== */
+
+/* ── コーチマーク（CoachMark.razor） ── */
+.coach-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 320;
+}
+
+.coach-spotlight {
+  position: fixed;
+  border-radius: 14px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, .6);
+  pointer-events: none;
+  transition: top .2s, left .2s, width .2s, height .2s;
+}
+
+/* 対象要素の輪郭を脈動させて視線を誘導する（アセット不要のCSSのみのアニメーション）。 */
+.coach-spotlight::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 0 0 rgba(255, 255, 255, .55);
+  animation: coach-pulse 1.6s ease-out infinite;
+}
+
+@keyframes coach-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, .55); }
+  100% { box-shadow: 0 0 0 10px rgba(255, 255, 255, 0); }
+}
+
+.coach-tip {
+  position: fixed;
+  background: var(--card);
+  border-radius: var(--r);
+  padding: 14px 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, .25);
+  cursor: default;
+  animation: tut-pop-in .25s ease-out;
+}
+
+.coach-tip-title {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.coach-tip-body {
+  font-size: 12.8px;
+  color: var(--sub);
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+
+.coach-tip-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.coach-skip {
+  border: none;
+  background: none;
+  color: var(--sub);
+  font-size: 12.5px;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.coach-skip:hover {
+  color: var(--ink);
+}
+
+/* ── 共通アニメーション（アセット不要・CSSのみ） ── */
+@keyframes tut-pop-in {
+  0% { opacity: 0; transform: scale(.92); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes tut-fade-slide-up {
+  0% { opacity: 0; transform: translateY(6px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+/* .tut-modal-body（overflow-y:auto）の内側で使う不透明度のみのフェード。translateY を伴う
+   アニメーションは、モダンブラウザではスクロール可能領域の計算に transform 後の位置も含まれるため、
+   overflow:auto の内側で使うと一瞬だけスクロールバーが出てガタつく（#111 実機フィードバックで修正）。 */
+@keyframes tut-fade-in {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+/* ── モーダル図解（TutorialModal.razor） ── */
+.tut-modal-box {
+  max-width: 480px;
+  max-height: 85vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: tut-pop-in .22s ease-out;
+}
+
+.tut-modal-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.tut-modal-head h4 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.tut-tabs {
+  flex: none;
+  display: flex;
+  gap: 2px;
+  background: #f4f1ea;
+  border-radius: 9px;
+  padding: 3px;
+  margin-bottom: 14px;
+}
+
+.tut-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--sub);
+  font-size: 12.5px;
+  padding: 7px 6px;
+  border-radius: 7px;
+  transition: background .15s, color .15s, box-shadow .15s;
+}
+
+.tut-tab .msym {
+  font-size: 16px;
+}
+
+.tut-tab.active {
+  background: #fff;
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .06);
+}
+
+.tut-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.tut-modal-btns {
+  flex: none;
+  justify-content: space-between;
+}
+
+.tut-modal-nav {
+  display: flex;
+  gap: 8px;
+}
+
+/* 戻る/次へ（tut-modal-nav）を出さないとき（例: PWA追加方法＝タブのみ・ShowStepNav=false）は、
+   space-between だと「閉じる」1個が左端に寄ってしまうため、他ダイアログ（.dialog-btns=flex-end）と
+   揃えて右寄せにする（#111）。 */
+.tut-modal-btns.tut-btns-end {
+  justify-content: flex-end;
+}
+
+.tut-lead {
+  font-size: 13px;
+  color: var(--sub);
+  margin: 0 0 14px;
+}
+
+/* ── 追加すると何が起こるか（メリット・全タブ共通で手順の前に表示） ── */
+.tut-benefits {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.tut-benefit {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  opacity: 0;
+  animation: tut-fade-in .3s ease-out forwards;
+}
+
+.tut-benefit:nth-child(1) { animation-delay: .05s; }
+.tut-benefit:nth-child(2) { animation-delay: .15s; }
+.tut-benefit:nth-child(3) { animation-delay: .25s; }
+
+.tut-benefit .msym {
+  font-size: 20px;
+  color: var(--accent);
+  justify-self: center;
+}
+
+.tut-divider {
+  border: none;
+  border-top: 1px solid var(--line);
+  margin: 0 0 16px;
+}
+
+/* OS別パネル（PwaTutorialModal.razor）：3枚とも同じグリッドセルに重ねて常時レイアウトすることで、
+   一番縦長のパネル（iPhone/iPadの手順＋注記）にコンテナの高さが自動で揃う。タブを切り替えても
+   ダイアログの縦サイズが変わらないようにするための方式（#111 実機フィードバック。JS計測・固定px
+   のマジックナンバーは使わず、レイアウトだけで解決する）。 */
+.tut-steps-stack {
+  display: grid;
+}
+
+.tut-steps-panel {
+  grid-area: 1 / 1;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .18s ease-out;
+}
+
+.tut-steps-panel.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.tut-steps {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 0 12px;
+  padding: 0;
+  counter-reset: tut-step;
+}
+
+.tut-steps li {
+  counter-increment: tut-step;
+  display: grid;
+  grid-template-columns: auto 28px 1fr;
+  align-items: center;
+  gap: 10px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  opacity: 0;
+  animation: tut-fade-in .3s ease-out forwards;
+}
+
+.tut-steps li:nth-child(1) { animation-delay: .08s; }
+.tut-steps li:nth-child(2) { animation-delay: .18s; }
+.tut-steps li:nth-child(3) { animation-delay: .28s; }
+
+.tut-steps li::before {
+  content: counter(tut-step);
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: tut-pop-in .3s ease-out backwards;
+  animation-delay: inherit;
+}
+
+.tut-step-ico {
+  font-size: 22px;
+  color: var(--accent);
+  justify-self: center;
+}
+
+.tut-note {
+  font-size: 12px;
+  color: var(--sub);
+  background: var(--paper);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 0;
+}
+
+/* ── マイページの再表示ボタン ── */
+.mph-tutorial-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: 1px solid var(--line);
+  background: var(--card);
+  border-radius: var(--r);
+  padding: 12px 14px;
+  font-size: 13.5px;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.mph-tutorial-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.mph-tutorial-btn .msym {
+  font-size: 18px;
+  color: var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .coach-spotlight::after,
+  .coach-tip,
+  .tut-modal-box,
+  .tut-benefit,
+  .tut-steps li,
+  .tut-steps li::before {
+    animation: none;
+    opacity: 1;
+  }
+
+  /* .tut-steps-panel の opacity はアクティブ/非アクティブの表示切替に使っているため
+     一律 opacity:1 にはしない（3枚のOSパネルが重なって見えてしまう）。切替の transition だけ止める。 */
+  .tut-steps-panel {
+    transition: none;
+  }
+}

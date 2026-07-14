@@ -1,0 +1,98 @@
+@inject IJSRuntime JS
+
+@* コーチマーク基盤（#111）：対象DOM要素（Selector）をスポットライトで示し、吹き出しで説明する。
+   MainLayout の app-shell 直下（お知らせダイアログと同じ階層）でレンダーし、sidenav の position:sticky
+   が作る重ね合わせコンテキストの影響を受けないようにする。
+   背景クリックでは閉じない（誤操作で読み終える前に閉じてしまうのを防ぐ・#111 実機フィードバック）。
+   閉じるにはスキップ／次への明示操作を必須にする。 *@
+@if (_rect is not null)
+{
+    <div class="coach-overlay">
+        <div class="coach-spotlight" style="@SpotlightStyle"></div>
+        <div class="coach-tip @(_tipBelow ? "tip-below" : "tip-above")" style="@TipStyle">
+            <div class="coach-tip-title">@Title</div>
+            <div class="coach-tip-body">@Body</div>
+            <div class="coach-tip-actions">
+                <button class="coach-skip" @onclick="Skip">スキップ</button>
+                <button class="btn primary" @onclick="Next">@NextLabel</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string Selector { get; set; } = "";
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public string Body { get; set; } = "";
+    [Parameter] public string NextLabel { get; set; } = "次へ";
+    [Parameter] public EventCallback OnNext { get; set; }
+    [Parameter] public EventCallback OnSkip { get; set; }
+
+    private sealed class Rect
+    {
+        public double Top { get; set; }
+        public double Left { get; set; }
+        public double Width { get; set; }
+        public double Height { get; set; }
+        public double ViewportWidth { get; set; }
+        public double ViewportHeight { get; set; }
+    }
+
+    private Rect? _rect;
+    private bool _tipBelow;
+    private string _measuredSelector = "";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Selector == _measuredSelector) return;
+        _measuredSelector = Selector;
+        if (string.IsNullOrEmpty(Selector)) { _rect = null; return; }
+
+        try { _rect = await JS.InvokeAsync<Rect?>("moneyboardTutorial.getRect", Selector); }
+        catch { _rect = null; }
+
+        if (_rect is not null)
+        {
+            // 対象が画面下半分（例: スマホ下部バー）なら吹き出しは上に、上半分ならは下に出す。
+            _tipBelow = _rect.Top < _rect.ViewportHeight / 2;
+            StateHasChanged();
+        }
+    }
+
+    // スポットライト＝対象要素の外接矩形に余白を足した「穴」。box-shadow の外側全面を暗転させる。
+    private string SpotlightStyle
+    {
+        get
+        {
+            if (_rect is null) return "";
+            const double pad = 8;
+            return $"top:{_rect.Top - pad:0}px;left:{_rect.Left - pad:0}px;" +
+                   $"width:{_rect.Width + pad * 2:0}px;height:{_rect.Height + pad * 2:0}px;";
+        }
+    }
+
+    private const double TipWidth = 280;
+    private const double Margin = 12;
+
+    private string TipStyle
+    {
+        get
+        {
+            if (_rect is null) return "";
+            var left = Math.Clamp(_rect.Left, Margin, Math.Max(Margin, _rect.ViewportWidth - TipWidth - Margin));
+            if (_tipBelow)
+            {
+                var top = _rect.Top + _rect.Height + 16;
+                return $"top:{top:0}px;left:{left:0}px;width:{TipWidth:0}px;";
+            }
+            else
+            {
+                var bottom = _rect.ViewportHeight - _rect.Top + 16;
+                return $"bottom:{bottom:0}px;left:{left:0}px;width:{TipWidth:0}px;";
+            }
+        }
+    }
+
+    private Task Next() => OnNext.InvokeAsync();
+    private Task Skip() => OnSkip.InvokeAsync();
+}

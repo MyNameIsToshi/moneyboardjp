@@ -2,6 +2,8 @@
 @inject ViewportService Viewport
 @inject AmountMaskService MaskSvc
 @inject AnnouncementService AnnounceSvc
+@inject TutorialService TutorialSvc
+@inject AppUpdateService AppUpdateSvc
 @inject NavigationManager Nav
 @inject IJSRuntime JS
 @inject LedgerService Svc
@@ -36,6 +38,33 @@
     {
         <AnnouncementWhatsNewDialog Items="AnnounceSvc.UnreadItems" OnClose="() => AnnounceSvc.DismissWhatsNewAsync()" />
     }
+
+    @* チュートリアル（#111）：コーチマーク→モーダルの順で表示。マイページの？からはモーダル単独で開く。
+       お知らせ（強制オーバーレイ）表示中は描画しない：ロード順のレースでチュートリアルが先に立っても
+       お知らせを覆わず、また下部バー（mobile.css の :has(.dialog-overlay) で display:none になる測定対象）を
+       0矩形で測らないため。お知らせが閉じると OnAnnounceChanged→再描画でここが復帰し、CoachMark は再マウント
+       で測り直す（TutorialService.TriggerIfNeeded の一方向ガードだけでは塞げない逆順レースへの保険）。 *@
+    @if (TutorialSvc.ShowCoachMark && !AnnounceOverlayOpen)
+    {
+        <CoachMark Selector="#tutorial-target-mypage"
+                   Title="ここからいつでも見返せます"
+                   Body="チュートリアルや各種設定は「マイページ」からいつでも再表示できます。"
+                   OnNext="TutorialSvc.AdvanceFromCoachMark"
+                   OnSkip="TutorialSvc.CloseAsync" />
+    }
+    @if (TutorialSvc.ShowModal && !AnnounceOverlayOpen)
+    {
+        <PwaTutorialModal OnClose="TutorialSvc.CloseAsync" />
+    }
+
+    @* アプリ更新の事後通知（#86）。SWイベントに依存しないバージョン比較方式のため、強制リロードはしない。 *@
+    @if (AppUpdateSvc.UpdatedToVersion != null)
+    {
+        <div id="app-update-toast">
+            MoneyBoard を @AppUpdateSvc.UpdatedToVersion に更新しました
+            <button class="app-update-toast-close" @onclick="AppUpdateSvc.Dismiss" aria-label="閉じる"><span class="msym">close</span></button>
+        </div>
+    }
 </CascadingValue>
 </CascadingValue>
 
@@ -45,25 +74,42 @@
         Viewport.Changed += OnViewportChanged;
         MaskSvc.Changed += OnMaskChanged;
         AnnounceSvc.Changed += OnAnnounceChanged;
+        TutorialSvc.Changed += OnTutorialChanged;
+        AppUpdateSvc.Changed += OnAppUpdateChanged;
         Nav.LocationChanged += OnLocationChanged;
         await Viewport.InitAsync();
         await MaskSvc.InitAsync();
+        await AppUpdateSvc.InitAsync(AppVersionProvider.Current);
         StateHasChanged();
     }
 
     private void OnViewportChanged() => InvokeAsync(StateHasChanged);
     private void OnMaskChanged() => InvokeAsync(StateHasChanged);
-    private void OnAnnounceChanged() => InvokeAsync(StateHasChanged);
+    // お知らせ（What's New／一覧）が閉じたタイミングでチュートリアルの強制表示を再試行する
+    // （両者が同時に強制オーバーレイを出そうとする競合を避けるため。TutorialService.TriggerIfNeeded 参照）。
+    private void OnAnnounceChanged()
+    {
+        TutorialSvc.TriggerIfNeeded();
+        InvokeAsync(StateHasChanged);
+    }
 
-    // お知らせダイアログ表示中は背面スクロールをロック（Portfolio と同じ setBodyScrollLock パターン）。
-    private bool AnyAnnounceDialogOpen => AnnounceSvc.ShowList || AnnounceSvc.UnreadItems.Count > 0;
+    private void OnTutorialChanged() => InvokeAsync(StateHasChanged);
+    private void OnAppUpdateChanged() => InvokeAsync(StateHasChanged);
+
+    // お知らせ（一覧／What's New）の強制オーバーレイが出ているか。チュートリアルはこれが閉じるまで
+    // 描画を待つ（上の @if と TriggerIfNeeded のガードで、2つの強制オーバーレイを重ねない）。
+    private bool AnnounceOverlayOpen => AnnounceSvc.ShowList || AnnounceSvc.UnreadItems.Count > 0;
+
+    // お知らせ／チュートリアルのモーダル表示中は背面スクロールをロック（Portfolio と同じ setBodyScrollLock
+    // パターン）。コーチマークは対象（マイページの下部バー/サイドバー項目）を見せる必要があるためロックしない。
+    private bool AnyBlockingDialogOpen => AnnounceOverlayOpen || TutorialSvc.ShowModal;
     private bool _scrollLocked;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (AnyAnnounceDialogOpen != _scrollLocked)
+        if (AnyBlockingDialogOpen != _scrollLocked)
         {
-            _scrollLocked = AnyAnnounceDialogOpen;
+            _scrollLocked = AnyBlockingDialogOpen;
             await JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", _scrollLocked);
         }
     }
@@ -87,6 +133,8 @@
         Viewport.Changed -= OnViewportChanged;
         MaskSvc.Changed -= OnMaskChanged;
         AnnounceSvc.Changed -= OnAnnounceChanged;
+        TutorialSvc.Changed -= OnTutorialChanged;
+        AppUpdateSvc.Changed -= OnAppUpdateChanged;
         Nav.LocationChanged -= OnLocationChanged;
         // MainLayout自体は通常アプリ終了までDisposeされないが、ロックが残らないよう保険で解除。
         if (_scrollLocked) _ = JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", false);

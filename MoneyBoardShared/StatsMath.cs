@@ -6,7 +6,7 @@ public static class StatsMath
     /// <summary>
     /// 期間選択に応じて対象 ym（昇順）を絞り込む。allYmsAsc は昇順前提。
     /// period: "all"=全期間 / "current"=当月（給料サイクル起点、currentYm 一致分のみ） /
-    /// "custom"=[customStart, customEnd]（逆指定は自動入替え） / 数値文字列=直近Nヶ月。
+    /// "custom"=[customStart, customEnd]（逆指定は自動入替え） / 数値文字列=直近Nヶ月（currentYm 指定時は当月まで・未来月除外）。
     /// 該当なし・範囲外は空リスト。N が件数を超える場合は全件（TakeLast がクランプ）。
     /// </summary>
     public static List<string> SelectPeriodYms(
@@ -25,7 +25,12 @@ public static class StatsMath
             return allYmsAsc.Where(ym => string.CompareOrdinal(ym, s) >= 0 && string.CompareOrdinal(ym, e) <= 0).ToList();
         }
         int count = int.Parse(period);
-        return allYmsAsc.TakeLast(count).ToList();
+        // 直近Nヶ月も「当月まで」に限定する(#119)：固定費の先行展開等で未来月が
+        // 既に存在していても、統計のデフォルト表示には含めない。currentYm 未指定時は従来どおり全件対象。
+        var eligible = currentYm != null
+            ? allYmsAsc.Where(ym => string.CompareOrdinal(ym, currentYm) <= 0).ToList()
+            : allYmsAsc;
+        return eligible.TakeLast(count).ToList();
     }
 
     /// <summary>

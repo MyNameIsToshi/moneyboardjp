@@ -23,6 +23,8 @@ public class AppState
     // 変わる明細を共通の接頭辞でまとめて分類する（#70）。キーは NormalizeStore + ToLowerInvariant 済み。
     public Dictionary<string, string> CategoryPrefixRules { get; set; } = new();
     public Dictionary<string, MonthData> Months { get; set; } = new();
+    // チュートリアル既読版（#111）。TutorialMath.CurrentVersion 未満なら初回強制表示の対象。
+    public int TutorialSeenVersion { get; set; } = 0;
 }
 
 // ── カテゴリ ──────────────────────────────────────

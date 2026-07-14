@@ -51,6 +51,11 @@ function showUpdateToast(waitingWorker) {
     toast.querySelector('.pwa-update-reload').addEventListener('click', event => {
         event.preventDefault();
         updateRequested = true;
+        // このタブでの明示的な更新操作であることを、クリック時刻つきで記録する。直後の自タブ再読込で
+        // AppUpdateService（#86）の「vX.Y.Zに更新されました」事後通知と二重に出ないよう抑止するため。
+        // 時刻を持たせるのは、reloadが完了しなかった場合（タブを閉じた・iOSでcontrollerchangeが
+        // 発火しない等）にフラグが残り続け、無関係な将来の更新まで誤って抑止してしまうのを防ぐため。
+        try { localStorage.setItem('mb_pwa_manual_reload', Date.now().toString()); } catch (e) { /* ignore */ }
         waitingWorker.postMessage({ type: 'SKIP_WAITING' });
     });
 }

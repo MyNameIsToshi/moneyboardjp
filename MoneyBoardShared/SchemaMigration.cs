@@ -20,7 +20,9 @@ public static class SchemaMigration
     // v8: 収入の固定費（#95）。AppState.FixedIncomes・IncomeItem.IsFixed/IsVariable/AmountOverridden/
     //     FixedIncomeId を追加。いずれも安全な default（空リスト / false / null）を持つ加算的なフィールド
     //     追加のみで移行不要。
-    public const int CurrentVersion = 8;
+    // v9: チュートリアル既読管理（#111）。AppState.TutorialSeenVersion を追加。安全な default（0）を持つ
+    //     加算的なフィールド追加のみで移行不要。
+    public const int CurrentVersion = 9;
 
     /// <summary>最新スキーマへ移行する。実際に変更が発生した場合のみ true を返す（=保存が必要）。</summary>
     public static bool Apply(AppState state)
