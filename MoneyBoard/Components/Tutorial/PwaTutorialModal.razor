@@ -1,0 +1,84 @@
+@inject IJSRuntime JS
+
+@* PWA追加方法チュートリアル（#111・モーダル図解基盤のPoC）。ホーム画面への追加はOS/ブラウザの
+   操作であり実UI要素を指し示せないため、実スクショではなく手順アイコン＋番号で説明する
+   （ADR方針：ピクセルスクショは陳腐化しやすいため多用を避ける）。初期表示タブは UA判定
+   （`moneyboardTutorial.detectPlatform`）で自分のOSを既定選択するが、UAは偽装・誤判定が
+   ありうるため強制はせず、タブでいつでも手動選び直せる（#111 実機フィードバックで追加）。
+   タブは「並列の選択肢」（自分のOSを選ぶ）であり手順の連番ではないため、ShowStepNav=false で
+   次へ/戻るは出さない（#111 実機フィードバック：次へがあると「次のページへ進む」と誤解される）。
+   「ホーム画面に追加する」＝PWAという言葉自体をユーザーが知らない前提のため、手順の前に
+   「追加すると何が起こるか」（メリット）を全タブ共通で先に示す（#111 実機フィードバック）。 *@
+<TutorialModal Title="ホーム画面に追加する" Steps="Steps" ActiveIndex="_activeIndex"
+               ActiveIndexChanged="i => _activeIndex = i" OnClose="OnClose" ShowStepNav="false" Context="idx">
+    <div class="tut-benefits">
+        <div class="tut-benefit"><span class="msym">apps</span><span>ホーム画面にアイコンが追加され、アプリのように直接開けるようになります</span></div>
+        <div class="tut-benefit"><span class="msym">fullscreen</span><span>ブラウザのアドレスバーやメニューが表示されず、全画面のアプリのような見た目になります</span></div>
+        <div class="tut-benefit"><span class="msym">cloud_sync</span><span>データはこれまでどおりサーバーに保存されます。追加してもブラウザ版と分かれることはありません</span></div>
+    </div>
+    <hr class="tut-divider" />
+    @* 3枚とも常時レイアウトし（非アクティブは opacity:0 で重ねるだけ）、CSS Grid の同一セルに
+       置くことで一番縦長のOS（iPhone/iPadの手順＋注記）にコンテナの高さを自動で合わせる。
+       タブを切り替えてもダイアログの縦サイズが変わらないようにするための方式（#111 実機フィードバック）。 *@
+    @* 非アクティブのパネルは opacity:0 で重ねるだけなので、そのままだとスクリーンリーダーが3OS分の
+       手順を全部読み上げてしまう。aria-hidden で非アクティブ分をアクセシビリティツリーから除外する（#111）。 *@
+    <div class="tut-steps-stack">
+        <div class="tut-steps-panel @(idx == 0 ? "active" : "")" aria-hidden="@(idx != 0 ? "true" : "false")">@IosContent</div>
+        <div class="tut-steps-panel @(idx == 1 ? "active" : "")" aria-hidden="@(idx != 1 ? "true" : "false")">@AndroidContent</div>
+        <div class="tut-steps-panel @(idx == 2 ? "active" : "")" aria-hidden="@(idx != 2 ? "true" : "false")">@PcContent</div>
+    </div>
+</TutorialModal>
+
+@code {
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private int _activeIndex;
+
+    private static readonly IReadOnlyList<TutorialStepMeta> Steps = new List<TutorialStepMeta>
+    {
+        new("iPhone / iPad", "phone_iphone"),
+        new("Android", "smartphone"),
+        new("PC", "computer"),
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var platform = await JS.InvokeAsync<string>("moneyboardTutorial.detectPlatform");
+            _activeIndex = platform switch { "ios" => 0, "android" => 1, _ => 2 };
+        }
+        catch { /* JS 未準備時は既定の iPhone/iPad タブのまま */ }
+    }
+
+    private RenderFragment IosContent => __builder =>
+    {
+        <p class="tut-lead">Safari で MoneyBoard を開いている状態で、以下の手順を行ってください。</p>
+        <ol class="tut-steps">
+            <li><span class="tut-step-ico msym">ios_share</span><span>画面下部（iPadは上部）の「共有」アイコンをタップ</span></li>
+            <li><span class="tut-step-ico msym">add_box</span><span>メニューから「ホーム画面に追加」を選択</span></li>
+            <li><span class="tut-step-ico msym">check_circle</span><span>右上の「追加」をタップして完了</span></li>
+        </ol>
+        <p class="tut-note">※ Safari 以外のブラウザ（Chrome等）ではこの手順は使えません。Safari で開き直してください。</p>
+    };
+
+    private RenderFragment AndroidContent => __builder =>
+    {
+        <p class="tut-lead">Chrome で MoneyBoard を開いている状態で、以下の手順を行ってください。</p>
+        <ol class="tut-steps">
+            <li><span class="tut-step-ico msym">more_vert</span><span>右上の「⋮」（その他）メニューをタップ</span></li>
+            <li><span class="tut-step-ico msym">install_mobile</span><span>「アプリをインストール」または「ホーム画面に追加」を選択</span></li>
+            <li><span class="tut-step-ico msym">check_circle</span><span>確認ダイアログで「インストール」をタップして完了</span></li>
+        </ol>
+    };
+
+    private RenderFragment PcContent => __builder =>
+    {
+        <p class="tut-lead">Chrome / Edge で MoneyBoard を開いている状態で、以下の手順を行ってください。</p>
+        <ol class="tut-steps">
+            <li><span class="tut-step-ico msym">install_desktop</span><span>アドレスバー右端のインストールアイコンをクリック（無い場合は「⋮」メニュー→「アプリをインストール」）</span></li>
+            <li><span class="tut-step-ico msym">check_circle</span><span>表示されたダイアログで「インストール」をクリック</span></li>
+            <li><span class="tut-step-ico msym">desktop_windows</span><span>デスクトップやスタートメニューからアプリとして起動できるようになります</span></li>
+        </ol>
+    };
+}

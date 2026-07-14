@@ -1,0 +1,69 @@
+@* モーダル図解基盤（#111）：タブ切替の一覧表示に加え、`ShowStepNav` を立てれば戻る/次へでも
+   ステップ間を移動できる汎用のステップ式モーダル。ステップ内容自体は呼び出し側が
+   ChildContent(index) で描画する（PWA追加方法チュートリアルに限らず、今後の画面別チュートリアル
+   でも使い回せる基盤）。タブが「並列の選択肢」（例: OS/ブラウザ別の手順）の場合、次へ/戻るを
+   同時に出すと「次のページへ進む」という誤解を招くため ShowStepNav=false でタブのみにする
+   （#111 実機フィードバックで PWA追加方法チュートリアルから撤去）。
+   背景クリックでは閉じない（誤操作で読み終える前に閉じてしまうのを防ぐ・#111 実機フィードバック）。
+   閉じるには✕／閉じるボタンの明示操作を必須にする。 *@
+<div class="dialog-overlay">
+    <div class="dialog-box tut-modal-box">
+        <div class="tut-modal-head">
+            <h4>@Title</h4>
+            <button class="ann-close-btn" @onclick="Close" aria-label="閉じる"><span class="msym">close</span></button>
+        </div>
+
+        @if (Steps.Count > 1)
+        {
+            <div class="tut-tabs">
+                @for (var i = 0; i < Steps.Count; i++)
+                {
+                    var idx = i;
+                    <button class="tut-tab @(idx == ActiveIndex ? "active" : "")" @onclick="() => GoTo(idx)">
+                        @if (!string.IsNullOrEmpty(Steps[idx].Icon))
+                        {
+                            <span class="msym">@Steps[idx].Icon</span>
+                        }
+                        @Steps[idx].Label
+                    </button>
+                }
+            </div>
+        }
+
+        <div class="tut-modal-body">
+            @ChildContent(ActiveIndex)
+        </div>
+
+        <div class="dialog-btns tut-modal-btns @(ShowStepNav ? "" : "tut-btns-end")">
+            <button class="btn" @onclick="Close">閉じる</button>
+            @if (ShowStepNav)
+            {
+                <div class="tut-modal-nav">
+                    @if (ActiveIndex > 0)
+                    {
+                        <button class="btn" @onclick="Prev">戻る</button>
+                    }
+                    @if (ActiveIndex < Steps.Count - 1)
+                    {
+                        <button class="btn primary" @onclick="Next">次へ</button>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public IReadOnlyList<TutorialStepMeta> Steps { get; set; } = Array.Empty<TutorialStepMeta>();
+    [Parameter] public RenderFragment<int> ChildContent { get; set; } = _ => builder => { };
+    [Parameter] public int ActiveIndex { get; set; }
+    [Parameter] public EventCallback<int> ActiveIndexChanged { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public bool ShowStepNav { get; set; } = true;
+
+    private Task GoTo(int i) => ActiveIndexChanged.InvokeAsync(i);
+    private Task Next() => GoTo(Math.Min(ActiveIndex + 1, Steps.Count - 1));
+    private Task Prev() => GoTo(Math.Max(ActiveIndex - 1, 0));
+    private Task Close() => OnClose.InvokeAsync();
+}

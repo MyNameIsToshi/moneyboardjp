@@ -1,6 +1,7 @@
 @inject LedgerService Svc
 @inject AuthService Auth
 @inject AccessService Access
+@inject TutorialService TutorialSvc
 @inject IJSRuntime JS
 @implements IDisposable
 
@@ -45,6 +46,24 @@
                 <span class="mph-stat-val">@MaskedYen(IsMasked, fixedTotal)</span>
             </div>
         </div>
+    </div>
+
+    @* ヘルプ（チュートリアル再表示・#111）。PC/スマホ共通の折りたたみグループ。今後追加する
+       画面別チュートリアルもこの中に並べていく想定（既定は畳んだ状態）。 *@
+    <div class="mypage-section">
+        <button class="mypage-collapse" @onclick='() => ToggleSection("help")'>
+            <span class="mypage-collapse-label"><span class="set-chip c-help msym">help</span>ヘルプ</span>
+            <span class="mypage-chevron msym">@(IsOpen("help") ? "expand_more" : "chevron_right")</span>
+        </button>
+        @if (IsOpen("help"))
+        {
+            <div class="mypage-collapse-body">
+                <button class="mph-tutorial-btn" @onclick="TutorialSvc.OpenManually">
+                    <span class="msym">install_mobile</span>
+                    <span>ホーム画面への追加方法を見る</span>
+                </button>
+            </div>
+        }
     </div>
 
     @if (IsMobile)

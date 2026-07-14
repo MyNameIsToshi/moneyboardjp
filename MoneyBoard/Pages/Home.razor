@@ -1,6 +1,7 @@
 @page "/"
 @implements IDisposable
 @inject LedgerService Svc
+@inject TutorialService TutorialSvc
 @inject NavigationManager Nav
 
 <div class="wrap">
@@ -106,7 +107,11 @@
         Loaded = false;
         LoadFailed = false;
         if (await Svc.LoadAsync())
+        {
             Loaded = true;
+            // 強制表示は IsLoaded 完了後に発火させる（データロード中のスピナー・操作ロックと重ねない・#111）。
+            TutorialSvc.TriggerIfNeeded();
+        }
         else
             LoadFailed = true;
     }

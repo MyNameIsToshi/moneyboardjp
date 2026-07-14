@@ -25,6 +25,7 @@ builder.Services.AddScoped<QuoteService>();
 builder.Services.AddScoped<ViewportService>();
 builder.Services.AddScoped<AmountMaskService>();
 builder.Services.AddScoped<AnnouncementService>();
+builder.Services.AddScoped<TutorialService>();
 builder.Services.AddApexCharts();
 
 await builder.Build().RunAsync();
