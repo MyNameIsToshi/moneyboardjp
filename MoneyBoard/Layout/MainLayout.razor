@@ -3,6 +3,7 @@
 @inject AmountMaskService MaskSvc
 @inject AnnouncementService AnnounceSvc
 @inject TutorialService TutorialSvc
+@inject AppUpdateService AppUpdateSvc
 @inject NavigationManager Nav
 @inject IJSRuntime JS
 @inject LedgerService Svc
@@ -55,6 +56,15 @@
     {
         <PwaTutorialModal OnClose="TutorialSvc.CloseAsync" />
     }
+
+    @* アプリ更新の事後通知（#86）。SWイベントに依存しないバージョン比較方式のため、強制リロードはしない。 *@
+    @if (AppUpdateSvc.UpdatedToVersion != null)
+    {
+        <div id="app-update-toast">
+            MoneyBoard を @AppUpdateSvc.UpdatedToVersion に更新しました
+            <button class="app-update-toast-close" @onclick="AppUpdateSvc.Dismiss" aria-label="閉じる"><span class="msym">close</span></button>
+        </div>
+    }
 </CascadingValue>
 </CascadingValue>
 
@@ -65,9 +75,11 @@
         MaskSvc.Changed += OnMaskChanged;
         AnnounceSvc.Changed += OnAnnounceChanged;
         TutorialSvc.Changed += OnTutorialChanged;
+        AppUpdateSvc.Changed += OnAppUpdateChanged;
         Nav.LocationChanged += OnLocationChanged;
         await Viewport.InitAsync();
         await MaskSvc.InitAsync();
+        await AppUpdateSvc.InitAsync(AppVersionProvider.Current);
         StateHasChanged();
     }
 
@@ -82,6 +94,7 @@
     }
 
     private void OnTutorialChanged() => InvokeAsync(StateHasChanged);
+    private void OnAppUpdateChanged() => InvokeAsync(StateHasChanged);
 
     // お知らせ（一覧／What's New）の強制オーバーレイが出ているか。チュートリアルはこれが閉じるまで
     // 描画を待つ（上の @if と TriggerIfNeeded のガードで、2つの強制オーバーレイを重ねない）。
@@ -121,6 +134,7 @@
         MaskSvc.Changed -= OnMaskChanged;
         AnnounceSvc.Changed -= OnAnnounceChanged;
         TutorialSvc.Changed -= OnTutorialChanged;
+        AppUpdateSvc.Changed -= OnAppUpdateChanged;
         Nav.LocationChanged -= OnLocationChanged;
         // MainLayout自体は通常アプリ終了までDisposeされないが、ロックが残らないよう保険で解除。
         if (_scrollLocked) _ = JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", false);

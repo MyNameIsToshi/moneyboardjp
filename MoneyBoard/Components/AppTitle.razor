@@ -1,4 +1,3 @@
-@using System.Reflection
 @using MoneyBoard.Services
 @inject AnnouncementService AnnounceSvc
 @implements IDisposable
@@ -38,17 +37,11 @@
     /// 出すため false を渡す（#38 フォローアップ）。</summary>
     [Parameter] public bool ShowBell { get; set; } = true;
 
-    private string AppVersion = "";
+    // "v" を値側に含める（マークアップで v@AppVersion と書くと Razor がメール誤認してリテラル化するため）。
+    private string AppVersion = AppVersionProvider.Current;
 
     protected override void OnInitialized()
     {
-        // InformationalVersion は csproj の <Version>（"1.5.0" / SourceLink 併用時は "1.5.0+<sha>"）。
-        // ビルドメタ('+'以降)は落として "v1.5.0" の形で表示する。
-        var info = typeof(AppTitle).Assembly
-            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
-        // "v" を値側に含める（マークアップで v@AppVersion と書くと Razor がメール誤認してリテラル化するため）。
-        AppVersion = string.IsNullOrEmpty(info) ? "" : "v" + info.Split('+')[0];
-
         AnnounceSvc.Changed += OnAnnounceChanged;
     }
 

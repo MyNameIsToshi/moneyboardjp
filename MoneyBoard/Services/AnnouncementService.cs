@@ -123,17 +123,10 @@ public class AnnouncementService
 
     private async Task<int> ReadLastSeenAsync()
     {
-        try
-        {
-            var v = await _js.InvokeAsync<string?>("localStorage.getItem", StorageKey);
-            return int.TryParse(v, out var id) ? id : 0;
-        }
-        catch { return 0; }
+        var v = await LocalStorage.GetItemAsync(_js, StorageKey);
+        return int.TryParse(v, out var id) ? id : 0;
     }
 
-    private async Task WriteLastSeenAsync(int id)
-    {
-        try { await _js.InvokeVoidAsync("localStorage.setItem", StorageKey, id.ToString()); }
-        catch { /* JS 未準備時は無視 */ }
-    }
+    private async Task WriteLastSeenAsync(int id) =>
+        await LocalStorage.SetItemAsync(_js, StorageKey, id.ToString());
 }
