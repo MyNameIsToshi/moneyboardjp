@@ -152,6 +152,12 @@ body {
   width: 100%;
 }
 
+/* リロードボタン（#132・PWA起動時のみ）とお知らせベルは同じアイコンボタン様式を共有する。
+   両方に margin-left:auto を付けると、両方描画された時に flex の自動マージンが2箇所に
+   配分されボタン間に余計な隙間ができるため、reload-btn の直後に bell-btn が続く場合だけ
+   隣接セレクタで bell-btn 側の auto を打ち消す（reload-btn 側の auto でペアごと右寄せする）。
+   reload-btn が描画されない（PWA以外）通常時は bell-btn 単独の auto がそのまま効く。 */
+.reload-btn,
 .bell-btn {
   position: relative;
   margin-left: auto;
@@ -164,6 +170,11 @@ body {
   font-size: 20px;
 }
 
+.reload-btn + .bell-btn {
+  margin-left: 0;
+}
+
+.reload-btn:hover,
 .bell-btn:hover {
   color: var(--accent);
 }
@@ -182,6 +193,17 @@ body {
   font-weight: 700;
   line-height: 15px;
   text-align: center;
+}
+
+/* リロードボタンの更新通知ドット（#132）：件数を持たないため bell-badge と異なり単純な丸のみ */
+.reload-dot {
+  position: absolute;
+  top: -1px;
+  right: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--bad);
 }
 
 /* =====================================================

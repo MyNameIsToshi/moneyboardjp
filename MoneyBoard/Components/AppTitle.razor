@@ -1,12 +1,17 @@
 @using MoneyBoard.Services
 @inject AnnouncementService AnnounceSvc
+@inject AppUpdateService AppUpdateSvc
+@inject IJSRuntime JS
 @implements IDisposable
 
 @* ブランドタイトル「MoneyBoard vX.Y.Z」を全画面共通で表示する共有コンポーネント。
    Subtitle に画面名（例「ポートフォリオ」「統計」）を渡すと右側にサブタイトルとして併記する。
    お知らせベルもここに集約（#38）。ただしダイアログ自体は MainLayout 側でレンダーする
    （PC はここが sidenav の position:sticky 配下＝独立した重ね合わせコンテキストに入ってしまい、
-   本文側の select 等がダイアログより手前に描画されてしまうため）。 *@
+   本文側の select 等がダイアログより手前に描画されてしまうため）。
+   常設リロードボタン（#132）はPWA起動時のみ表示する（通常のブラウザタブはブラウザ自身のリロードが
+   あるため冗長）。PCはベルと同様 SideNav 側の独立ナビ項目に分離するため ShowReload="false" を渡す
+   （AppTitle内に置くとタイトル行が折り返してサイドバー全体が1行分下がってしまうため）。 *@
 <div class="app-title">
     MoneyBoard
     @if (!string.IsNullOrEmpty(AppVersion))
@@ -16,6 +21,16 @@
     @if (!string.IsNullOrEmpty(Subtitle))
     {
         <span class="app-subtitle">@Subtitle</span>
+    }
+    @if (ShowReload && AppUpdateSvc.IsStandalone)
+    {
+        <button class="reload-btn" @onclick="ReloadAsync" title="最新の状態に更新" aria-label="最新の状態に更新">
+            <span class="msym">refresh</span>
+            @if (AppUpdateSvc.UpdateAvailable)
+            {
+                <span class="reload-dot"></span>
+            }
+        </button>
     }
     @if (ShowBell)
     {
@@ -37,17 +52,29 @@
     /// 出すため false を渡す（#38 フォローアップ）。</summary>
     [Parameter] public bool ShowBell { get; set; } = true;
 
+    /// <summary>常設リロードボタンを表示するか（既定 true）。PCサイドバーは SideNav 側に独立したナビ項目として
+    /// 出すため false を渡す（#132）。</summary>
+    [Parameter] public bool ShowReload { get; set; } = true;
+
     // "v" を値側に含める（マークアップで v@AppVersion と書くと Razor がメール誤認してリテラル化するため）。
     private string AppVersion = AppVersionProvider.Current;
 
     protected override void OnInitialized()
     {
         AnnounceSvc.Changed += OnAnnounceChanged;
+        AppUpdateSvc.Changed += OnAppUpdateChanged;
     }
 
     protected override async Task OnInitializedAsync() => await AnnounceSvc.InitAsync();
 
     private void OnAnnounceChanged() => InvokeAsync(StateHasChanged);
+    private void OnAppUpdateChanged() => InvokeAsync(StateHasChanged);
 
-    public void Dispose() => AnnounceSvc.Changed -= OnAnnounceChanged;
+    private async Task ReloadAsync() => await JS.InvokeVoidAsync("moneyboardPwa.checkForUpdateAndReload");
+
+    public void Dispose()
+    {
+        AnnounceSvc.Changed -= OnAnnounceChanged;
+        AppUpdateSvc.Changed -= OnAppUpdateChanged;
+    }
 }

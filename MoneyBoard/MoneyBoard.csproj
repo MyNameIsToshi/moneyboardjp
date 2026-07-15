@@ -10,6 +10,14 @@
     <!-- PWA: service-worker-assets.js（静的アセットのハッシュ一覧）を publish 時に生成する -->
     <ServiceWorkerAssetsManifest>service-worker-assets.js</ServiceWorkerAssetsManifest>
   </PropertyGroup>
+  <!-- PWA: 定期ポーリング（#132）用の軽量バージョンマーカー。<Version> から生成するため単一情報源のまま
+       手動同期は増えない。クリーンビルド（CI/本番 publish）では wwwroot 静的アセット列挙の時点で未生成の
+       ため service worker のプリキャッシュ対象に入らないが、既に存在する状態での再ビルドでは対象に入り得る
+       （＝この除外はビルド状態依存で保証されない）。取得側 AppUpdateService はこの差異に依存せず、
+       キャッシュバスティングのクエリ付きでポーリングして常に最新を取得する。 -->
+  <Target Name="WriteVersionJson" BeforeTargets="BeforeBuild">
+    <WriteLinesToFile File="wwwroot\version.json" Lines="{&quot;version&quot;:&quot;v$(Version)&quot;}" Overwrite="true" />
+  </Target>
   <ItemGroup>
     <PackageReference Include="Blazor-ApexCharts" Version="6.1.0" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.*" />
