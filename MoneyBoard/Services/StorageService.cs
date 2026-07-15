@@ -41,16 +41,15 @@ public class StorageService(HttpClient http, AuthService auth)
         // 同名プロパティを機械的にコピー（ObjectSync）。SettingsPart にフィールドを追加したときに
         // ここを更新し忘れる事故（#134で2度発生・#136）を防ぐ。データ未作成の新規ユーザー（env.Settings=null）は
         // AppState 自身の既定値（SchemaVersion=1・BonusMonths={6,12}等）のまま返す。
-        var state = new AppState();
-        if (env.Settings != null) ObjectSync.CopyMatchingProperties(env.Settings, state);
+        var state = env.Settings != null
+            ? ObjectSync.CopyMatchingProperties(env.Settings, new AppState())
+            : new AppState();
         foreach (var (ym, m) in env.Months)
         {
             if (!string.IsNullOrEmpty(m.Etag)) _monthEtags[ym] = m.Etag;
             // 同名プロパティを機械的にコピー（ObjectSync）。MonthPart にフィールドを追加したときに
             // ここを更新し忘れる事故（#134/#136 と同型）を防ぐ（#137）。
-            var mo = new MonthData();
-            ObjectSync.CopyMatchingProperties(m, mo);
-            state.Months[ym] = mo;
+            state.Months[ym] = ObjectSync.CopyMatchingProperties(m, new MonthData());
         }
         return state;
     }

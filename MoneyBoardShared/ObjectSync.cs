@@ -16,7 +16,7 @@ namespace MoneyBoardShared;
 /// </summary>
 public static class ObjectSync
 {
-    public static void CopyMatchingProperties(object source, object target)
+    public static T CopyMatchingProperties<T>(object source, T target) where T : notnull
     {
         var sourceProps = source.GetType()
             .GetProperties(BindingFlags.Public | BindingFlags.Instance)
@@ -33,5 +33,6 @@ public static class ObjectSync
             // 旧 LoadAsync の `env.Settings?.Xxx ?? new()` 相当の null 防御を ObjectSync 側で一般化して保持する。
             if (value != null) targetProp.SetValue(target, value);
         }
+        return target;
     }
 }

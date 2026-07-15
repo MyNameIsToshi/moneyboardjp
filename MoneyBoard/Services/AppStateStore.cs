@@ -138,21 +138,11 @@ public class AppStateStore(StorageService storage)
 
     // 同名プロパティを機械的にコピー（ObjectSync）。AppState にフィールドを追加したときに
     // ここを更新し忘れる事故（#134で2度発生・#136）を防ぐ。
-    private SettingsPart BuildSettingsPart()
-    {
-        var part = new SettingsPart();
-        ObjectSync.CopyMatchingProperties(State, part);
-        return part;
-    }
+    private SettingsPart BuildSettingsPart() => ObjectSync.CopyMatchingProperties(State, new SettingsPart());
 
     // 同名プロパティを機械的にコピー（ObjectSync）。MonthData にフィールドを追加したときに
     // ここを更新し忘れる事故（#134/#136 と同型）を防ぐ（#137）。
-    private static MonthPart BuildMonthPart(MonthData mo)
-    {
-        var part = new MonthPart();
-        ObjectSync.CopyMatchingProperties(mo, part);
-        return part;
-    }
+    private static MonthPart BuildMonthPart(MonthData mo) => ObjectSync.CopyMatchingProperties(mo, new MonthPart());
 
     private string SerializeSettings() => JsonSerializer.Serialize(BuildSettingsPart());
     private static string SerializeMonth(MonthData mo) => JsonSerializer.Serialize(BuildMonthPart(mo));

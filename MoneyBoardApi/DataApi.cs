@@ -50,8 +50,7 @@ public partial class DataApi(ILogger<DataApi> logger, CosmosClient cosmos, Fireb
                 var r = await container.ReadItemAsync<SettingsDoc>(SettingsId, pk);
                 // 同名プロパティを機械的にコピー（ObjectSync）。フィールド追加時にここを更新し忘れる事故を防ぐ（#134で2度発生・#136）。
                 // 権威フィールド（Etag）はコピーの後に設定する（#138：将来 SettingsDoc に同名プロパティが増えても上書きされない順序）。
-                var part = new SettingsPart();
-                ObjectSync.CopyMatchingProperties(r.Resource, part);
+                var part = ObjectSync.CopyMatchingProperties(r.Resource, new SettingsPart());
                 part.Etag = r.ETag;
                 env.Settings = part;
             }
@@ -71,9 +70,7 @@ public partial class DataApi(ILogger<DataApi> logger, CosmosClient cosmos, Fireb
                 {
                     if (string.IsNullOrEmpty(d.Ym)) continue;
                     // 同名プロパティを機械的にコピー（ObjectSync）。フィールド追加時にここを更新し忘れる事故を防ぐ（#134/#136 と同型・#137）。
-                    var part = new MonthPart();
-                    ObjectSync.CopyMatchingProperties(d, part);
-                    env.Months[d.Ym] = part;
+                    env.Months[d.Ym] = ObjectSync.CopyMatchingProperties(d, new MonthPart());
                 }
             }
 
@@ -115,8 +112,7 @@ public partial class DataApi(ILogger<DataApi> logger, CosmosClient cosmos, Fireb
             {
                 // 同名プロパティを機械的にコピー（ObjectSync）。フィールド追加時にここを更新し忘れる事故を防ぐ（#134で2度発生・#136）。
                 // 権威フィールド（Id/UserId/Type）はコピーの後に設定する（#138：将来 SettingsPart に同名プロパティが増えても上書きされない順序）。
-                var doc = new SettingsDoc();
-                ObjectSync.CopyMatchingProperties(env.Settings, doc);
+                var doc = ObjectSync.CopyMatchingProperties(env.Settings, new SettingsDoc());
                 doc.Id = SettingsId;
                 doc.UserId = userId!;
                 doc.Type = "settings";
@@ -127,8 +123,7 @@ public partial class DataApi(ILogger<DataApi> logger, CosmosClient cosmos, Fireb
             {
                 // 同名プロパティを機械的にコピー（ObjectSync）。フィールド追加時にここを更新し忘れる事故を防ぐ（#134/#136 と同型・#137）。
                 // 権威フィールド（Id/UserId/Type/Ym）はコピーの後に設定する（#138：将来 MonthPart に同名プロパティが増えても上書きされない順序）。
-                var doc = new MonthDoc();
-                ObjectSync.CopyMatchingProperties(m, doc);
+                var doc = ObjectSync.CopyMatchingProperties(m, new MonthDoc());
                 doc.Id = MonthId(ym);
                 doc.UserId = userId!;
                 doc.Type = "month";
