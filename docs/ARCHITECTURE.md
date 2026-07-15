@@ -767,6 +767,10 @@ Functions Isolated では `IConfiguration` ではなく
 - **対象外（このガードで防げないもの）**：`docs/swagger/openapi.yaml` の `SettingsPart` スキーマは手書きのYAMLで
   C#側と自動連動しないため、フィールド追加時は目視で追記が必要（#95以降、`fixedIncomes`/`categoryPrefixRules`/
   `tutorialSeenVersion` 等が反映されておらず既に陳腐化している＝別途棚卸しが必要）。
+- **コピー順序の安全化（#138）**：`DataApi.GetData`/`SaveData` は、Cosmosの権威フィールド（`Etag`／`Id`/`UserId`/`Type`）
+  を `ObjectSync.CopyMatchingProperties` の**後**に設定する（コピー元に将来同名プロパティが追加されても
+  権威フィールドが上書きされない順序）。フィールド追加時は上記の同期漏れガードで気付けるが、順序自体はガード
+  対象外のため、`GetData`/`SaveData` を変更する際はこの順序を崩さないこと。
 
 ### ⚠️ 月次データ（`month:yyyyMM`）にフィールドを追加するときの注意（設定側と同型の対策・#137）
 月次データも `MonthData`（フロント状態）→ `MonthPart`（`StorageContracts.cs`・GET/POST の通信DTO）
@@ -779,6 +783,9 @@ Functions Isolated では `IConfiguration` ではなく
 - **自動ガード**: `MoneyBoardApi.Tests/MonthSyncTests.cs` が `MonthData`⇄`MonthPart`（`Etag`除く）⇄
   `MonthDoc`（`Id`/`UserId`/`Type`/`Ym`除く）⇄`MonthReadDoc`（`Ym`除く）のプロパティ名集合が一致することを
   検証する。どれか1つだけフィールド追加を忘れると、このテストが失敗して気付ける。
+- **コピー順序の安全化（#138）**：`SaveData` の月次コピーも設定側と同様、権威フィールド（`Id`/`UserId`/`Type`/`Ym`）
+  を `ObjectSync.CopyMatchingProperties` の**後**に設定する。詳細は上の「設定にフィールドを追加するときの注意」内
+  の該当項目を参照。
 
 ### 保存の信頼性
 - **デバウンス＋直列化**: 連続入力は `RequestSave()` で1回に集約、`SaveAsync()` は
