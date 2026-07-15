@@ -12,6 +12,61 @@
   cursor: pointer;
 }
 
+/* 口座：ボーナス月ピッカー（#134） */
+.bonus-months {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #ece8e1;
+}
+
+.bonus-months-head {
+  margin-bottom: 8px;
+}
+
+/* PC＝6列（7月で改行）。スマホは4列（mobile.cssで上書き・5月/9月で改行）。
+   flex-wrap の自然折返しだと桁数(1〜9 と 10〜12)でチップ幅が揃わず折返し位置も安定しないため grid 化。 */
+.bonus-months-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+}
+
+.bonus-month-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 5px 6px;
+  border: 1px solid #dcd8d0;
+  border-radius: 20px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+  background: #fff;
+  cursor: pointer;
+}
+
+.bonus-month-chip input {
+  accent-color: var(--accent);
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* 数字部分を2桁ぶんの固定幅にして、1桁(1〜9)と2桁(10〜12)でチェックボックスの位置がずれないようにする。 */
+.bonus-month-chip span {
+  min-width: 1.3em;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+
+.bonus-month-chip.on {
+  border-color: var(--accent);
+  background: #eef1f7;
+  color: var(--accent);
+}
+
 /* =====================================================
    列見出し（各行の列の上に重ねて整列）
    ラベルは入力欄の上で中央、右ラベルは対応する列（ボーナス/口座）の上に置く。

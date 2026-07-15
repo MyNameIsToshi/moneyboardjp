@@ -1,5 +1,6 @@
 @inject LedgerService Svc
 @inject IJSRuntime JS
+@inject OverlayRegistryService Overlay
 @implements IDisposable
 
 <div class="set-head">
@@ -106,6 +107,35 @@ else
     固定費で使用中、または現在月以降の月次データがある口座は削除できません。
 </div>
 
+<!-- ボーナス月（賞与を受け取る月・#134）。月次管理タブの入力欄出し分け・想定年収の見込みに使用。 -->
+<div class="bonus-months">
+    <div class="bonus-months-head">
+        <span class="set-title">ボーナス月</span>
+    </div>
+    <div class="bonus-months-grid">
+        @for (int m = 1; m <= 12; m++)
+        {
+            var month = m;
+            <label class="bonus-month-chip @(_bonusMonthsDraft.Contains(month) ? "on" : "")">
+                <input type="checkbox" checked="@_bonusMonthsDraft.Contains(month)"
+                       @onchange="e => ToggleBonusMonth(month, (bool)(e.Value ?? false))" />
+                <span>@month</span>
+            </label>
+        }
+    </div>
+    <div class="set-note">
+        賞与を受け取る月を選択します（複数可・0個も可）。月次管理タブのボーナス入力欄の表示・想定年収の見込みに使用し、過去に入力済みのボーナス・残高・統計には影響しません。
+    </div>
+</div>
+
+<!-- ボーナス月 変更確認ダイアログ -->
+<ConfirmDialog IsVisible="@ShowBonusConfirm"
+               Title="ボーナス月の設定を変更しますか？"
+               Message="@("今月以降の月次管理タブの表示に反映されます。\n過去に入力済みのボーナス・残高・統計は変わりません。")"
+               ConfirmText="変更する"
+               OnConfirm="ConfirmBonusMonths"
+               OnCancel="CancelBonusMonths" />
+
 <!-- 追加ダイアログ -->
 @if (ShowAddDialog)
 {
@@ -187,9 +217,11 @@ else
 @code {
     [CascadingParameter(Name = "IsMobile")] public bool IsMobile { get; set; }
 
-    // いずれかのダイアログ表示中は背面スクロールをロック（追加/削除確認/削除不可警告/編集シート）。
-    private bool AnyDialogOpen => ShowAddDialog || ShowConfirm || ShowWarn || Editing is not null;
+    // いずれかのダイアログ表示中は背面スクロールをロック（追加/削除確認/削除不可警告/編集シート/ボーナス月確認）。
+    private bool AnyDialogOpen => ShowAddDialog || ShowConfirm || ShowWarn || Editing is not null || ShowBonusConfirm;
     private bool _scrollLocked;
+
+    protected override void OnInitialized() => _bonusMonthsDraft = new HashSet<int>(Svc.State.BonusMonths);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -197,12 +229,14 @@ else
         {
             _scrollLocked = AnyDialogOpen;
             await JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", _scrollLocked);
+            Overlay.SetOpen(nameof(AccountsTab), AnyDialogOpen);
         }
     }
 
     public void Dispose()
     {
         if (_scrollLocked) _ = JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", false);
+        Overlay.SetOpen(nameof(AccountsTab), false);
     }
 
     // スマホ：編集シートで開いている口座。既存は State の実体を直接編集（即時保存）、
@@ -338,6 +372,30 @@ else
         foreach (var a in Svc.State.Accounts)
             a.IsBonusAccount = a.Id == id;
         Save();
+    }
+
+    // ── ボーナス月（#134）── チェック変更は即保存せず確認ダイアログを挟む。キャンセルで元に戻す。
+    private HashSet<int> _bonusMonthsDraft = new();
+    private bool ShowBonusConfirm = false;
+
+    private void ToggleBonusMonth(int month, bool val)
+    {
+        if (val) _bonusMonthsDraft.Add(month); else _bonusMonthsDraft.Remove(month);
+        ShowBonusConfirm = true;
+    }
+
+    private void ConfirmBonusMonths()
+    {
+        Svc.State.BonusMonths = BonusSchedule.Normalize(_bonusMonthsDraft);
+        _bonusMonthsDraft = new HashSet<int>(Svc.State.BonusMonths);
+        ShowBonusConfirm = false;
+        Save();
+    }
+
+    private void CancelBonusMonths()
+    {
+        _bonusMonthsDraft = new HashSet<int>(Svc.State.BonusMonths);
+        ShowBonusConfirm = false;
     }
 
     // ── 追加ダイアログ ──────────────────────────────

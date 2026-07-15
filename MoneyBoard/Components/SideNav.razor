@@ -2,6 +2,8 @@
 @inject LedgerService Svc
 @inject AmountMaskService MaskSvc
 @inject AnnouncementService AnnounceSvc
+@inject AppUpdateService AppUpdateSvc
+@inject IJSRuntime JS
 @implements IDisposable
 
 @* PC用の左サイドナビ。表示可否は MainLayout が PC 時のみレンダーする。
@@ -9,10 +11,12 @@
    行き先とハイライト規則はスマホ下部バー（BottomNav）と対で揃える。
    お知らせ（#38）は AppTitle 内のベルではなく、金額を隠すと同じ並びの
    独立したナビ項目として1行表示する（PCはサイドバー幅が狭くなく、
-   他のメニューと揃えたほうが視認性が高いため）。 *@
+   他のメニューと揃えたほうが視認性が高いため）。
+   常設リロードボタン（#132）も同じ理由で AppTitle 内に置かず独立ナビ項目にする
+   （AppTitle 内に置くとタイトル行が折り返してサイドバー全体が1行分下がる不具合があったため）。 *@
 <nav class="sidenav">
     <div class="sidenav-brand">
-        <AppTitle ShowBell="false" />
+        <AppTitle ShowBell="false" ShowReload="false" />
     </div>
     <div class="sidenav-items">
         <button class="sidenav-item @(IsHomeTab("monthly") ? "active" : "")" @onclick='() => GoTab("monthly")'>
@@ -45,6 +49,15 @@
             <span class="sn-ico msym">@(IsMasked ? "visibility_off" : "visibility")</span>
             <span class="sn-lab">@(IsMasked ? "金額を表示" : "金額を隠す")</span>
         </button>
+        @if (AppUpdateSvc.IsStandalone)
+        {
+            <button class="sidenav-item" @onclick="ReloadAsync">
+                <span class="sn-ico-wrap">
+                    <span class="sn-ico msym">refresh</span>
+                </span>
+                <span class="sn-lab">更新</span>
+            </button>
+        }
     </div>
 </nav>
 
@@ -58,6 +71,8 @@
     }
 
     private void OnAnnounceChanged() => InvokeAsync(StateHasChanged);
+
+    private async Task ReloadAsync() => await JS.InvokeVoidAsync("moneyboardPwa.checkForUpdateAndReload");
 
     private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
         => InvokeAsync(StateHasChanged);

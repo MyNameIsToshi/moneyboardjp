@@ -41,9 +41,18 @@
             </div>
             @if (ShowCategorize)
             {
-                <button class="dd-categorize" @onclick="OnCategorize" title="未分類の明細にカテゴリを設定">
-                    <span class="msym">checklist</span>選択してカテゴリ設定
-                </button>
+                <div class="dd-cat-top">
+                    @if (!_selecting)
+                    {
+                        <button class="dd-categorize" @onclick="StartSelecting" title="未分類の明細にカテゴリを設定">
+                            <span class="msym">checklist</span>選択してカテゴリ設定
+                        </button>
+                    }
+                    else
+                    {
+                        @SelectBar()
+                    }
+                </div>
             }
         </div>
 
@@ -51,7 +60,11 @@
             @foreach (var r in SortedRows)
             {
                 var outlier = IsOutlier(r);
-                <div class="dd-row @(outlier ? "out" : "")">
+                <div class="dd-row @(outlier ? "out" : "") @(_selecting ? "selecting" : "")">
+                    @if (_selecting)
+                    {
+                        <input type="checkbox" class="dd-check" checked="@_selected.Contains(r.Id)" @onchange="() => ToggleRow(r.Id)" />
+                    }
                     <span class="dd-date">@FmtDate(r.Date)</span>
                     <span class="dd-name" title="@r.Store">@r.Store</span>
                     <span class="dd-amt">@MaskedYen(IsMasked, r.Amount)</span>
@@ -80,7 +93,14 @@
         @if (ShowCategorize)
         {
             <div class="dd-action-bar">
-                <button class="dd-action" @onclick="OnCategorize"><span class="msym">label</span>カテゴリを設定</button>
+                @if (!_selecting)
+                {
+                    <button class="dd-action" @onclick="StartSelecting"><span class="msym">label</span>カテゴリを設定</button>
+                }
+                else
+                {
+                    @SelectBar()
+                }
             </div>
         }
     </div>
@@ -96,12 +116,69 @@
     [Parameter] public string SubLabel { get; set; } = "";
     [Parameter] public List<DetailRow> Rows { get; set; } = new();
     [Parameter] public bool ShowCategorize { get; set; }
+    [Parameter] public List<Category> Categories { get; set; } = new();
     [Parameter] public EventCallback OnClose { get; set; }
-    [Parameter] public EventCallback OnCategorize { get; set; }
+    [Parameter] public EventCallback<(HashSet<string> Ids, string? CategoryId)> OnApplyCategory { get; set; }
 
     // 明細1行。Sub はカテゴリ別=カード名 / カード別=カテゴリ名 を入れる補足列。
     // SubColor は Sub に対応する色（カード別ドーナツ／カテゴリ設定色）。バッジ・金額バーに使う。
-    public record DetailRow(string Date, string Store, string Sub, decimal Amount, string SubColor = "");
+    // Id は「選択してカテゴリ設定」（#118）で選択行を実体（CardDetail/Debit）へ引き当てるためのキー。
+    // ShowCategorize=false の呼び出し元（カード別ドリルダウン等）は未設定のままでよい。
+    public record DetailRow(string Date, string Store, string Sub, decimal Amount, string SubColor = "", string Id = "");
+
+    // ── 選択してカテゴリ設定（#118）：行を複数選択→カテゴリを選んで一括反映 ──
+    private bool _selecting;
+    private HashSet<string> _selected = new();
+    private string _applyCat = "";
+
+    private void StartSelecting()
+    {
+        _selecting = true;
+        _selected.Clear();
+        _applyCat = "";
+    }
+    private void CancelSelecting()
+    {
+        _selecting = false;
+        _selected.Clear();
+    }
+    private void ToggleRow(string id)
+    {
+        if (!_selected.Remove(id)) _selected.Add(id);
+    }
+    private bool AllSelected => Rows.Count > 0 && Rows.All(r => _selected.Contains(r.Id));
+    private void ToggleSelectAll()
+    {
+        if (AllSelected) _selected.Clear();
+        else foreach (var r in Rows) _selected.Add(r.Id);
+    }
+
+    private async Task Apply()
+    {
+        if (_selected.Count == 0) return;
+        var ids = _selected;
+        var cat = string.IsNullOrEmpty(_applyCat) ? null : _applyCat;
+        _selecting = false;
+        _selected = new();
+        _applyCat = "";
+        await OnApplyCategory.InvokeAsync((ids, cat));
+    }
+
+    private RenderFragment SelectBar() => @<div class="dd-select-controls">
+        <label class="dd-select-all">
+            <input type="checkbox" checked="@AllSelected" @onchange="ToggleSelectAll" />すべて選択
+        </label>
+        <span class="dd-select-count">@_selected.Count 件選択</span>
+        <select class="dd-select-cat" @bind="_applyCat">
+            <option value="">未分類</option>
+            @foreach (var c in Categories)
+            {
+                <option value="@c.Id">@c.Name</option>
+            }
+        </select>
+        <button class="dd-select-apply" disabled="@(_selected.Count == 0)" @onclick="Apply">適用</button>
+        <button class="dd-select-cancel" @onclick="CancelSelecting">キャンセル</button>
+    </div>;
 
     private enum Sort { Amount, Date }
     private Sort _sort = Sort.Amount;

@@ -43,6 +43,7 @@ public partial class Portfolio
         Store.StateReloadedExternally -= OnReload;
         // ページ離脱時にロックが残らないよう解除（開いたまま遷移した場合の保険）。
         if (_scrollLocked) _ = JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", false);
+        Overlay.SetOpen(nameof(Portfolio), false);
     }
     private void OnReload() => InvokeAsync(StateHasChanged);
 
@@ -56,6 +57,7 @@ public partial class Portfolio
         {
             _scrollLocked = AnyDialogOpen;
             await JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", _scrollLocked);
+            Overlay.SetOpen(nameof(Portfolio), AnyDialogOpen);
         }
     }
 

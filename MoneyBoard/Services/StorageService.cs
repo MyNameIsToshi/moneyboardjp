@@ -38,22 +38,18 @@ public class StorageService(HttpClient http, AuthService auth)
         _settingsEtag = env.Settings?.Etag;
         _monthEtags.Clear();
 
-        var state = new AppState
-        {
-            SchemaVersion = env.Settings?.SchemaVersion ?? 1,
-            Accounts = env.Settings?.Accounts ?? new(),
-            FixedCosts = env.Settings?.FixedCosts ?? new(),
-            FixedIncomes = env.Settings?.FixedIncomes ?? new(),
-            Categories = env.Settings?.Categories ?? new(),
-            Cards = env.Settings?.Cards ?? new(),
-            CategoryRules = env.Settings?.CategoryRules ?? new(),
-            CategoryPrefixRules = env.Settings?.CategoryPrefixRules ?? new(),
-            TutorialSeenVersion = env.Settings?.TutorialSeenVersion ?? 0
-        };
+        // 同名プロパティを機械的にコピー（ObjectSync）。SettingsPart にフィールドを追加したときに
+        // ここを更新し忘れる事故（#134で2度発生・#136）を防ぐ。データ未作成の新規ユーザー（env.Settings=null）は
+        // AppState 自身の既定値（SchemaVersion=1・BonusMonths={6,12}等）のまま返す。
+        var state = env.Settings != null
+            ? ObjectSync.CopyMatchingProperties(env.Settings, new AppState())
+            : new AppState();
         foreach (var (ym, m) in env.Months)
         {
             if (!string.IsNullOrEmpty(m.Etag)) _monthEtags[ym] = m.Etag;
-            state.Months[ym] = new MonthData { Ledgers = m.Ledgers, Transfers = m.Transfers, CardDetails = m.CardDetails, CardBilled = m.CardBilled };
+            // 同名プロパティを機械的にコピー（ObjectSync）。MonthPart にフィールドを追加したときに
+            // ここを更新し忘れる事故（#134/#136 と同型）を防ぐ（#137）。
+            state.Months[ym] = ObjectSync.CopyMatchingProperties(m, new MonthData());
         }
         return state;
     }

@@ -3,6 +3,9 @@
 **/obj/
 **/TestResults/
 
+# PWA: <Version> から自動生成される軽量バージョンマーカー（#132）。手動編集・コミット不要
+MoneyBoard/wwwroot/version.json
+
 # Secrets
 **/local.settings.json
 **/*.user

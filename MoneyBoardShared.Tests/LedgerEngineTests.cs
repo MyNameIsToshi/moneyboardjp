@@ -48,10 +48,30 @@ public class LedgerEngineTests
     }
 
     [Fact]
-    public void Close_CountsBonusOnlyForBonusAccount()
+    public void Close_CountsRecordedBonusRegardlessOfCurrentBonusAccountFlag()
     {
         var state = new AppState { Accounts = { new Account { Id = "a", IsBonusAccount = true } } };
         state.Months["202601"] = MonthWith("a", new Ledger { Bonus = 500_000m });
+        Assert.Equal(500_000m, LedgerEngine.CloseOf(state, "202601", "a"));
+    }
+
+    [Fact]
+    public void Close_KeepsPastBonusAfterBonusAccountReassigned()
+    {
+        // #134: 受取口座を b へ変更しても、旧口座 a に記録済みの過去ボーナスは
+        // a の過去残高に計上され続ける（過去凍結）。
+        var state = new AppState
+        {
+            Accounts = { new Account { Id = "a", IsBonusAccount = false }, new Account { Id = "b", IsBonusAccount = true } }
+        };
+        state.Months["202601"] = new MonthData
+        {
+            Ledgers =
+            {
+                ["a"] = new Ledger { Bonus = 500_000m },  // 過去：a が受取口座だった月
+                ["b"] = new Ledger(),
+            }
+        };
         Assert.Equal(500_000m, LedgerEngine.CloseOf(state, "202601", "a"));
     }
 
@@ -472,6 +492,71 @@ public class LedgerEngineTests
 
         Assert.Equal(0m, mo.Ledgers["w"].AtmDeposit);   // 財布フラグが無ければ何も実体化しない
         Assert.Equal(1_000m, mo.Ledgers["a"].AtmWithdraw);
+    }
+
+    // ── HasActivity（過去月に空の台帳スタブだけの削除済み口座を出さない判定・#137フォローアップ）──
+    [Fact]
+    public void HasActivity_NoLedgerEntry_ReturnsFalse()
+    {
+        var mo = new MonthData();
+        Assert.False(LedgerEngine.HasActivity(mo, "missing"));
+    }
+
+    [Fact]
+    public void HasActivity_EmptyLedgerStub_ReturnsFalse()
+    {
+        var mo = new MonthData();
+        mo.Ledgers["a"] = new Ledger();
+        Assert.False(LedgerEngine.HasActivity(mo, "a"));
+    }
+
+    [Theory]
+    [InlineData(nameof(Ledger.Confirmed))]
+    [InlineData(nameof(Ledger.Salary))]
+    [InlineData(nameof(Ledger.Bonus))]
+    [InlineData(nameof(Ledger.AtmDeposit))]
+    [InlineData(nameof(Ledger.AtmWithdraw))]
+    public void HasActivity_NonZeroAmountField_ReturnsTrue(string field)
+    {
+        var mo = new MonthData();
+        var l = new Ledger();
+        typeof(Ledger).GetProperty(field)!.SetValue(l, 1_000m);
+        mo.Ledgers["a"] = l;
+
+        Assert.True(LedgerEngine.HasActivity(mo, "a"));
+    }
+
+    [Fact]
+    public void HasActivity_HasDebit_ReturnsTrue()
+    {
+        var mo = new MonthData();
+        mo.Ledgers["a"] = new Ledger { Debits = { new Debit { Name = "x", Amount = 100m } } };
+        Assert.True(LedgerEngine.HasActivity(mo, "a"));
+    }
+
+    [Fact]
+    public void HasActivity_HasIncome_ReturnsTrue()
+    {
+        var mo = new MonthData();
+        mo.Ledgers["a"] = new Ledger { Incomes = { new IncomeItem { Name = "x", Amount = 100m } } };
+        Assert.True(LedgerEngine.HasActivity(mo, "a"));
+    }
+
+    [Fact]
+    public void HasActivity_HasWalletAtmDeposit_ReturnsTrue()
+    {
+        var mo = new MonthData();
+        mo.Ledgers["a"] = new Ledger { WalletAtmDeposits = { new WalletAtmDeposit { AccountId = "b", Amount = 500m } } };
+        Assert.True(LedgerEngine.HasActivity(mo, "a"));
+    }
+
+    [Fact]
+    public void HasActivity_ReferencedByTransfer_ReturnsTrue()
+    {
+        var mo = new MonthData();
+        mo.Ledgers["a"] = new Ledger();
+        mo.Transfers.Add(new Transfer { From = "a", To = "b", Amount = 100m });
+        Assert.True(LedgerEngine.HasActivity(mo, "a"));
     }
 
     [Fact]

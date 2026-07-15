@@ -48,19 +48,11 @@ public partial class DataApi(ILogger<DataApi> logger, CosmosClient cosmos, Fireb
             try
             {
                 var r = await container.ReadItemAsync<SettingsDoc>(SettingsId, pk);
-                env.Settings = new SettingsPart
-                {
-                    Etag = r.ETag,
-                    SchemaVersion = r.Resource.SchemaVersion,
-                    Accounts = r.Resource.Accounts,
-                    FixedCosts = r.Resource.FixedCosts,
-                    FixedIncomes = r.Resource.FixedIncomes,
-                    Categories = r.Resource.Categories,
-                    Cards = r.Resource.Cards,
-                    CategoryRules = r.Resource.CategoryRules,
-                    CategoryPrefixRules = r.Resource.CategoryPrefixRules,
-                    TutorialSeenVersion = r.Resource.TutorialSeenVersion
-                };
+                // 同名プロパティを機械的にコピー（ObjectSync）。フィールド追加時にここを更新し忘れる事故を防ぐ（#134で2度発生・#136）。
+                // 権威フィールド（Etag）はコピーの後に設定する（#138：将来 SettingsDoc に同名プロパティが増えても上書きされない順序）。
+                var part = ObjectSync.CopyMatchingProperties(r.Resource, new SettingsPart());
+                part.Etag = r.ETag;
+                env.Settings = part;
             }
             catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)
             {
@@ -77,14 +69,8 @@ public partial class DataApi(ILogger<DataApi> logger, CosmosClient cosmos, Fireb
                 foreach (var d in await it.ReadNextAsync())
                 {
                     if (string.IsNullOrEmpty(d.Ym)) continue;
-                    env.Months[d.Ym] = new MonthPart
-                    {
-                        Etag = d.Etag,
-                        Ledgers = d.Ledgers ?? new(),
-                        Transfers = d.Transfers ?? new(),
-                        CardDetails = d.CardDetails ?? new(),
-                        CardBilled = d.CardBilled ?? new()
-                    };
+                    // 同名プロパティを機械的にコピー（ObjectSync）。フィールド追加時にここを更新し忘れる事故を防ぐ（#134/#136 と同型・#137）。
+                    env.Months[d.Ym] = ObjectSync.CopyMatchingProperties(d, new MonthPart());
                 }
             }
 
@@ -124,29 +110,24 @@ public partial class DataApi(ILogger<DataApi> logger, CosmosClient cosmos, Fireb
 
             if (env.Settings != null)
             {
-                var doc = new SettingsDoc
-                {
-                    Id = SettingsId, UserId = userId!, Type = "settings",
-                    SchemaVersion = env.Settings.SchemaVersion,
-                    Accounts = env.Settings.Accounts,
-                    FixedCosts = env.Settings.FixedCosts,
-                    FixedIncomes = env.Settings.FixedIncomes,
-                    Categories = env.Settings.Categories,
-                    Cards = env.Settings.Cards,
-                    CategoryRules = env.Settings.CategoryRules,
-                    CategoryPrefixRules = env.Settings.CategoryPrefixRules,
-                    TutorialSeenVersion = env.Settings.TutorialSeenVersion
-                };
+                // 同名プロパティを機械的にコピー（ObjectSync）。フィールド追加時にここを更新し忘れる事故を防ぐ（#134で2度発生・#136）。
+                // 権威フィールド（Id/UserId/Type）はコピーの後に設定する（#138：将来 SettingsPart に同名プロパティが増えても上書きされない順序）。
+                var doc = ObjectSync.CopyMatchingProperties(env.Settings, new SettingsDoc());
+                doc.Id = SettingsId;
+                doc.UserId = userId!;
+                doc.Type = "settings";
                 batch.UpsertItem(doc, BatchOptions(env.Settings.Etag));
                 ops.Add(("settings", ""));
             }
             foreach (var (ym, m) in env.Months)
             {
-                var doc = new MonthDoc
-                {
-                    Id = MonthId(ym), UserId = userId!, Type = "month", Ym = ym,
-                    Ledgers = m.Ledgers, Transfers = m.Transfers, CardDetails = m.CardDetails, CardBilled = m.CardBilled
-                };
+                // 同名プロパティを機械的にコピー（ObjectSync）。フィールド追加時にここを更新し忘れる事故を防ぐ（#134/#136 と同型・#137）。
+                // 権威フィールド（Id/UserId/Type/Ym）はコピーの後に設定する（#138：将来 MonthPart に同名プロパティが増えても上書きされない順序）。
+                var doc = ObjectSync.CopyMatchingProperties(m, new MonthDoc());
+                doc.Id = MonthId(ym);
+                doc.UserId = userId!;
+                doc.Type = "month";
+                doc.Ym = ym;
                 batch.UpsertItem(doc, BatchOptions(m.Etag));
                 ops.Add(("month", ym));
             }
@@ -261,6 +242,7 @@ public class SettingsDoc
     public Dictionary<string, string> CategoryRules { get; set; } = new();
     public Dictionary<string, string> CategoryPrefixRules { get; set; } = new();
     public int TutorialSeenVersion { get; set; } = 0;
+    public List<int> BonusMonths { get; set; } = new() { 6, 12 };
 }
 
 public class MonthDoc

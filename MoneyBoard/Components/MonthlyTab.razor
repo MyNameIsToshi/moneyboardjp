@@ -1,5 +1,6 @@
 @inject LedgerService Svc
 @inject IJSRuntime JS
+@inject OverlayRegistryService Overlay
 @implements IDisposable
 
 @{ var accts = ActiveAccountsForMonth; }
@@ -50,6 +51,10 @@
     </div>
 
     <div class="grid">
+        @{
+            var bonusMonth = Ym.Parse(Svc.CurrentMonth).Month;
+            var isCurrentOrFutureMonth = LedgerService.IsCurrentOrFutureCycle(Svc.CurrentMonth);
+        }
         @for (int i = 0; i < accts.Count; i++)
         {
             var a = accts[i];
@@ -68,12 +73,16 @@
             var manualDebits = l.Debits.Where(d => d.CardId == null && !d.IsFixed).ToList();
             var fixedIncomes = l.Incomes.Where(x => x.IsFixed).ToList();
             var manualIncomes = l.Incomes.Where(x => !x.IsFixed).ToList();
+            // ボーナス入力欄の表示可否（#134）：①現受取口座かつボーナス月かつ当月以降（ボーナス月の設定変更が
+            // 過去月の表示へ遡って反映されないように＝過去凍結）／②実額記録済み（受取口座変更後の過去凍結分を含む）／
+            // ③「＋ボーナスを追加」で手動追加済み。
+            var showBonus = !isWallet && BonusSchedule.ShouldShowBonusInput(a.IsBonusAccount, isCurrentOrFutureMonth, Svc.State.BonusMonths, bonusMonth, l.Bonus, _manualBonusShown.Contains(a.Id + "|" + Svc.CurrentMonth));
             // ATM は資産移動のためセクション合計には含めない（既存の統計集計と同じ流儀）。
             var incomeTotal = l.Salary + l.Bonus + l.Incomes.Sum(x => x.Amount);
             var spendTotal = l.Debits.Sum(d => d.Amount);
             var netFlow = incomeTotal - spendTotal;
             // 財布は給料/ボーナスのセクションが無いため、その分をカウントから外す（#77）。
-            var incomeCount = (isWallet ? 0 : 1) + (a.IsBonusAccount ? 1 : 0) + l.Incomes.Count;
+            var incomeCount = (isWallet ? 0 : 1) + (showBonus ? 1 : 0) + l.Incomes.Count;
             // 収支バーの flex 比（culture 依存のカンマ/小数点区切りが CSS に混ざらないよう invariant で文字列化）。
             var barIn = Math.Max(incomeTotal, 0.01m).ToString(System.Globalization.CultureInfo.InvariantCulture);
             var barOut = Math.Max(spendTotal, 0.01m).ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -160,12 +169,19 @@
                                         <AmountInput CssClass="num" Value="@l.Salary" ValueChanged="v => { l.Salary = v; Svc.RequestSave(); }" />
                                     </div>
                                 }
-                                @if (a.IsBonusAccount)
+                                @if (!isWallet)
                                 {
-                                    <div class="field">
-                                        <label>ボーナス <span class="bonus-tag">受取口座</span></label>
-                                        <AmountInput CssClass="num" Value="@l.Bonus" ValueChanged="v => { l.Bonus = v; Svc.RequestSave(); }" />
-                                    </div>
+                                    @if (showBonus)
+                                    {
+                                        <div class="field">
+                                            <label>ボーナス @if (a.IsBonusAccount) { <span class="bonus-tag">受取口座</span> }</label>
+                                            <AmountInput CssClass="num" Value="@l.Bonus" ValueChanged="v => { l.Bonus = v; Svc.RequestSave(); }" />
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <button class="add-line" @onclick="() => AddBonusInput(a.Id)"><span class="msym">add</span>ボーナスを追加</button>
+                                    }
                                 }
                                 @* ATM入金（資産移動のため統計には含めない）。財布有効時は口座側の手入力を無効化し、
                                    財布からの実体化値（materialize）を表示専用にする（#77）。財布側は各口座からの
@@ -546,12 +562,14 @@
         {
             _scrollLocked = AnyDialogOpen;
             await JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", _scrollLocked);
+            Overlay.SetOpen(nameof(MonthlyTab), AnyDialogOpen);
         }
     }
 
     public void Dispose()
     {
         if (_scrollLocked) _ = JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", false);
+        Overlay.SetOpen(nameof(MonthlyTab), false);
     }
 
     // 開閉状態（口座IDを保持）。_toggled＝口座カードを既定から反転した口座。
@@ -567,6 +585,9 @@
     private readonly HashSet<string> _transferToggled = new();
     // 財布のATM入金（自動受取）内訳の折りたたみ（口座IDを保持・既定は閉・#77フォローアップ）。
     private readonly HashSet<string> _walletAtmInOpen = new();
+    // 「＋ボーナスを追加」で手動表示にした口座＋月（#134）。永続化しない表示状態のため、
+    // 金額0のまま画面を離れると次回は BonusSchedule の通常判定に戻る（実額を入れれば①②で表示継続）。
+    private readonly HashSet<string> _manualBonusShown = new();
 
     // 現在月以降は IsDeleted の口座を非表示、過去月はキープ。
     // 「過去月」判定は財務サイクル起点（CurrentCycleStartYm）基準（#77フォローアップで判明した既存バグを修正：
@@ -580,7 +601,7 @@
             bool isPast = !LedgerService.IsCurrentOrFutureCycle(Svc.CurrentMonth);
             if (isPast)
                 return Svc.State.Accounts
-                    .Where(a => Mo.Ledgers.ContainsKey(a.Id))
+                    .Where(a => Mo.Ledgers.ContainsKey(a.Id) && (!a.IsDeleted || LedgerEngine.HasActivity(Mo, a.Id)))
                     .OrderByDescending(a => a.IsWallet)
                     .ThenBy(a => a.SortOrder)
                     .ToList();
@@ -674,6 +695,8 @@
         _editingCashDebit = null;
         _isNewCashDebit = false;
     }
+
+    private void AddBonusInput(string aid) => _manualBonusShown.Add(aid + "|" + Svc.CurrentMonth);
 
     private void AddIncome(string aid) { Mo.Ledgers[aid].Incomes.Add(new IncomeItem()); Save(); }
     private void RemoveIncome(string aid, string iid) { Mo.Ledgers[aid].Incomes.RemoveAll(i => i.Id == iid); Save(); }

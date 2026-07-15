@@ -11,17 +11,18 @@
 - `MoneyBoard/` … フロントエンド（Blazor WASM・.NET 10）
 - `MoneyBoardApi/` … バックエンド（Azure Functions Isolated・.NET 8）
 - `MoneyBoardShared/` … 純粋ドメインロジック＋モデル（**テスト対象の中心**）
-- `MoneyBoardShared.Tests/` `MoneyBoardApi.Tests/` … xUnit（**sln なし**。各 `.csproj` を個別に `dotnet test`）
+- `MoneyBoardShared.Tests/` `MoneyBoardApi.Tests/` `MoneyBoard.Tests/` … xUnit（**sln なし**。各 `.csproj` を個別に `dotnet test`）。`MoneyBoard.Tests/` はフロント（`MoneyBoard/Services/` 等）の純粋ロジックのみ対象（Razor UI は対象外）
 
 ## 開発フロー（個人標準に準拠）
 - ブランチ: `dev` で作業 → `main` へ PR → CI 緑でマージ → SWA 自動デプロイ（**`main` へ直接 push しない**）
 - コミット / PR タイトル: `type(scope): 日本語要約`（type 必須）。本文は markdown 箇条書き。AI 支援時は末尾に `Co-Authored-By`
 - タスク: **GitHub Issues**（1 機能 = 1 issue）／関連は **Milestone**／恒久的な設計判断は `docs/ARCHITECTURE.md` の **ADR**（＋ issue# 相互参照）
 - バージョン: SemVer（現行 2.2.0）。`docs`/`chore`/`refactor`（挙動不変）のみの変更では上げない
+- **版上げ時は `MoneyBoard/MoneyBoard.csproj` の `<ForceUpdate>` も判断する**（既定 `false`＝任意アップデート）。重大な修正・互換性を壊す変更など即時更新してほしいリリースのみ `true`。詳細は [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) の該当節参照
 
 ## ローカル
 - 起動: `launch.bat`（Azurite + API:7071 + フロント:5000）
-- テスト: `dotnet test MoneyBoardShared.Tests/MoneyBoardShared.Tests.csproj` ／ `dotnet test MoneyBoardApi.Tests/MoneyBoardApi.Tests.csproj`
+- テスト: `dotnet test MoneyBoardShared.Tests/MoneyBoardShared.Tests.csproj` ／ `dotnet test MoneyBoardApi.Tests/MoneyBoardApi.Tests.csproj` ／ `dotnet test MoneyBoard.Tests/MoneyBoard.Tests.csproj`
 - シークレット: `MoneyBoardApi/local.settings.json`（**.gitignore 済・コミット禁止**）。本番は SWA アプリ設定。
 
 ## 運用方針

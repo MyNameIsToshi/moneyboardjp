@@ -6,10 +6,29 @@
     <!-- アプリのバージョン（セマンティックバージョニング）。GitHub の Releases/タグ vX.Y.Z と一致させる。
          上げるときはここを編集し、同じ番号で GitHub に Release/タグ（例 v0.9.0）を切る。
          ヘッダー右に v@AppVersion として表示される。 -->
-    <Version>2.16.0</Version>
+    <Version>2.17.0</Version>
+    <!-- リリースごとの強制/任意アップデート切替（#142）。true にすると更新ダイアログが「更新する」ボタンのみ
+         （あとで手段なし）になる。既定 false（従来どおり任意）。 -->
+    <ForceUpdate>false</ForceUpdate>
     <!-- PWA: service-worker-assets.js（静的アセットのハッシュ一覧）を publish 時に生成する -->
     <ServiceWorkerAssetsManifest>service-worker-assets.js</ServiceWorkerAssetsManifest>
   </PropertyGroup>
+  <!-- PWA: 定期ポーリング（#132）用の軽量バージョンマーカー。<Version> から生成するため単一情報源のまま
+       手動同期は増えない。クリーンビルド（CI/本番 publish）では wwwroot 静的アセット列挙の時点で未生成の
+       ため service worker のプリキャッシュ対象に入らないが、既に存在する状態での再ビルドでは対象に入り得る
+       （＝この除外はビルド状態依存で保証されない）。取得側 AppUpdateService はこの差異に依存せず、
+       キャッシュバスティングのクエリ付きでポーリングして常に最新を取得する。forceUpdate も <ForceUpdate>
+       から同様に単一情報源で書き出す（#142）。 -->
+  <Target Name="WriteVersionJson" BeforeTargets="BeforeBuild">
+    <!-- MSBuild のブール値は大小文字を区別しない（True/TRUE 等も可）が、JSON のブールは小文字 true/false のみ。
+         $(ForceUpdate) をそのまま埋め込むと大文字表記や未定義（空）で不正な JSON になり、AppUpdateService の
+         GetFromJsonAsync が例外→catch で握りつぶされ更新検知が恒久的に止まる。小文字 true 以外は false に正規化する。 -->
+    <PropertyGroup>
+      <_ForceUpdateJson>false</_ForceUpdateJson>
+      <_ForceUpdateJson Condition="'$(ForceUpdate.ToLowerInvariant())' == 'true'">true</_ForceUpdateJson>
+    </PropertyGroup>
+    <WriteLinesToFile File="wwwroot\version.json" Lines="{&quot;version&quot;:&quot;v$(Version)&quot;,&quot;forceUpdate&quot;:$(_ForceUpdateJson)}" Overwrite="true" />
+  </Target>
   <ItemGroup>
     <PackageReference Include="Blazor-ApexCharts" Version="6.1.0" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.*" />

@@ -23,12 +23,14 @@ public partial class FixedCostTab
         {
             _scrollLocked = AnyDialogOpen;
             await JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", _scrollLocked);
+            Overlay.SetOpen(nameof(FixedCostTab), AnyDialogOpen);
         }
     }
 
     public void Dispose()
     {
         if (_scrollLocked) _ = JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", false);
+        Overlay.SetOpen(nameof(FixedCostTab), false);
     }
 
     // スマホ：編集シートで開いている固定費。既存は State の実体を直接編集（即時保存）、

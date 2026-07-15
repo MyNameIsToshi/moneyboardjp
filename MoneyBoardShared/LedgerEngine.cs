@@ -34,8 +34,20 @@ public static class LedgerEngine
     {
         if (!state.Months.TryGetValue(ym, out var mo)) return 0;
         if (!mo.Ledgers.ContainsKey(accountId)) return 0;
-        var account = state.Accounts.FirstOrDefault(a => a.Id == accountId);
-        return LedgerMath.Close(mo, accountId, OpeningOf(state, ym, accountId), account?.IsBonusAccount == true);
+        return LedgerMath.Close(mo, accountId, OpeningOf(state, ym, accountId));
+    }
+
+    // 過去月に、削除済み口座の「空の台帳スタブ」だけが残って表示されるのを防ぐ判定（#137フォローアップ）。
+    // 追加直後に何も入力せず削除された口座（財布のON/OFFを試しただけ等）は EnsureMonth で
+    // 中身が空のまま Ledger が作られており、過去月を開くたびに実体のない亡霊カードとして出てしまう。
+    // 実際に何かしら入出金・振替の記録がある場合のみ「その月に存在した」とみなして表示対象にする。
+    public static bool HasActivity(MonthData mo, string accountId)
+    {
+        if (!mo.Ledgers.TryGetValue(accountId, out var l)) return false;
+        return l.Confirmed != 0 || l.Salary != 0 || l.Bonus != 0
+            || l.Debits.Count > 0 || l.Incomes.Count > 0
+            || l.AtmDeposit != 0 || l.AtmWithdraw != 0 || l.WalletAtmDeposits.Count > 0
+            || mo.Transfers.Any(t => t.From == accountId || t.To == accountId);
     }
 
     // ── カード明細 → 月次 Debit 反映 ──────────────────

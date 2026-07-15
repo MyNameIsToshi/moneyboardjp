@@ -262,6 +262,11 @@
   grid-template-columns: 1fr 1fr 1fr 28px;
 }
 
+/* ボーナス月ピッカー（#134）：4列（5月/9月で改行・3行×4列で均等） */
+.app-shell.is-mobile .bonus-months-grid {
+  grid-template-columns: repeat(4, 1fr);
+}
+
 /* =====================================================
    一覧のサマリーカード（タップで編集シートを開く）
    ===================================================== */
@@ -436,8 +441,8 @@
   font-size: 26px;
 }
 
-/* カテゴリ設定はヘッダのリンクを隠し、下部固定の全幅ボタンに集約 */
-.app-shell.is-mobile .dd-categorize {
+/* カテゴリ設定はヘッダのリンクを隠し、下部固定の全幅ボタンに集約（選択モードの操作群も同様） */
+.app-shell.is-mobile .dd-cat-top {
   display: none;
 }
 
@@ -446,6 +451,15 @@
   padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
   background: #fbfaf7;
   border-top: 1px solid #f0eee9;
+}
+
+.app-shell.is-mobile .dd-action-bar .dd-select-controls {
+  justify-content: space-between;
+}
+
+.app-shell.is-mobile .dd-select-apply,
+.app-shell.is-mobile .dd-select-cancel {
+  flex: 1 1 auto;
 }
 
 /* =====================================================

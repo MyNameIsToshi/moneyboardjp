@@ -60,6 +60,8 @@ public partial class CardTab
         {
             _scrollLocked = AnyDialogOpen;
             await JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", _scrollLocked);
+            // AI読取busy中も _shotCardId が非nullのままのため、この一箇所で自動的にカバーされる（#141）。
+            Overlay.SetOpen(nameof(CardTab), AnyDialogOpen);
         }
 
         var target = Svc.ScrollToCardId;
@@ -380,6 +382,7 @@ public partial class CardTab
     {
         _shotRef?.Dispose();
         if (_scrollLocked) _ = JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", false);
+        Overlay.SetOpen(nameof(CardTab), false);
     }
 
     public sealed class ProcessedImage
