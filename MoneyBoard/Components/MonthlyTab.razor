@@ -598,7 +598,7 @@
             bool isPast = !LedgerService.IsCurrentOrFutureCycle(Svc.CurrentMonth);
             if (isPast)
                 return Svc.State.Accounts
-                    .Where(a => Mo.Ledgers.ContainsKey(a.Id))
+                    .Where(a => Mo.Ledgers.ContainsKey(a.Id) && (!a.IsDeleted || LedgerEngine.HasActivity(Mo, a.Id)))
                     .OrderByDescending(a => a.IsWallet)
                     .ThenBy(a => a.SortOrder)
                     .ToList();

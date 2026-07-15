@@ -494,6 +494,71 @@ public class LedgerEngineTests
         Assert.Equal(1_000m, mo.Ledgers["a"].AtmWithdraw);
     }
 
+    // ── HasActivity（過去月に空の台帳スタブだけの削除済み口座を出さない判定・#137フォローアップ）──
+    [Fact]
+    public void HasActivity_NoLedgerEntry_ReturnsFalse()
+    {
+        var mo = new MonthData();
+        Assert.False(LedgerEngine.HasActivity(mo, "missing"));
+    }
+
+    [Fact]
+    public void HasActivity_EmptyLedgerStub_ReturnsFalse()
+    {
+        var mo = new MonthData();
+        mo.Ledgers["a"] = new Ledger();
+        Assert.False(LedgerEngine.HasActivity(mo, "a"));
+    }
+
+    [Theory]
+    [InlineData(nameof(Ledger.Confirmed))]
+    [InlineData(nameof(Ledger.Salary))]
+    [InlineData(nameof(Ledger.Bonus))]
+    [InlineData(nameof(Ledger.AtmDeposit))]
+    [InlineData(nameof(Ledger.AtmWithdraw))]
+    public void HasActivity_NonZeroAmountField_ReturnsTrue(string field)
+    {
+        var mo = new MonthData();
+        var l = new Ledger();
+        typeof(Ledger).GetProperty(field)!.SetValue(l, 1_000m);
+        mo.Ledgers["a"] = l;
+
+        Assert.True(LedgerEngine.HasActivity(mo, "a"));
+    }
+
+    [Fact]
+    public void HasActivity_HasDebit_ReturnsTrue()
+    {
+        var mo = new MonthData();
+        mo.Ledgers["a"] = new Ledger { Debits = { new Debit { Name = "x", Amount = 100m } } };
+        Assert.True(LedgerEngine.HasActivity(mo, "a"));
+    }
+
+    [Fact]
+    public void HasActivity_HasIncome_ReturnsTrue()
+    {
+        var mo = new MonthData();
+        mo.Ledgers["a"] = new Ledger { Incomes = { new IncomeItem { Name = "x", Amount = 100m } } };
+        Assert.True(LedgerEngine.HasActivity(mo, "a"));
+    }
+
+    [Fact]
+    public void HasActivity_HasWalletAtmDeposit_ReturnsTrue()
+    {
+        var mo = new MonthData();
+        mo.Ledgers["a"] = new Ledger { WalletAtmDeposits = { new WalletAtmDeposit { AccountId = "b", Amount = 500m } } };
+        Assert.True(LedgerEngine.HasActivity(mo, "a"));
+    }
+
+    [Fact]
+    public void HasActivity_ReferencedByTransfer_ReturnsTrue()
+    {
+        var mo = new MonthData();
+        mo.Ledgers["a"] = new Ledger();
+        mo.Transfers.Add(new Transfer { From = "a", To = "b", Amount = 100m });
+        Assert.True(LedgerEngine.HasActivity(mo, "a"));
+    }
+
     [Fact]
     public void ExpandWallet_SumsNonWalletAtmWithdraw_IntoWalletAtmDeposit_ExcludingWalletItself()
     {
