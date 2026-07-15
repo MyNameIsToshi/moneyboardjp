@@ -24,12 +24,14 @@ public partial class FixedIncomeTab
         {
             _scrollLocked = AnyDialogOpen;
             await JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", _scrollLocked);
+            Overlay.SetOpen(nameof(FixedIncomeTab), AnyDialogOpen);
         }
     }
 
     public void Dispose()
     {
         if (_scrollLocked) _ = JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", false);
+        Overlay.SetOpen(nameof(FixedIncomeTab), false);
     }
 
     private static Ym CurrentCycleStart => Ym.Parse(LedgerService.CurrentCycleStartYm());

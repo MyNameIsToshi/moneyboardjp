@@ -3,6 +3,7 @@
 @inject AccessService Access
 @inject TutorialService TutorialSvc
 @inject IJSRuntime JS
+@inject OverlayRegistryService Overlay
 @implements IDisposable
 
 @{
@@ -167,12 +168,14 @@
         {
             _scrollLocked = AnyDialogOpen;
             await JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", _scrollLocked);
+            Overlay.SetOpen(nameof(MyPageTab), AnyDialogOpen);
         }
     }
 
     public void Dispose()
     {
         if (_scrollLocked) _ = JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", false);
+        Overlay.SetOpen(nameof(MyPageTab), false);
     }
 
     // 各設定セクションは折りたたみ式（スマホのみ・既定は畳んだ状態）

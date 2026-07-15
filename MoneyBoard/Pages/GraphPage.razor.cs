@@ -57,12 +57,14 @@ public partial class GraphPage
         {
             _scrollLocked = AnyDialogOpen;
             await JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", _scrollLocked);
+            Overlay.SetOpen(nameof(GraphPage), AnyDialogOpen);
         }
     }
 
     public void Dispose()
     {
         if (_scrollLocked) _ = JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", false);
+        Overlay.SetOpen(nameof(GraphPage), false);
     }
 
     // マスク切替のたびにインクリメント → チャート @key に含めて強制再生成。

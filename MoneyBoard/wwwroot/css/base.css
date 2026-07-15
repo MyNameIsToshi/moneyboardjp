@@ -195,17 +195,6 @@ body {
   text-align: center;
 }
 
-/* リロードボタンの更新通知ドット（#132）：件数を持たないため bell-badge と異なり単純な丸のみ */
-.reload-dot {
-  position: absolute;
-  top: -1px;
-  right: 0;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--bad);
-}
-
 /* =====================================================
    共通ページヘッダー（PCのみ・線アイコン＋画面名＋サブ＋右スロット）。PageHeader.razor
    ===================================================== */
@@ -578,25 +567,6 @@ body {
   color: #fff
 }
 
-#pwa-update-toast {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: var(--accent);
-  color: #fff;
-  padding: 8px 16px;
-  font-size: 13px;
-  text-align: center;
-  z-index: 1000;
-}
-
-#pwa-update-toast a {
-  color: #fff;
-  font-weight: 600;
-  text-decoration: underline;
-}
-
 #app-update-toast {
   position: fixed;
   bottom: 0;
@@ -619,9 +589,4 @@ body {
   line-height: 0;
   cursor: pointer;
   vertical-align: middle;
-}
-
-/* pwa.js の #pwa-update-toast（新SW待機中）と同時表示になる場合、同じ最下段に重ならないよう1段上へ積む */
-body:has(#pwa-update-toast) #app-update-toast {
-  bottom: 36px;
 }

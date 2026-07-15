@@ -1,5 +1,6 @@
 @inject LedgerService Svc
 @inject IJSRuntime JS
+@inject OverlayRegistryService Overlay
 @implements IDisposable
 
 @{ var accts = ActiveAccountsForMonth; }
@@ -561,12 +562,14 @@
         {
             _scrollLocked = AnyDialogOpen;
             await JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", _scrollLocked);
+            Overlay.SetOpen(nameof(MonthlyTab), AnyDialogOpen);
         }
     }
 
     public void Dispose()
     {
         if (_scrollLocked) _ = JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", false);
+        Overlay.SetOpen(nameof(MonthlyTab), false);
     }
 
     // 開閉状態（口座IDを保持）。_toggled＝口座カードを既定から反転した口座。

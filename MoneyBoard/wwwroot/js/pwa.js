@@ -7,21 +7,10 @@ let updateRequested = false;
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('service-worker.js').then(registration => {
-            // 前回セッションでインストール済みのまま waiting になっている場合も検知する
-            // （updatefound は今回のページロード後に新規インストールが始まった時にしか発火しないため）
-            if (registration.waiting && navigator.serviceWorker.controller) {
-                showUpdateToast(registration.waiting);
-            }
-
-            registration.addEventListener('updatefound', () => {
-                const newWorker = registration.installing;
-                if (!newWorker) return;
-                newWorker.addEventListener('statechange', () => {
-                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                        showUpdateToast(newWorker);
-                    }
-                });
-            });
+            // 新SWの検知・通知自体は AppUpdateService の version.json ポーリング（#141）に一本化した
+            // （Web版も含めた全ユーザーへダイアログで通知するため、常時ポーリングでSWイベントに依存しない）。
+            // ここでの登録は SKIP_WAITING 経由のリロード実行（activateWaitingAndReload）に必要な
+            // registration の確保と、明示的な更新チェックのためだけに残す。
 
             // ブラウザの自動更新チェックは前回チェックから24時間未満だとスキップされる仕様のため、
             // アプリをフォアグラウンドに戻した時は明示的に更新確認する（デプロイ直後に再度開いた時も検知できるように）。
@@ -40,21 +29,7 @@ if ('serviceWorker' in navigator) {
     });
 }
 
-function showUpdateToast(waitingWorker) {
-    if (document.getElementById('pwa-update-toast')) return;
-
-    const toast = document.createElement('div');
-    toast.id = 'pwa-update-toast';
-    toast.innerHTML = '新しいバージョンがあります。 <a href="" class="pwa-update-reload">更新する</a>';
-    document.body.appendChild(toast);
-
-    toast.querySelector('.pwa-update-reload').addEventListener('click', event => {
-        event.preventDefault();
-        activateWaitingAndReload(waitingWorker);
-    });
-}
-
-// waiting中のSWを即活性化してリロードする（トースト「更新する」・常設リロードボタン#132で共用）。
+// waiting中のSWを即活性化してリロードする（更新ダイアログ#141の「更新する」・常設リロードボタン#132で共用）。
 function activateWaitingAndReload(waitingWorker) {
     updateRequested = true;
     // このタブでの明示的な更新操作であることを、クリック時刻つきで記録する。直後の自タブ再読込で

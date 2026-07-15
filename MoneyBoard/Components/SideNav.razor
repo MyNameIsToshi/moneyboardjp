@@ -54,10 +54,6 @@
             <button class="sidenav-item" @onclick="ReloadAsync">
                 <span class="sn-ico-wrap">
                     <span class="sn-ico msym">refresh</span>
-                    @if (AppUpdateSvc.UpdateAvailable)
-                    {
-                        <span class="reload-dot"></span>
-                    }
                 </span>
                 <span class="sn-lab">更新</span>
             </button>
@@ -72,11 +68,9 @@
     {
         Nav.LocationChanged += OnLocationChanged;
         AnnounceSvc.Changed += OnAnnounceChanged;
-        AppUpdateSvc.Changed += OnAppUpdateChanged;
     }
 
     private void OnAnnounceChanged() => InvokeAsync(StateHasChanged);
-    private void OnAppUpdateChanged() => InvokeAsync(StateHasChanged);
 
     private async Task ReloadAsync() => await JS.InvokeVoidAsync("moneyboardPwa.checkForUpdateAndReload");
 
@@ -119,6 +113,5 @@
     {
         Nav.LocationChanged -= OnLocationChanged;
         AnnounceSvc.Changed -= OnAnnounceChanged;
-        AppUpdateSvc.Changed -= OnAppUpdateChanged;
     }
 }

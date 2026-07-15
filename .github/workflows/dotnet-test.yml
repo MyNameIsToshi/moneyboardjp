@@ -18,20 +18,23 @@ permissions:
 
 jobs:
   unit-tests:
-    name: Unit tests (MoneyBoardShared)
+    name: Unit tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup .NET 8
+      - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: |
+            8.0.x
+            10.0.x
 
       - name: Restore
         run: |
           dotnet restore MoneyBoardShared.Tests/MoneyBoardShared.Tests.csproj
           dotnet restore MoneyBoardApi.Tests/MoneyBoardApi.Tests.csproj
+          dotnet restore MoneyBoard.Tests/MoneyBoard.Tests.csproj
 
       # trx ロガーで件数を locale 非依存に記録（後段で Counters を解析）。console も併用。
       - name: Test - MoneyBoardShared
@@ -53,6 +56,17 @@ jobs:
           --settings MoneyBoardApi.Tests/coverlet.runsettings
           --logger "console;verbosity=normal"
           --logger "trx;LogFileName=api.trx"
+
+      # MoneyBoard（フロント）はほぼ Razor UI でカバレッジ％に意味がないため（#141 の
+      # OverlayRegistryService のような純粋ロジックのみが対象）、Shared/API のカバレッジ集計・
+      # 閾値判定には含めず、件数のみテスト結果表に出す。
+      - name: Test - MoneyBoard
+        run: >
+          dotnet test MoneyBoard.Tests/MoneyBoard.Tests.csproj
+          --configuration Release
+          --no-restore
+          --logger "console;verbosity=normal"
+          --logger "trx;LogFileName=frontend.trx"
 
       - name: Upload coverage report
         if: always()
@@ -113,6 +127,7 @@ jobs:
             echo "|---|---|---|---|---|"
             row "MoneyBoardShared" shared.trx
             row "MoneyBoardApi" api.trx
+            row "MoneyBoard" frontend.trx
             echo ""
             if [ -f code-coverage-results.md ]; then cat code-coverage-results.md; else echo "_カバレッジ集計を生成できませんでした_"; fi
             echo ""

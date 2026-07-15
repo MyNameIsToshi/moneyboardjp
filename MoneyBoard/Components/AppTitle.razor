@@ -26,10 +26,6 @@
     {
         <button class="reload-btn" @onclick="ReloadAsync" title="最新の状態に更新" aria-label="最新の状態に更新">
             <span class="msym">refresh</span>
-            @if (AppUpdateSvc.UpdateAvailable)
-            {
-                <span class="reload-dot"></span>
-            }
         </button>
     }
     @if (ShowBell)
@@ -59,22 +55,13 @@
     // "v" を値側に含める（マークアップで v@AppVersion と書くと Razor がメール誤認してリテラル化するため）。
     private string AppVersion = AppVersionProvider.Current;
 
-    protected override void OnInitialized()
-    {
-        AnnounceSvc.Changed += OnAnnounceChanged;
-        AppUpdateSvc.Changed += OnAppUpdateChanged;
-    }
+    protected override void OnInitialized() => AnnounceSvc.Changed += OnAnnounceChanged;
 
     protected override async Task OnInitializedAsync() => await AnnounceSvc.InitAsync();
 
     private void OnAnnounceChanged() => InvokeAsync(StateHasChanged);
-    private void OnAppUpdateChanged() => InvokeAsync(StateHasChanged);
 
     private async Task ReloadAsync() => await JS.InvokeVoidAsync("moneyboardPwa.checkForUpdateAndReload");
 
-    public void Dispose()
-    {
-        AnnounceSvc.Changed -= OnAnnounceChanged;
-        AppUpdateSvc.Changed -= OnAppUpdateChanged;
-    }
+    public void Dispose() => AnnounceSvc.Changed -= OnAnnounceChanged;
 }

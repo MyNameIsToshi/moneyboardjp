@@ -1,0 +1,31 @@
+@inject AppUpdateService AppUpdateSvc
+@inject IJSRuntime JS
+@implements IDisposable
+
+@* アプリ更新ダイアログ（#141）。PWA限定のバッジ通知（#132）に代えて、Web版も含めた全ユーザーに
+   ダイアログで通知する。表示タイミングは AppUpdateService 側で「操作中でない」ことを確認済み
+   （中央レジストリ＋HasPendingChanges）のため、ここでは ShowUpdateDialog をそのまま描画するだけでよい。
+   「あとで」で閉じられる任意アップデート。背景クリックでは閉じない（#114 の CUD 系ダイアログと同じ方針）。 *@
+@if (AppUpdateSvc.ShowUpdateDialog)
+{
+    <div class="dialog-overlay">
+        <div class="dialog-box">
+            <h4>新しいバージョンがあります</h4>
+            <div class="dialog-message">更新すると最新の状態に切り替わります。</div>
+            <div class="dialog-btns">
+                <button class="btn" @onclick="AppUpdateSvc.DismissUpdateDialog">あとで</button>
+                <button class="btn primary" @onclick="ReloadAsync">更新する</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    protected override void OnInitialized() => AppUpdateSvc.Changed += OnChanged;
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    private Task ReloadAsync() => JS.InvokeVoidAsync("moneyboardPwa.checkForUpdateAndReload").AsTask();
+
+    public void Dispose() => AppUpdateSvc.Changed -= OnChanged;
+}

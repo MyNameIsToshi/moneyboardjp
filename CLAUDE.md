@@ -11,7 +11,7 @@
 - `MoneyBoard/` … フロントエンド（Blazor WASM・.NET 10）
 - `MoneyBoardApi/` … バックエンド（Azure Functions Isolated・.NET 8）
 - `MoneyBoardShared/` … 純粋ドメインロジック＋モデル（**テスト対象の中心**）
-- `MoneyBoardShared.Tests/` `MoneyBoardApi.Tests/` … xUnit（**sln なし**。各 `.csproj` を個別に `dotnet test`）
+- `MoneyBoardShared.Tests/` `MoneyBoardApi.Tests/` `MoneyBoard.Tests/` … xUnit（**sln なし**。各 `.csproj` を個別に `dotnet test`）。`MoneyBoard.Tests/` はフロント（`MoneyBoard/Services/` 等）の純粋ロジックのみ対象（Razor UI は対象外）
 
 ## 開発フロー（個人標準に準拠）
 - ブランチ: `dev` で作業 → `main` へ PR → CI 緑でマージ → SWA 自動デプロイ（**`main` へ直接 push しない**）
@@ -21,7 +21,7 @@
 
 ## ローカル
 - 起動: `launch.bat`（Azurite + API:7071 + フロント:5000）
-- テスト: `dotnet test MoneyBoardShared.Tests/MoneyBoardShared.Tests.csproj` ／ `dotnet test MoneyBoardApi.Tests/MoneyBoardApi.Tests.csproj`
+- テスト: `dotnet test MoneyBoardShared.Tests/MoneyBoardShared.Tests.csproj` ／ `dotnet test MoneyBoardApi.Tests/MoneyBoardApi.Tests.csproj` ／ `dotnet test MoneyBoard.Tests/MoneyBoard.Tests.csproj`
 - シークレット: `MoneyBoardApi/local.settings.json`（**.gitignore 済・コミット禁止**）。本番は SWA アプリ設定。
 
 ## 運用方針

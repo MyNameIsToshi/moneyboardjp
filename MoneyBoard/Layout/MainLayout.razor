@@ -4,6 +4,7 @@
 @inject AnnouncementService AnnounceSvc
 @inject TutorialService TutorialSvc
 @inject AppUpdateService AppUpdateSvc
+@inject OverlayRegistryService Overlay
 @inject NavigationManager Nav
 @inject IJSRuntime JS
 @inject LedgerService Svc
@@ -65,6 +66,9 @@
             <button class="app-update-toast-close" @onclick="AppUpdateSvc.Dismiss" aria-label="閉じる"><span class="msym">close</span></button>
         </div>
     }
+
+    @* アプリ更新ダイアログ（#141）。使用中の更新検知＝Web版も含めた全ユーザー向け。 *@
+    <AppUpdateDialog />
 </CascadingValue>
 </CascadingValue>
 
@@ -100,9 +104,10 @@
     // 描画を待つ（上の @if と TriggerIfNeeded のガードで、2つの強制オーバーレイを重ねない）。
     private bool AnnounceOverlayOpen => AnnounceSvc.ShowList || AnnounceSvc.UnreadItems.Count > 0;
 
-    // お知らせ／チュートリアルのモーダル表示中は背面スクロールをロック（Portfolio と同じ setBodyScrollLock
-    // パターン）。コーチマークは対象（マイページの下部バー/サイドバー項目）を見せる必要があるためロックしない。
-    private bool AnyBlockingDialogOpen => AnnounceOverlayOpen || TutorialSvc.ShowModal;
+    // お知らせ／チュートリアルのモーダル、およびアプリ更新ダイアログ（#141）の表示中は背面スクロールをロック
+    // （Portfolio と同じ setBodyScrollLock パターン。全 .dialog-overlay モーダル共通の規約＝dialog.css の .dialog-lock）。
+    // コーチマークは対象（マイページの下部バー/サイドバー項目）を見せる必要があるためロックしない。
+    private bool AnyBlockingDialogOpen => AnnounceOverlayOpen || TutorialSvc.ShowModal || AppUpdateSvc.ShowUpdateDialog;
     private bool _scrollLocked;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -111,6 +116,9 @@
         {
             _scrollLocked = AnyBlockingDialogOpen;
             await JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", _scrollLocked);
+            // 中央レジストリ（#141）：お知らせ／チュートリアルモーダル表示中はアプリ更新ダイアログを出さない
+            // （更新ダイアログ自体の表示中も背面ロックのため true になるが、ShowUpdateDialog ガードで再入はしない）。
+            Overlay.SetOpen(nameof(MainLayout), AnyBlockingDialogOpen);
         }
     }
 
@@ -138,5 +146,6 @@
         Nav.LocationChanged -= OnLocationChanged;
         // MainLayout自体は通常アプリ終了までDisposeされないが、ロックが残らないよう保険で解除。
         if (_scrollLocked) _ = JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", false);
+        Overlay.SetOpen(nameof(MainLayout), false);
     }
 }

@@ -15,8 +15,15 @@ public class AppStateStore(StorageService storage)
     public bool IsPending { get; private set; }   // サインイン済みだが未承認（承認待ち）
     public bool IsOwner => storage.IsOwner;        // 現在のユーザーがオーナーか
 
+    /// <summary>未保存のインライン編集があるか（#141：アプリ更新ダイアログの操作中判定に使用）。
+    /// RequestSave で true、デバウンス保存（成功/競合/失敗いずれも）が完了したら false になる。</summary>
+    public bool HasPendingChanges { get; private set; }
+
     /// <summary>保存が競合し、最新状態を読み込み直したときに発火（UI 再描画用）。</summary>
     public event Action? StateReloadedExternally;
+
+    /// <summary>HasPendingChanges が変化したときに発火（#141）。</summary>
+    public event Action? Changed;
 
     // 保存はすべて _saveLock で直列化し、同時実行による更新ロストを防ぐ。
     private readonly SemaphoreSlim _saveLock = new(1, 1);
@@ -58,10 +65,18 @@ public class AppStateStore(StorageService storage)
     /// </summary>
     public void RequestSave(int delayMs = 600)
     {
+        SetPendingChanges(true);
         _debounceCts?.Cancel();
         var cts = new CancellationTokenSource();
         _debounceCts = cts;
         _ = DebouncedSaveAsync(delayMs, cts.Token);
+    }
+
+    private void SetPendingChanges(bool value)
+    {
+        if (HasPendingChanges == value) return;
+        HasPendingChanges = value;
+        Changed?.Invoke();
     }
 
     private async Task DebouncedSaveAsync(int delayMs, CancellationToken token)
@@ -78,7 +93,7 @@ public class AppStateStore(StorageService storage)
         // データ未読込のうちは保存しない。空の初期 State（accounts 等が空）で
         // サーバーの実データを上書きしてしまう事故を防ぐ（例: 家計簿未読込のページから
         // 保存フラッシュが呼ばれるケース）。読込成功で IsLoaded=true になって初めて保存する。
-        if (!IsLoaded) return;
+        if (!IsLoaded) { SetPendingChanges(false); return; }
         _debounceCts?.Cancel();
         await _saveLock.WaitAsync();
         try
@@ -124,6 +139,11 @@ public class AppStateStore(StorageService storage)
         }
         finally
         {
+            // 直列化を待つ間に新しい RequestSave（デバウンス）が入っていた場合、その保存はまだ走っていない
+            // ＝未保存の編集が残っているため、ここで false にしない（誤って「操作中でない」と判定し更新
+            // ダイアログが編集中に割り込むのを防ぐ）。その保存が走るとき自身の開始時の Cancel を経て false になる。
+            var pending = _debounceCts;
+            if (pending is null || pending.IsCancellationRequested) SetPendingChanges(false);
             _saveLock.Release();
         }
     }

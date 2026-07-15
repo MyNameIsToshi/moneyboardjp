@@ -12,11 +12,16 @@ namespace MoneyBoard.Services;
 /// 切り替わることがあるため、それらに依存せず「起動時にlocalStorageへ保存した前回バージョンと現在の
 /// AppVersionを比較する」方式にした。差異があれば「vX.Y.Zに更新されました」と事後報告するのみで、
 /// 強制リロードは行わない（他タブへ影響しない・未保存データを壊さない、という#76の設計方針を踏襲）。
-/// アプリ使用中の更新検知（#132）：起動時比較だけでは長時間使い続けた場合に気づけないため、
-/// 軽量バージョンマーカー（wwwroot/version.json・ビルド時に&lt;Version&gt;から自動生成）を3分間隔で
-/// ポーリングし、実行中バージョンと異なれば UpdateAvailable を立てる（リロードボタンのバッジ表示のみ・
-/// 強制リロードはしない）。取得はキャッシュバスティング用のクエリ付きで行うため、SWのプリキャッシュや
-/// ブラウザHTTPキャッシュにキャッシュ済み内容があっても影響されず、常に最新を取得できる。
+/// アプリ使用中の更新検知は軽量バージョンマーカー（wwwroot/version.json・ビルド時に&lt;Version&gt;から
+/// 自動生成）を3分間隔でポーリングし、実行中バージョンと異なれば検知する。取得はキャッシュバスティング用の
+/// クエリ付きで行うため、SWのプリキャッシュやブラウザHTTPキャッシュにキャッシュ済み内容があっても
+/// 影響されず、常に最新を取得できる。
+/// 検知後の通知はPWA限定のバッジ（#132）から、Web版も含めた更新ダイアログに変更した（#141）。
+/// ポーリング自体は常時実行（IsStandaloneゲート撤去）。ダイアログは「操作中でない」ことを
+/// OverlayRegistryService（モーダル/シート/ビジー状態の中央レジストリ）と AppStateStore.HasPendingChanges
+/// （未保存のインライン編集）で確認してから表示し、操作中ならそれらの Changed イベントで再評価する
+/// （一度きりのチェックではなくイベント駆動）。「あとで」で閉じたら以降はこのセッション（再起動まで）
+/// 再表示しない。
 /// </summary>
 public class AppUpdateService
 {
@@ -35,24 +40,33 @@ public class AppUpdateService
     // version.json は wwwroot 直下の静的ファイルのため、API用（apiBaseUrl）とは別に
     // 常にホスト自身（NavigationManager.BaseUri）をベースにした専用クライアントを使う（AnnouncementServiceと同じ理由）。
     private readonly HttpClient _http;
+    private readonly AppStateStore _appState;
+    private readonly OverlayRegistryService _overlay;
 
     /// <summary>今回検知した更新後バージョン（"vX.Y.Z"）。通知不要ならnull。</summary>
     public string? UpdatedToVersion { get; private set; }
-
-    /// <summary>ポーリングでデプロイ済みバージョンとの差異を検知した場合 true（#132）。
-    /// リロードボタンのバッジ表示にのみ使う。</summary>
-    public bool UpdateAvailable { get; private set; }
 
     /// <summary>ホーム画面追加後のスタンドアロン起動か（#132）。常設リロードボタンは通常のブラウザタブ
     /// （既にブラウザ自身のリロード操作がある）では冗長なため、PWAとして起動している時のみ表示する。</summary>
     public bool IsStandalone { get; private set; }
 
+    /// <summary>更新ダイアログ（#141）を表示すべきか。ポーリングで検知しても、操作中は
+    /// 安全なタイミングまで立たない。</summary>
+    public bool ShowUpdateDialog { get; private set; }
+
+    // ポーリングで検知したが、操作中のためダイアログをまだ出せていない更新後バージョン。
+    private string? _pendingVersion;
+    // 「あとで」で閉じたら、以降このセッション（アプリ再起動＝再読込まで）は再表示しない（一度きり）。
+    private bool _dismissedOnce;
+
     public event Action? Changed;
 
-    public AppUpdateService(IJSRuntime js, NavigationManager nav)
+    public AppUpdateService(IJSRuntime js, NavigationManager nav, AppStateStore appState, OverlayRegistryService overlay)
     {
         _js = js;
         _http = new HttpClient { BaseAddress = new Uri(nav.BaseUri) };
+        _appState = appState;
+        _overlay = overlay;
     }
 
     private bool _initialized;
@@ -76,21 +90,21 @@ public class AppUpdateService
         if (lastSeen != currentVersion)
             await LocalStorage.SetItemAsync(_js, LastSeenKey, currentVersion);
 
-        // ポーリング結果（UpdateAvailable）はリロードボタンのバッジ＝AppTitle/SideNav とも IsStandalone
-        // ゲート下でしか描画されない。通常ブラウザタブでは出す先が無いため、無駄な定期取得を避けて
-        // PWA起動時のみポーリングを開始する。
-        if (IsStandalone)
-            _ = PollForUpdateAsync(currentVersion);
+        // 更新ダイアログ（#141）はWeb版も含めて全ユーザーに出すため、常時ポーリングする
+        // （#132時点ではPWAのバッジ表示にしか使い道が無くIsStandalone限定だったが、その制約は無くなった）。
+        _appState.Changed += TryShowPendingDialog;
+        _overlay.Changed += TryShowPendingDialog;
+        _ = PollForUpdateAsync(currentVersion);
     }
 
     /// <summary>
-    /// version.json を3分間隔でポーリングし、実行中バージョンと異なれば UpdateAvailable を立てる。
+    /// version.json を3分間隔でポーリングし、実行中バージョンと異なれば検知する。
     /// 一度検知したら以降ポーリングを続ける意味がないため終了する。取得失敗（オフライン等）はその回だけ
     /// スキップし、次回の間隔で再試行する。
     /// </summary>
     private async Task PollForUpdateAsync(string currentVersion)
     {
-        while (!UpdateAvailable)
+        while (_pendingVersion == null)
         {
             await Task.Delay(PollInterval);
 
@@ -112,10 +126,33 @@ public class AppUpdateService
 
             if (deployedVersion != null && AppVersionMath.ShouldNotifyUpdate(currentVersion, deployedVersion))
             {
-                UpdateAvailable = true;
-                Changed?.Invoke();
+                _pendingVersion = deployedVersion;
+                TryShowPendingDialog();
             }
         }
+    }
+
+    /// <summary>
+    /// 検知済みの更新（_pendingVersion）があり、かつ「操作中でない」（未保存のインライン編集も
+    /// 中央レジストリ上のモーダル/シート/ビジー状態も無い）なら更新ダイアログを表示する。
+    /// 操作中で出せなかった場合は AppStateStore.Changed / OverlayRegistryService.Changed
+    /// （＝保存完了／オーバーレイのclose）で再度呼ばれ、安全になったタイミングで再評価する。
+    /// </summary>
+    private void TryShowPendingDialog()
+    {
+        if (_pendingVersion == null || _dismissedOnce || ShowUpdateDialog) return;
+        if (_appState.HasPendingChanges || _overlay.IsAnyOpen) return;
+
+        ShowUpdateDialog = true;
+        Changed?.Invoke();
+    }
+
+    /// <summary>「あとで」：ダイアログを閉じ、以降このセッション（再起動＝再読込まで）は再表示しない。</summary>
+    public void DismissUpdateDialog()
+    {
+        ShowUpdateDialog = false;
+        _dismissedOnce = true;
+        Changed?.Invoke();
     }
 
     private record VersionPayload(string? Version);

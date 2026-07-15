@@ -1,5 +1,6 @@
 @inject LedgerService Svc
 @inject IJSRuntime JS
+@inject OverlayRegistryService Overlay
 @implements IDisposable
 
 <div class="set-head">
@@ -129,12 +130,14 @@ else
         {
             _scrollLocked = AnyDialogOpen;
             await JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", _scrollLocked);
+            Overlay.SetOpen(nameof(CardSettings), AnyDialogOpen);
         }
     }
 
     public void Dispose()
     {
         if (_scrollLocked) _ = JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", false);
+        Overlay.SetOpen(nameof(CardSettings), false);
     }
 
     private IEnumerable<Card> Ordered => Svc.State.Cards.Where(c => !c.IsDeleted).OrderBy(c => c.SortOrder);
