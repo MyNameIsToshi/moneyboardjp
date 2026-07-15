@@ -54,8 +54,12 @@ public class AppUpdateService
     /// 安全なタイミングまで立たない。</summary>
     public bool ShowUpdateDialog { get; private set; }
 
+    /// <summary>表示中の更新ダイアログが強制アップデートか（#142）。true の間は「あとで」で閉じられない。</summary>
+    public bool IsForceUpdate { get; private set; }
+
     // ポーリングで検知したが、操作中のためダイアログをまだ出せていない更新後バージョン。
     private string? _pendingVersion;
+    private bool _pendingForceUpdate;
     // 「あとで」で閉じたら、以降このセッション（アプリ再起動＝再読込まで）は再表示しない（一度きり）。
     private bool _dismissedOnce;
 
@@ -109,6 +113,7 @@ public class AppUpdateService
             await Task.Delay(PollInterval);
 
             string? deployedVersion;
+            bool deployedForceUpdate;
             try
             {
                 // 毎回クエリを変えてキャッシュバスティングする。version.json はビルド状態次第で SW の
@@ -118,6 +123,7 @@ public class AppUpdateService
                 var payload = await _http.GetFromJsonAsync<VersionPayload>(
                     $"version.json?t={DateTimeOffset.UtcNow.ToUnixTimeSeconds()}", VersionJsonOptions);
                 deployedVersion = payload?.Version;
+                deployedForceUpdate = payload?.ForceUpdate ?? false;
             }
             catch
             {
@@ -127,6 +133,7 @@ public class AppUpdateService
             if (deployedVersion != null && AppVersionMath.ShouldNotifyUpdate(currentVersion, deployedVersion))
             {
                 _pendingVersion = deployedVersion;
+                _pendingForceUpdate = deployedForceUpdate;
                 TryShowPendingDialog();
             }
         }
@@ -144,6 +151,7 @@ public class AppUpdateService
         if (_appState.HasPendingChanges || _overlay.IsAnyOpen) return;
 
         ShowUpdateDialog = true;
+        IsForceUpdate = _pendingForceUpdate;
         Changed?.Invoke();
     }
 
@@ -155,7 +163,7 @@ public class AppUpdateService
         Changed?.Invoke();
     }
 
-    private record VersionPayload(string? Version);
+    private record VersionPayload(string? Version, bool ForceUpdate);
 
     public void Dismiss()
     {
