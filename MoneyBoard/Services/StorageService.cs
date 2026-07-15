@@ -46,7 +46,11 @@ public class StorageService(HttpClient http, AuthService auth)
         foreach (var (ym, m) in env.Months)
         {
             if (!string.IsNullOrEmpty(m.Etag)) _monthEtags[ym] = m.Etag;
-            state.Months[ym] = new MonthData { Ledgers = m.Ledgers, Transfers = m.Transfers, CardDetails = m.CardDetails, CardBilled = m.CardBilled };
+            // 同名プロパティを機械的にコピー（ObjectSync）。MonthPart にフィールドを追加したときに
+            // ここを更新し忘れる事故（#134/#136 と同型）を防ぐ（#137）。
+            var mo = new MonthData();
+            ObjectSync.CopyMatchingProperties(m, mo);
+            state.Months[ym] = mo;
         }
         return state;
     }

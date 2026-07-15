@@ -68,14 +68,10 @@ public partial class DataApi(ILogger<DataApi> logger, CosmosClient cosmos, Fireb
                 foreach (var d in await it.ReadNextAsync())
                 {
                     if (string.IsNullOrEmpty(d.Ym)) continue;
-                    env.Months[d.Ym] = new MonthPart
-                    {
-                        Etag = d.Etag,
-                        Ledgers = d.Ledgers ?? new(),
-                        Transfers = d.Transfers ?? new(),
-                        CardDetails = d.CardDetails ?? new(),
-                        CardBilled = d.CardBilled ?? new()
-                    };
+                    // 同名プロパティを機械的にコピー（ObjectSync）。フィールド追加時にここを更新し忘れる事故を防ぐ（#134/#136 と同型・#137）。
+                    var part = new MonthPart();
+                    ObjectSync.CopyMatchingProperties(d, part);
+                    env.Months[d.Ym] = part;
                 }
             }
 
@@ -123,11 +119,9 @@ public partial class DataApi(ILogger<DataApi> logger, CosmosClient cosmos, Fireb
             }
             foreach (var (ym, m) in env.Months)
             {
-                var doc = new MonthDoc
-                {
-                    Id = MonthId(ym), UserId = userId!, Type = "month", Ym = ym,
-                    Ledgers = m.Ledgers, Transfers = m.Transfers, CardDetails = m.CardDetails, CardBilled = m.CardBilled
-                };
+                // 同名プロパティを機械的にコピー（ObjectSync）。フィールド追加時にここを更新し忘れる事故を防ぐ（#134/#136 と同型・#137）。
+                var doc = new MonthDoc { Id = MonthId(ym), UserId = userId!, Type = "month", Ym = ym };
+                ObjectSync.CopyMatchingProperties(m, doc);
                 batch.UpsertItem(doc, BatchOptions(m.Etag));
                 ops.Add(("month", ym));
             }

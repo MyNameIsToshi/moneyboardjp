@@ -145,13 +145,14 @@ public class AppStateStore(StorageService storage)
         return part;
     }
 
-    private static MonthPart BuildMonthPart(MonthData mo) => new()
+    // 同名プロパティを機械的にコピー（ObjectSync）。MonthData にフィールドを追加したときに
+    // ここを更新し忘れる事故（#134/#136 と同型）を防ぐ（#137）。
+    private static MonthPart BuildMonthPart(MonthData mo)
     {
-        Ledgers = mo.Ledgers,
-        Transfers = mo.Transfers,
-        CardDetails = mo.CardDetails,
-        CardBilled = mo.CardBilled
-    };
+        var part = new MonthPart();
+        ObjectSync.CopyMatchingProperties(mo, part);
+        return part;
+    }
 
     private string SerializeSettings() => JsonSerializer.Serialize(BuildSettingsPart());
     private static string SerializeMonth(MonthData mo) => JsonSerializer.Serialize(BuildMonthPart(mo));
