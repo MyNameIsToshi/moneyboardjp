@@ -48,20 +48,10 @@ public partial class DataApi(ILogger<DataApi> logger, CosmosClient cosmos, Fireb
             try
             {
                 var r = await container.ReadItemAsync<SettingsDoc>(SettingsId, pk);
-                env.Settings = new SettingsPart
-                {
-                    Etag = r.ETag,
-                    SchemaVersion = r.Resource.SchemaVersion,
-                    Accounts = r.Resource.Accounts,
-                    FixedCosts = r.Resource.FixedCosts,
-                    FixedIncomes = r.Resource.FixedIncomes,
-                    Categories = r.Resource.Categories,
-                    Cards = r.Resource.Cards,
-                    CategoryRules = r.Resource.CategoryRules,
-                    CategoryPrefixRules = r.Resource.CategoryPrefixRules,
-                    TutorialSeenVersion = r.Resource.TutorialSeenVersion,
-                    BonusMonths = r.Resource.BonusMonths
-                };
+                // 同名プロパティを機械的にコピー（ObjectSync）。フィールド追加時にここを更新し忘れる事故を防ぐ（#134で2度発生・#136）。
+                var part = new SettingsPart { Etag = r.ETag };
+                ObjectSync.CopyMatchingProperties(r.Resource, part);
+                env.Settings = part;
             }
             catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)
             {
@@ -125,20 +115,9 @@ public partial class DataApi(ILogger<DataApi> logger, CosmosClient cosmos, Fireb
 
             if (env.Settings != null)
             {
-                var doc = new SettingsDoc
-                {
-                    Id = SettingsId, UserId = userId!, Type = "settings",
-                    SchemaVersion = env.Settings.SchemaVersion,
-                    Accounts = env.Settings.Accounts,
-                    FixedCosts = env.Settings.FixedCosts,
-                    FixedIncomes = env.Settings.FixedIncomes,
-                    Categories = env.Settings.Categories,
-                    Cards = env.Settings.Cards,
-                    CategoryRules = env.Settings.CategoryRules,
-                    CategoryPrefixRules = env.Settings.CategoryPrefixRules,
-                    TutorialSeenVersion = env.Settings.TutorialSeenVersion,
-                    BonusMonths = env.Settings.BonusMonths
-                };
+                // 同名プロパティを機械的にコピー（ObjectSync）。フィールド追加時にここを更新し忘れる事故を防ぐ（#134で2度発生・#136）。
+                var doc = new SettingsDoc { Id = SettingsId, UserId = userId!, Type = "settings" };
+                ObjectSync.CopyMatchingProperties(env.Settings, doc);
                 batch.UpsertItem(doc, BatchOptions(env.Settings.Etag));
                 ops.Add(("settings", ""));
             }

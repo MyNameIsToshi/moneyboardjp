@@ -136,19 +136,14 @@ public class AppStateStore(StorageService storage)
             _monthBaseline[ym] = SerializeMonth(mo);
     }
 
-    private SettingsPart BuildSettingsPart() => new()
+    // 同名プロパティを機械的にコピー（ObjectSync）。AppState にフィールドを追加したときに
+    // ここを更新し忘れる事故（#134で2度発生・#136）を防ぐ。
+    private SettingsPart BuildSettingsPart()
     {
-        SchemaVersion = State.SchemaVersion,
-        Accounts = State.Accounts,
-        FixedCosts = State.FixedCosts,
-        FixedIncomes = State.FixedIncomes,
-        Categories = State.Categories,
-        Cards = State.Cards,
-        CategoryRules = State.CategoryRules,
-        CategoryPrefixRules = State.CategoryPrefixRules,
-        TutorialSeenVersion = State.TutorialSeenVersion,
-        BonusMonths = State.BonusMonths
-    };
+        var part = new SettingsPart();
+        ObjectSync.CopyMatchingProperties(State, part);
+        return part;
+    }
 
     private static MonthPart BuildMonthPart(MonthData mo) => new()
     {

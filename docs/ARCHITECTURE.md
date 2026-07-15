@@ -189,7 +189,8 @@ C:\Development\moneyboard\
     FixedCostPeriod.cs        固定費の有効期間 StartYm/EndYm の解析・組み立て・表示整形＋期限切れ判定（YearPart/MonthPart/ComposeYm/FmtBound/Summary/IsExpired/ParseBound。FixedCostTab が委譲・v1.3.3・IsExpiredは#100。ParseBound・Summary(FixedIncome)は#95で FixedCost/FixedIncome 共用に抽出）
     Portfolio.cs / PortfolioMath.cs  証券ポートフォリオのモデルと集計計算（Phase 3）。PortfolioMath に CostBasisJpyAsOf（指定日元本・円換算）/ YahooSymbol（日本株 .T 付与）を v1.3.3 で抽出。v2.1.0（issue #57）で PnlPct・DayChangePct・GroupValuationJpy を追加（テスト 118件）。issue #36 で BuildSnapshot（スナップショット構築）を追加（テスト 125件）
     BonusSchedule.cs          ボーナス月（賞与を受け取る月の集合）の判定・正規化（Normalize/IsBonusMonth/ShouldShowBonusInput）。月次管理タブのボーナス入力欄の出し分けに使用（#134）
-  MoneyBoardShared.Tests\     ※ xUnit(net8.0)。LedgerMath / LedgerEngine / PortfolioMath / StatsMath / FixedCostPeriod / CardCsvParser / Ym / SchemaMigration / FixedCost / FixedIncome / AnnouncementMath / BonusSchedule のユニットテスト（計235・`dotnet test`／カバレッジは `--collect:"XPlat Code Coverage"`）
+    ObjectSync.cs             名前が一致する public プロパティを機械的にコピー（AppState⇄SettingsPart⇄SettingsDoc の同期漏れ防止・#136）
+  MoneyBoardShared.Tests\     ※ xUnit(net8.0)。LedgerMath / LedgerEngine / PortfolioMath / StatsMath / FixedCostPeriod / CardCsvParser / Ym / SchemaMigration / FixedCost / FixedIncome / AnnouncementMath / BonusSchedule / ObjectSync のユニットテスト（計237・`dotnet test`／カバレッジは `--collect:"XPlat Code Coverage"`）
 ```
 
 ### MoneyBoardShared の憲章（役割定義）
@@ -202,8 +203,8 @@ C:\Development\moneyboard\
 ### テスト方針
 - **対象＝自動テスト可能な純粋ロジック**。**API の CRUD/認証は Cosmos オーケストレーションのため対象外**（結合テスト領域・ROI低）。Blazor UI も自動化困難で対象外。
 - **テストプロジェクトは2つ**（いずれも xUnit・net8.0）：
-  - `MoneyBoardShared.Tests`：`LedgerMath` / `LedgerEngine`（残高連鎖・ExpandCards・重複除外・支出/収入固定費）/ `PortfolioMath`（集計・Valuation・CostBasisJpyAsOf・YahooSymbol・PnlPct・DayChangePct・GroupValuationJpy・BuildSnapshot）/ `StatsMath`（期間選択）/ `FixedCostPeriod`（年月の解析・整形。IsExpired/Summaryは FixedCost/FixedIncome 両対応） / `CardCsvParser` / `Ym` / `SchemaMigration`（v4＝CategoryRules正規化統合含む） / `FixedCost` / `FixedIncome`（収入固定費・#95） / `AnnouncementMath`（未読判定・#38） / `BonusSchedule`（ボーナス月判定・#134）（計**235**・v1.3.3 で 63→102・v2.1.0 で 102→118・issue #36 で 118→125・#27 で 125→130・#38 で 168→178・（間の #100 等の増分を経て）183・#95 で 183→206・#134 で 206→235）。
-  - `MoneyBoardApi.Tests`：API の**純粋ロジックのみ**（計36・#54 で 20→26・#27 で 26→35・#95 で 35→36）。`DataApi.IsStructurallyValid`（保存前データ健全性ガード）／価格パーサ `ParseYahooQuote`・`ParseFundCsv`（取得=HTTPと分離した解析部）／`ParseCardImageResponse`（スクショAI応答JSON→CardDetail[]・日付正規化/金額/不正行スキップ）／`ParseCategoryClassifyResponse`（利用先一括分類AI応答JSON→Dictionary<store,categoryId>・null/存在しないID/でっち上げ店名除外・要求店名へ NormalizeStore で突き合わせ表記ゆれ吸収）／`IsAuthorizedSharedSecret`（共有シークレット照合・定数時間比較）。テストのため対象は `internal static`＋`InternalsVisibleTo("MoneyBoardApi.Tests")`。
+  - `MoneyBoardShared.Tests`：`LedgerMath` / `LedgerEngine`（残高連鎖・ExpandCards・重複除外・支出/収入固定費）/ `PortfolioMath`（集計・Valuation・CostBasisJpyAsOf・YahooSymbol・PnlPct・DayChangePct・GroupValuationJpy・BuildSnapshot）/ `StatsMath`（期間選択）/ `FixedCostPeriod`（年月の解析・整形。IsExpired/Summaryは FixedCost/FixedIncome 両対応） / `CardCsvParser` / `Ym` / `SchemaMigration`（v4＝CategoryRules正規化統合含む） / `FixedCost` / `FixedIncome`（収入固定費・#95） / `AnnouncementMath`（未読判定・#38） / `BonusSchedule`（ボーナス月判定・#134） / `ObjectSync`（プロパティコピー・#136）（計**237**・v1.3.3 で 63→102・v2.1.0 で 102→118・issue #36 で 118→125・#27 で 125→130・#38 で 168→178・（間の #100 等の増分を経て）183・#95 で 183→206・#134 で 206→235・#136 で 235→237）。
+  - `MoneyBoardApi.Tests`：API の**純粋ロジックのみ**（計38・#54 で 20→26・#27 で 26→35・#95 で 35→36・#136 で 36→38）。`DataApi.IsStructurallyValid`（保存前データ健全性ガード）／価格パーサ `ParseYahooQuote`・`ParseFundCsv`（取得=HTTPと分離した解析部）／`ParseCardImageResponse`（スクショAI応答JSON→CardDetail[]・日付正規化/金額/不正行スキップ）／`ParseCategoryClassifyResponse`（利用先一括分類AI応答JSON→Dictionary<store,categoryId>・null/存在しないID/でっち上げ店名除外・要求店名へ NormalizeStore で突き合わせ表記ゆれ吸収）／`IsAuthorizedSharedSecret`（共有シークレット照合・定数時間比較）／`SettingsSyncTests`（AppState⇄SettingsPart⇄SettingsDoc のプロパティ名一致・設定フィールド同期漏れガード）。テストのため対象は `internal static`＋`InternalsVisibleTo("MoneyBoardApi.Tests")`。
 - **カバレッジ**：`--collect:"XPlat Code Coverage"`（coverlet）。ロジック層は行/分岐とも高水準（LedgerMath/SchemaMigration=100% など）。DTO/モデルやCRUD/HTTP部は対象外のため class 全体の数値は薄く出る点に注意（=想定どおり）。**カバレッジ100%でもバグ不在の証明ではない**点は前提として共有。
 - **CI**：`.github/workflows/dotnet-test.yml` が dev push / main への PR で**両テストプロジェクト**を `dotnet test`（カバレッジ収集）。main への PR で「必須チェック」に設定すればマージゲートになる（要：Settings→Branches の保護ルール）。
 
@@ -749,6 +750,23 @@ Functions Isolated では `IConfiguration` ではなく
 - `AppStateStore` がメモリ上に AppState 全体を保持し、保存時は前回保存分と比較して
   **変更されたドキュメントだけ**を送る（snapshot-diff）。
 - `DataApi` の POST は TransactionalBatch（per-item If-Match）で原子的に保存。
+
+### ⚠️ 設定（`settings`）にフィールドを追加するときの注意（#134で2度事故・対策は#136）
+「設定」1件は `AppState`（フロント状態）→ `SettingsPart`（`StorageContracts.cs`・GET/POST の通信DTO）
+→ `SettingsDoc`（`DataApi.cs`・Cosmos保存用ドキュメント）という3つの型で同じ内容を表現している。
+`AppState` にだけフィールドを足して他を更新し忘れると、**画面上は入力できるのに保存されず
+リロードで消える**（サーバーに届いていない／読み込み時に復元されない）という気付きにくい不具合になる。
+- **対応**: `AppState` に永続化したい設定フィールドを追加したら、同名プロパティを **`SettingsPart` と
+  `SettingsDoc` の両方**にも追加する（3箇所ワンセット）。GET/POST 間の変換（`DataApi.GetData`/`SaveData`）と
+  フロント側の変換（`AppStateStore.BuildSettingsPart`/`StorageService.LoadAsync`）は `ObjectSync.CopyMatchingProperties`
+  （`MoneyBoardShared/ObjectSync.cs`・同名プロパティを機械的にコピー）に一本化済みのため、**型に同名プロパティを
+  追加するだけでよく、変換コード自体は触らなくてよい**。
+- **自動ガード**: `MoneyBoardApi.Tests/SettingsSyncTests.cs` が `AppState`（`Months`除く）⇄`SettingsPart`（`Etag`除く）
+  ⇄`SettingsDoc`（`Id`/`UserId`/`Type`除く）のプロパティ名集合が一致することを検証する。3型のどれか1つだけ
+  フィールド追加を忘れると、このテストが失敗して気付ける。
+- **対象外（このガードで防げないもの）**：`docs/swagger/openapi.yaml` の `SettingsPart` スキーマは手書きのYAMLで
+  C#側と自動連動しないため、フィールド追加時は目視で追記が必要（#95以降、`fixedIncomes`/`categoryPrefixRules`/
+  `tutorialSeenVersion` 等が反映されておらず既に陳腐化している＝別途棚卸しが必要）。
 
 ### 保存の信頼性
 - **デバウンス＋直列化**: 連続入力は `RequestSave()` で1回に集約、`SaveAsync()` は

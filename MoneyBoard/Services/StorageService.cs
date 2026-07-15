@@ -38,19 +38,11 @@ public class StorageService(HttpClient http, AuthService auth)
         _settingsEtag = env.Settings?.Etag;
         _monthEtags.Clear();
 
-        var state = new AppState
-        {
-            SchemaVersion = env.Settings?.SchemaVersion ?? 1,
-            Accounts = env.Settings?.Accounts ?? new(),
-            FixedCosts = env.Settings?.FixedCosts ?? new(),
-            FixedIncomes = env.Settings?.FixedIncomes ?? new(),
-            Categories = env.Settings?.Categories ?? new(),
-            Cards = env.Settings?.Cards ?? new(),
-            CategoryRules = env.Settings?.CategoryRules ?? new(),
-            CategoryPrefixRules = env.Settings?.CategoryPrefixRules ?? new(),
-            TutorialSeenVersion = env.Settings?.TutorialSeenVersion ?? 0,
-            BonusMonths = env.Settings?.BonusMonths ?? new() { 6, 12 }
-        };
+        // 同名プロパティを機械的にコピー（ObjectSync）。SettingsPart にフィールドを追加したときに
+        // ここを更新し忘れる事故（#134で2度発生・#136）を防ぐ。データ未作成の新規ユーザー（env.Settings=null）は
+        // AppState 自身の既定値（SchemaVersion=1・BonusMonths={6,12}等）のまま返す。
+        var state = new AppState();
+        if (env.Settings != null) ObjectSync.CopyMatchingProperties(env.Settings, state);
         foreach (var (ym, m) in env.Months)
         {
             if (!string.IsNullOrEmpty(m.Etag)) _monthEtags[ym] = m.Etag;
