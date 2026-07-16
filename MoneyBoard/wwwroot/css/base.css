@@ -13,6 +13,7 @@
   --badbg: #f7e9e7;
   --accent: #1f3a5f;
   --r: 12px;
+  --wrap-pad-top: 20px;
 }
 
 * {
@@ -68,7 +69,7 @@ body {
 .wrap {
   max-width: 980px;
   margin: 0 auto;
-  padding: 20px 16px 64px;
+  padding: var(--wrap-pad-top) 16px 64px;
 }
 
 .loading {
