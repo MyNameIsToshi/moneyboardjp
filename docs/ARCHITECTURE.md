@@ -54,6 +54,8 @@ MoneyBoardShared/   共通モデルライブラリ (.NET 8)
 - **`/userId` は Firebase の uid**（認証導入前は固定 `"default"`）。各ユーザーが自分の uid パーティションを持つ＝データ分離。
 - `settings` … 口座・固定費・カテゴリ・カード・店名→カテゴリルール・SchemaVersion
 - `month:yyyyMM` … 月ごとの月次データ（Ledgers・Transfers・CardDetails・CardBilled）
+- `portfolio` … 証券ポートフォリオ（家計簿とは完全独立。詳細は「Phase 3」節）
+- `income` … 収入（給与）記録の総支給（額面）。家計簿とは完全独立（詳細は「収入（給与）記録データ」節・#107）
 - `access-control`（partition `__system__`・id `access-control`）… アクセス承認の管理（`approved[]`＝AccessUser{uid,email,name}, `pending[]`）。オーナーのみ操作可
 - GET `/api/data` は全ドキュメントを集約して返す
 - POST `/api/data` は**変更があったドキュメントのみ** TransactionalBatch で原子的に保存（per-item If-Match で楽観的並行制御 / 競合は 412）
@@ -128,7 +130,8 @@ C:\Development\moneyboard\launch.bat をダブルクリック
 C:\Development\moneyboard\
   MoneyBoard\
     Components\
-      AccountsTab.razor       口座管理（マイページ内に内包・口座番号は廃止・チップ＋枠付き行/列見出し整列・#50。スマホ=▲▼/PC=D&D 並べ替え・#53）
+      AccountsTab.razor       口座管理（マイページ内に内包・口座番号は廃止・チップ＋枠付き行/列見出し整列・#50。スマホ=▲▼/PC=D&D 並べ替え・#53）。ボーナス月設定は `BonusMonthSettings` へ抽出済み（#107）
+      BonusMonthSettings.razor ボーナス月（賞与を受け取る月）設定の共有部品（12ヶ月トグルグリッド＋変更確認ダイアログ）。`AccountsTab`（マイページ）と `IncomePage`（収入記録ページのモーダル内）の双方から使い回し、`Svc.State.BonusMonths` の読み書きを1箇所に集約（#134→#107で共有化）
       FixedCostTab.razor      固定費設定タブ（固定費（支出）＝口座フィルター[Excel風複数選択]・D&D並び替え・期限切れ折りたたみ・ボーナス払い。固定費（収入）（#95）＝同タブ下部に併設・「金額固定」/「金額未固定」を選択可・口座フィルター/期限切れ折りたたみは支出と同挙動を#95フォローアップで踏襲、ボーナス払いのみ対象外）
       MonthlyTab.razor        月次管理タブ（収入[給料/ボーナス/ATM入金/臨時収入]・支出[固定費/カード/ATM出金/手入力]・送金。サマリ=ヒーロー、口座カードは折りたたみ＋ヒーロー/収入・支出・振込ゾーン構成・#43/#81 リデザイン）
       CardTab.razor           カードタブ（明細の手入力/カードCSV取込[JCB/三井住友/PayPay/au PAY/楽天]/AIで読取[スクショ]/一括カテゴリ・カードごと折りたたみ・#49でリデザイン）
@@ -147,6 +150,12 @@ C:\Development\moneyboard\
     Pages\
       Home.razor              タブシェル（月次/カード/固定費設定/マイページ・読込中はスピナー+操作不可）
       GraphPage.razor         統計ページ（7種・期間指定・sticky ヘッダー・内訳ドリルダウンモーダル）
+      IncomePage.razor        収入（給与）記録ページ（`/income`・家計簿とは完全独立）。年×月の給料/賞与の
+        総支給（額面・記録専用・独立ドキュメント `income`／過去月も自由に編集可）・手取り（`Ledger.Salary`/
+        `Bonus` と共有・現在月/未来月は編集可、過去月は月次データの有無で「凍結表示のみ」/「独立記録として編集可」に分岐）を入力。想定年収ヒーロー＋
+        内訳＋12ヶ月ミニマップ＋フォーカス編集カード。**PCは3カラム（案A・この月の確認＋ミニ棒グラフ付き）／
+        スマホは単カラム（案2a）**。集計は `IncomeMath`（Shared・純粋ロジック）へ
+        委譲（#107。詳細は「収入（給与）記録データ」節参照）
       Portfolio.razor / GraphPage.razor / Components/CardTab.razor・FixedCostTab.razor は markup と
         code-behind を分離（`*.razor.cs` の partial class）。v1.3.3 で導入＝挙動不変・見通し改善。
         @page/@inject/@implements/@using は .razor 側、ロジックは .razor.cs。.cs は `_Imports` が
@@ -160,6 +169,8 @@ C:\Development\moneyboard\
       StorageService.cs       API通信（エンベロープ⇄AppState変換・etag保持・Bearer添付・403→AccessPendingException・`ExtractCardImageAsync`=スクショAI読取の /api/extract-card 呼出）
       AuthService.cs          Firebase認証ラッパー（ログイン/ログアウト/IDトークン・localhostバイパス）
       AccessService.cs        /api/access クライアント（オーナーの承認管理）
+      PortfolioService.cs / PortfolioStore.cs  ポートフォリオ専用の API 通信＋状態保持（家計簿とは別経路・#48）
+      IncomeService.cs / IncomeStore.cs  収入（給与）記録の総支給（額面）専用の API 通信＋状態保持（`/api/income`・家計簿とは完全別経路・#107）
     App.razor                 認証ゲート（未ログイン→ログイン画面 / ログイン後→Router）
     wwwroot\
       css\                    スタイル（役割別に分割: base/monthly/fixedcost/settings/cards/dialog/graph/mypage、index.html がソース順で読込）
@@ -173,6 +184,8 @@ C:\Development\moneyboard\
     DataApi.Anthropic.cs      extract-card / classify-categories 共通の Anthropic 基盤（partial・クライアント生成・AnthropicError・SummarizeAnthropicError・構造化出力の定型呼出 CreateStructuredMessageAsync・502/503エラーハンドラ。issue #91 で両エンドポイントの重複を集約）
     DataApi.CardImage.cs      POST /api/extract-card（partial・Claude Vision でカード明細スクショ→CardDetail[]。解析部 ParseCardImageResponse は internal でテスト可）
     DataApi.CategoryClassify.cs POST /api/classify-categories（partial・Claude Haiku(テキストのみ)で利用先一覧→カテゴリID一括分類。解析部 ParseCategoryClassifyResponse は internal でテスト可。カテゴリ一覧はリクエストボディで受け取りCosmosは叩かない）
+    DataApi.Portfolio.cs      GET/POST /api/portfolio（partial・証券ポートフォリオ。家計簿とは別ドキュメント・別ルート）
+    DataApi.Income.cs         GET/POST /api/income（partial・収入（給与）記録の総支給。家計簿とは別ドキュメント `income`・別ルート・#107）
     FirebaseAuth.cs           Firebase IDトークン(JWT/RS256)検証→uid抽出（OIDC構成キャッシュ・AuthBypass対応）
     Program.cs                DI登録 (CosmosClient・AppInsights・FirebaseAuth)
     host.json
@@ -189,8 +202,10 @@ C:\Development\moneyboard\
     FixedCostPeriod.cs        固定費の有効期間 StartYm/EndYm の解析・組み立て・表示整形＋期限切れ判定（YearPart/MonthPart/ComposeYm/FmtBound/Summary/IsExpired/ParseBound。FixedCostTab が委譲・v1.3.3・IsExpiredは#100。ParseBound・Summary(FixedIncome)は#95で FixedCost/FixedIncome 共用に抽出）
     Portfolio.cs / PortfolioMath.cs  証券ポートフォリオのモデルと集計計算（Phase 3）。PortfolioMath に CostBasisJpyAsOf（指定日元本・円換算）/ YahooSymbol（日本株 .T 付与）を v1.3.3 で抽出。v2.1.0（issue #57）で PnlPct・DayChangePct・GroupValuationJpy を追加（テスト 118件）。issue #36 で BuildSnapshot（スナップショット構築）を追加（テスト 125件）
     BonusSchedule.cs          ボーナス月（賞与を受け取る月の集合）の判定・正規化（Normalize/IsBonusMonth/ShouldShowBonusInput）。月次管理タブのボーナス入力欄の出し分けに使用（#134）
+    IncomeMath.cs             収入（給与）記録ページの年収サマリー計算（純粋ロジック・#107）。総支給入力済み月の平均×12＋賞与想定＝想定年収（額面）／年計（実績）／控除見込み差を算出（`Summarize`）。選択月の合計・控除・前月比・前回賞与比（`BuildMonthCheck`。年をまたいだ比較に対応・PC専用「この月の確認」カードが利用）。`IncomePage` が委譲
+    Income.cs                 収入（給与）記録の永続データ（`IncomeData`/`IncomeMonthRecord`/`IncomeEnvelope`/`IncomeSaveResponse`）。家計簿（AppState/MonthData）とは無関係の独立モデル。`IncomeMonthRecord` は総支給（常にここが真実）＋手取り（月次データが無い過去月のみ使う独立フィールド）を保持（#107）
     ObjectSync.cs             名前が一致する public プロパティを機械的にコピー（AppState⇄SettingsPart⇄SettingsDoc・MonthData⇄MonthPart⇄MonthDoc/MonthReadDoc の同期漏れ防止・#136/#137）
-  MoneyBoardShared.Tests\     ※ xUnit(net8.0)。LedgerMath / LedgerEngine / PortfolioMath / StatsMath / FixedCostPeriod / CardCsvParser / Ym / SchemaMigration / FixedCost / FixedIncome / AnnouncementMath / BonusSchedule / ObjectSync のユニットテスト（計237・`dotnet test`／カバレッジは `--collect:"XPlat Code Coverage"`）
+  MoneyBoardShared.Tests\     ※ xUnit(net8.0)。LedgerMath / LedgerEngine / PortfolioMath / StatsMath / FixedCostPeriod / CardCsvParser / Ym / SchemaMigration / FixedCost / FixedIncome / AnnouncementMath / BonusSchedule / ObjectSync / IncomeMath のユニットテスト（計258・#107 で 248→252（Summarize）→258（BuildMonthCheck 6件追加）／`dotnet test`／カバレッジは `--collect:"XPlat Code Coverage"`）
 ```
 
 ### MoneyBoardShared の憲章（役割定義）
@@ -203,7 +218,7 @@ C:\Development\moneyboard\
 ### テスト方針
 - **対象＝自動テスト可能な純粋ロジック**。**API の CRUD/認証は Cosmos オーケストレーションのため対象外**（結合テスト領域・ROI低）。Blazor UI も自動化困難で対象外。
 - **テストプロジェクトは2つ**（いずれも xUnit・net8.0）：
-  - `MoneyBoardShared.Tests`：`LedgerMath` / `LedgerEngine`（残高連鎖・ExpandCards・重複除外・支出/収入固定費）/ `PortfolioMath`（集計・Valuation・CostBasisJpyAsOf・YahooSymbol・PnlPct・DayChangePct・GroupValuationJpy・BuildSnapshot）/ `StatsMath`（期間選択）/ `FixedCostPeriod`（年月の解析・整形。IsExpired/Summaryは FixedCost/FixedIncome 両対応） / `CardCsvParser` / `Ym` / `SchemaMigration`（v4＝CategoryRules正規化統合含む） / `FixedCost` / `FixedIncome`（収入固定費・#95） / `AnnouncementMath`（未読判定・#38） / `BonusSchedule`（ボーナス月判定・#134） / `ObjectSync`（プロパティコピー・#136）（計**237**・v1.3.3 で 63→102・v2.1.0 で 102→118・issue #36 で 118→125・#27 で 125→130・#38 で 168→178・（間の #100 等の増分を経て）183・#95 で 183→206・#134 で 206→235・#136 で 235→237）。
+  - `MoneyBoardShared.Tests`：`LedgerMath` / `LedgerEngine`（残高連鎖・ExpandCards・重複除外・支出/収入固定費）/ `PortfolioMath`（集計・Valuation・CostBasisJpyAsOf・YahooSymbol・PnlPct・DayChangePct・GroupValuationJpy・BuildSnapshot）/ `StatsMath`（期間選択）/ `FixedCostPeriod`（年月の解析・整形。IsExpired/Summaryは FixedCost/FixedIncome 両対応） / `CardCsvParser` / `Ym` / `SchemaMigration`（v4＝CategoryRules正規化統合含む） / `FixedCost` / `FixedIncome`（収入固定費・#95） / `AnnouncementMath`（未読判定・#38） / `BonusSchedule`（ボーナス月判定・#134） / `ObjectSync`（プロパティコピー・#136） / `IncomeMath`（想定年収サマリー・この月の確認・#107）（計**258**・v1.3.3 で 63→102・v2.1.0 で 102→118・issue #36 で 118→125・#27 で 125→130・#38 で 168→178・（間の #100 等の増分を経て）183・#95 で 183→206・#134 で 206→235・#136 で 235→237・（間の #137〜#141 等の増分を経て）248・#107 で 248→252→258）。
   - `MoneyBoardApi.Tests`：API の**純粋ロジックのみ**（計41・#54 で 20→26・#27 で 26→35・#95 で 35→36・#136 で 36→38・#137 で 38→41）。`DataApi.IsStructurallyValid`（保存前データ健全性ガード）／価格パーサ `ParseYahooQuote`・`ParseFundCsv`（取得=HTTPと分離した解析部）／`ParseCardImageResponse`（スクショAI応答JSON→CardDetail[]・日付正規化/金額/不正行スキップ）／`ParseCategoryClassifyResponse`（利用先一括分類AI応答JSON→Dictionary<store,categoryId>・null/存在しないID/でっち上げ店名除外・要求店名へ NormalizeStore で突き合わせ表記ゆれ吸収）／`IsAuthorizedSharedSecret`（共有シークレット照合・定数時間比較）／`SettingsSyncTests`（AppState⇄SettingsPart⇄SettingsDoc のプロパティ名一致・設定フィールド同期漏れガード）／`MonthSyncTests`（MonthData⇄MonthPart⇄MonthDoc/MonthReadDoc のプロパティ名一致・月次フィールド同期漏れガード・#137）。テストのため対象は `internal static`＋`InternalsVisibleTo("MoneyBoardApi.Tests")`。
 - **カバレッジ**：`--collect:"XPlat Code Coverage"`（coverlet）。ロジック層は行/分岐とも高水準（LedgerMath/SchemaMigration=100% など）。DTO/モデルやCRUD/HTTP部は対象外のため class 全体の数値は薄く出る点に注意（=想定どおり）。**カバレッジ100%でもバグ不在の証明ではない**点は前提として共有。
 - **CI**：`.github/workflows/dotnet-test.yml` が dev push / main への PR で**両テストプロジェクト**を `dotnet test`（カバレッジ収集）。main への PR で「必須チェック」に設定すればマージゲートになる（要：Settings→Branches の保護ルール）。
@@ -214,7 +229,7 @@ C:\Development\moneyboard\
 
 ```csharp
 AppState
-  ├─ SchemaVersion              // スキーマ版数（移行判定用・現状 5）
+  ├─ SchemaVersion              // スキーマ版数（移行判定用・現状 10）
   ├─ List<Account> Accounts
   ├─ List<FixedCost> FixedCosts
   ├─ List<Category> Categories
@@ -249,7 +264,7 @@ MonthData
 
 Ledger
   ├─ Confirmed   // 月初残高の起点（開始残高）。起点月のみ使用、他月は前月末から自動計算され無視
-  ├─ Salary, Bonus
+  ├─ Salary, Bonus   // 手取り。収入（給与）記録ページ（#107）も現在月/未来月のみこのフィールドを直接編集する
   ├─ List<Debit> Debits         // 支出（カード由来・固定費由来・手入力）
   ├─ List<IncomeItem> Incomes   // 臨時収入（給料/ボーナス以外）
   ├─ AtmDeposit                 // ATM入金（口座増・資産移動 → 統計には含めない）
@@ -341,6 +356,7 @@ Transfer
 | マイページの固定費カード分割（`FixedIncomeTab.razor` を `FixedCostTab.razor` から分離。#95 で同居していた固定費（支出）・（収入）を独立カード化し、PC グリッドの1段目＝口座・カード・カードカテゴリ（3列）、以降＝固定費（支出）・固定費（収入）を各 `.mypage-grid-full` で全幅・各1行に配置（カード内一覧は3列へ拡張）。スマホはマイページ折りたたみを「固定費（支出）」「固定費（収入）」の2セクションに分割） | ✅ 完了（dev・リリース待ち・#125） |
 | チュートリアル基盤（コーチマーク基盤＝対象DOM要素のスポットライト＋吹き出し、モーダル図解基盤＝タブ切替＋ステップ送り。`AppState.TutorialSeenVersion` で既読をサーバー保存し初回のみ強制表示）＋PWA追加方法チュートリアル（iOS/Android/PCの3パターンをタブで切替。基盤の初回PoC） | ✅ 完了（dev・リリース待ち・#111） |
 | ボーナス月設定（マイページの口座設定に `AppState.BonusMonths`（1-12の集合・既定{6,12}）を追加。変更時はダイアログで注意喚起（今月以降反映・過去凍結）。月次管理タブのボーナス入力欄は①現受取口座かつボーナス月／②口座問わず実額記録済み／③「＋ボーナスを追加」で手動追加、のいずれかで表示（`BonusSchedule`）。あわせて受取口座変更時に旧口座の過去ボーナスが残高から外れていた既存挙動を修正（`LedgerMath.Close` は記録済み `Bonus` を受取口座フラグに依らず常に計上）。SchemaMigration v9→v10） | ✅ 完了（dev・リリース待ち・#134） |
+| 収入（給与）記録ページ（`/income`。年×月で給料/賞与の総支給[額面・記録専用・独立ドキュメント `income`・過去月も自由に編集可]・手取り[3状態：現在月/未来月は`Ledger.Salary`/`Bonus`と同期編集、過去月は月次データが既にあれば凍結表示のみ・無ければ`income`側の独立フィールドで編集可（月次とは非連携）]を入力。想定年収ヒーロー＋内訳（給料/賞与の積み上げバー・手取りベース想定・控除見込み差）。**PCは3カラム**（内訳／月選択・入力／この月の確認＋月別ミニ棒グラフ）・**スマホは案2a単カラム**のまま。「この月の確認」（合計・控除・前月比・前回賞与比＝比較対象なしは「ー」表示でカード高さを一定に維持）は `IncomeMath.BuildMonthCheck` に委譲。ボーナス月設定は共有部品 `BonusMonthSettings` をダイアログ化しマイページと同期。API は `/api/income`（`DataApi.Income.cs`）・フロントは `IncomeService`/`IncomeStore`（家計簿とは完全独立・ポートフォリオと同パターン）。SideNav/BottomNav に導線追加） | ✅ 完了（dev・リリース待ち・#107） |
 
 ---
 
@@ -354,7 +370,7 @@ Transfer
 - **お知らせベル（#38）**：`AppTitle` 右端に🔔＋未読バッジを内蔵。PC/スマホいずれも同一コンポーネントのため二重実装なしで両対応。押下で `AnnouncementListDialog`（新しい順・全件・Markdown本文）を開き既読化。更新後の初回表示（未読あり）は `AnnouncementWhatsNewDialog` を自動表示。データは `MoneyBoard/wwwroot/announcements.json`（repo同梱・デプロイ配信）を `AnnouncementService` が読込・localStorage の最終既読idで未読管理。
 
 ### ナビゲーション（PC=サイドナビ / スマホ=下部バー）
-- **行き先は5系統**：月次管理 / カード / 統計 / 資産 / マイページ。月次・カード・マイページは Home の `/?tab=` 経由、統計=`/graph`・資産=`/portfolio` は専用ルート。
+- **行き先は6系統**：月次管理 / カード / 統計 / 資産 / 収入記録 / マイページ。月次・カード・マイページは Home の `/?tab=` 経由、統計=`/graph`・資産=`/portfolio`・収入記録=`/income` は専用ルート（#107）。
 - **PC**：`MoneyBoard/Components/SideNav.razor`（左固定の縦ナビ）。`MainLayout` が PC 時のみレンダーし、`.app-shell.has-sidenav` で「サイドナビ＋本文」の横並び。本文 `.wrap` は PC で `max-width:1200px`。
 - **スマホ**：`MoneyBoard/Components/BottomNav.razor`（下部バー）。SideNav と**行き先・ハイライト規則は対**（現在地判定 `IsHomeTab`/`IsRoute` を両者で同形に持つ）。
 - 統計への遷移時は保留中のデバウンス保存をフラッシュしてから遷移（`await Svc.SaveAsync()`）。
@@ -407,6 +423,35 @@ Transfer
 - 7グラフ：①月別支出合計推移 ②口座別月末残高推移 ③収入の内訳推移 ④収入vs支出 ⑤月別固定費合計推移 ⑥カテゴリ別支出 ⑦カード別利用額。
 - ドリルダウン（モーダル）：⑥カテゴリ別/⑦カード別＝個別明細（行クリック or ドーナツのスライス選択）、④収入/支出の棒＝項目別期間合計、⑤固定費の棒＝固定費マスタ別合計、③収入の内訳推移の棒＝タップした月の収入内訳（④と同じダイアログ、#89）。
 - ⑥カテゴリ別支出の集計キーは `StatsMath.NormalizeCategoryKey` で正規化する：`CategoryId` が未設定、または参照先カテゴリが存在しない（削除済み等の参照切れ）場合は両方とも空文字列キーに統一し、「未分類」が複数行に分裂しないよう1グループへ集約する（#117）。
+
+### 収入（給与）記録ページ（IncomePage・#107）
+- 外部デザイン（`income-spec.md`）の**案2a（フォーカス＋12ヶ月ミニマップ）**を採用。PC・スマホ共通で「ヘッダ（年ナビ）→ ヒーロー（想定年収）→ 想定年収の内訳 → 12ヶ月チップ → フォーカスカード」の単カラム縦積み。dashed罫線なし・絵文字なし（Material Symbols）。
+- **ダーク地ヒーローは新規CSSを作らず既存 `.stat.hero`/`.hero-lab`/`.hero-val`/`.hero-pill`（monthly.css）を流用**（背景色 `var(--ink)=#21262e` が spec の指定色と一致）。ページ固有の見た目（内訳バー・月チップ・フォーカスカード等）のみ `income.css` に `inc-` 接頭辞で追加。ゴールド系（賞与・予測アクセント `#c9a23a` 等）は統計の「臨時」系列と同系の値を再利用し新色は導入しない。
+- **想定年収の算出は `IncomeMath.Summarize`（Shared・純粋ロジック・テスト対象）**：`avgSG`＝総支給（給料）入力済み月の平均、`想定年収（額面）= round(avgSG×12) + round(avgBG×年内ボーナス回数)`（年内回数＝`AppState.BonusMonths.Count`）。手取りベースも同式で並行算出し、`控除見込み差＝額面−手取り`。回帰テストはデザインモックの実数値（想定年収¥6,736,000等）と一致することで担保。
+- **給与受取口座は既定口座に固定**：手取りの記録先は「給料＝並び順先頭の非財布口座（既定口座）／賞与＝ `Account.IsBonusAccount`（#134）が無ければ給料と同じ口座」に固定する（issue想定変更にあった新規 `Account` フラグ追加は行わず、既存の `NonWalletAccounts`/`IsBonusAccount` だけで解決）。理由：既存の月次管理タブは口座ごとに給料/ボーナスを入力できる設計だが、この画面は年間を1画面で見せるため代表口座が1つ必要で、実運用では給与受取口座は通常1つに収まるため。
+- **ナビ導線は SideNav・BottomNav に追加**（`payments` アイコン・「収入記録」/「収入」）。マイページ内への埋め込みも検討したが、資産・統計と同格の独立ページ（年ナビ・フォーカス編集を持つ）であるためトップレベル導線を採用（スマホ下部バーは7項目になり1項目あたりの幅は狭まるが、issue想定どおりの配置とした）。
+
+#### PC専用リデザイン（案A・3カラム。#107 追補）
+- 実装済みの案2a（単カラム縦積み）は「PCで画面下部が死に余白になる」との指摘を受け、**PCのみ**3カラムレイアウトへ再設計（`grid-template-columns:340px minmax(0,1fr) 330px`・`min-width:1180px`未満は横スクロール）。**スマホは案2aのまま変更なし**（`IsMobile` で分岐、共有パーツは `@code` 内の `RenderFragment` プロパティ＝`BreakdownCard`/`ChipsSection`/`FocusEditor` に切り出し、PC/スマホ両方から呼ぶことでマークアップの二重管理を避けた。#71 の `RenderFragment` 一本化と同じ手法）。
+  - **左カラム**：想定年収の内訳（既存）＋注記（総支給は記録専用・手取りは月次共有である旨）。
+  - **中央カラム**：月選択チップ（凡例追加・賞与月に `redeem` バッジ）＋フォーカスカード（自動保存インジケータ追加）。
+  - **右カラム**（`position:sticky`）：**「この月の確認」**（新規・`IncomeMath.BuildMonthCheck` に委譲）＋**月別総支給ミニ棒グラフ**（12本の積み上げ棒・タップで月移動）。
+- **「この月の確認」の算出は `IncomeMath.BuildMonthCheck`（Shared・純粋ロジック・テスト対象）**：総支給/手取り合計・控除額・控除率に加え、**給与（額面）前月比**（前月の総支給と比較）・**賞与（額面）前回賞与比**（時系列で直近の入力済み賞与月と比較）を算出。年をまたぐ比較のため対象年12ヶ月分ではなく `IncomeStore.Data.Records`（全期間）を渡す。
+  - **比較行は常に表示し、比較対象が無い場合は非表示ではなく「ー」を表示**：デザイン当初案は「比較対象が無ければ行ごと非表示」だったが、月によってカードの高さが変わってしまうため、ユーザー指摘で**常時表示＋「ー」フォールバック**に変更（見た目の安定を優先）。ただし賞与比自体は非ボーナス月では引き続き対象外（`isBonusMonth` が false のときは `BuildMonthCheck` が `BonusVsPrevDiff=null` を返す＝表示は「ー」になる）。
+- **「入力の進み」カードは削除**（デザイン当初案にあったが、ユーザー判断で不要と判定・実装せず）。
+- **「ボーナス月を設定」ボタンはダイアログ化し、マイページ（口座設定）の設定と完全に同期**：当初案は「ダイアログ本体は別Issue・単なる遷移ショートカット」だったが、ユーザー要望で共有部品 **`BonusMonthSettings.razor`** を新規抽出（12ヶ月トグルグリッド＋変更確認ダイアログ＋`Svc.State.BonusMonths` の読み書きを1箇所に集約）し、`AccountsTab`（マイページ）と `IncomePage`（本ページのモーダル内）の両方から呼び出す。実体が同一のため「同期」が構造的に保証される（複製すると表記・挙動がドリフトするため）。ダイアログを閉じた時点で `BuildYear()`/`EnsureFocusEditable()` を呼び直し、設定変更を即座に反映する。
+
+#### 設計変更：総支給を `Ledger` から切り離し、独立ドキュメント化（実装後にローカル動作確認で発覚・issue想定と乖離）
+- **当初の実装**：`Ledger` に `SalaryGross`/`BonusGross`（総支給）フィールドを追加し、月次（`month:yyyyMM`）ドキュメントに同居させていた（issue本文の想定どおり）。
+- **発覚した不具合**：ローカル動作確認で、収入記録ページから**未訪問の過去月**を開くと `Svc.EnsureMonth` が呼ばれ、その月の**全アクティブ口座分の空 `Ledger` がまとめて作成**されてしまうことが判明（Cosmos に `month:202601`〜`202612` の亡霊 doc が生成された）。さらに深刻な副作用として、過去月の `Ledger` が新規作成されると**翌月の「起点月」判定**（`LedgerEngine.IsOpeningAnchor`＝前月の同口座台帳が無いか）が崩れ、ユーザーが手入力していた開始残高（`Confirmed`）が前月末からの自動計算値に静かに置き換わる＝**残高がドミノ式にずれる**リスクがあった。
+- **方針転換**：総支給と手取りで永続化先を分離する。
+  - **総支給（額面）**：残高・統計に一切影響しない記録専用データであり、**月次（`Ledger`/`MonthData`）とは完全に独立した Cosmos ドキュメント `income`**（`IncomeData`/`IncomeMonthRecord`。ポートフォリオの `portfolio` doc と同格・同パターン）に常に保存する。`EnsureMonth` を一切呼ばないため、過去月を含めどの月を編集しても月次データは作られない。API は `/api/income`（`DataApi.Income.cs`）・フロントは `IncomeService`/`IncomeStore`（`PortfolioService`/`PortfolioStore` と同型）。
+  - **手取りは3状態**（`IncomePage.NetMode`）で扱う：
+    1. **現在月・未来月** → `Ledger.Salary`/`Bonus` を編集・同期（月次管理タブと共有・従来どおり）。`Svc.EnsureMonth` を呼ぶ。
+    2. **過去月・月次データが既に存在する** → 月次の凍結値を**表示のみ**（編集不可・入力欄を disabled＋背景色を変えて視覚的に区別）。`EnsureMonth` は呼ばず既存 `Ledger` を読むだけ。
+    3. **過去月・月次データが1度も作られていない** → **`income` doc 側の独立フィールド**（`IncomeMonthRecord.SalaryNet`/`BonusNet`）を編集可能にする。月次とは一切連携しない＝後からその月の月次データができても同期されない（ユーザー判断：月次を新規作成する副作用の方が問題であり、この場合は完全独立の記録として割り切る）。
+  - 検討した代替案（新規 Account フラグでの給与受取口座指定・総支給を `settings` doc に同居）は採らず、上記の独立ドキュメント方式に確定。「設定 doc に月ごとの実績データを積むと"設定"の定義が崩れる」というユーザー判断を優先した。
+  - `Ledger.SalaryGross`/`BonusGross`・`SchemaMigration` v11 は撤回（dev で未リリースのため本番影響なし。`SchemaMigration.CurrentVersion` は v10 のまま）。
 
 ---
 

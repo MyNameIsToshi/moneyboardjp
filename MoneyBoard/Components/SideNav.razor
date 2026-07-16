@@ -31,6 +31,9 @@
         <button class="sidenav-item @(IsRoute("/portfolio") ? "active" : "")" @onclick='() => Go("/portfolio")'>
             <span class="sn-ico msym">savings</span><span class="sn-lab">資産</span>
         </button>
+        <button class="sidenav-item @(IsRoute("/income") ? "active" : "")" @onclick='() => Go("/income")'>
+            <span class="sn-ico msym">payments</span><span class="sn-lab">収入記録</span>
+        </button>
         <button id="tutorial-target-mypage" class="sidenav-item @(IsHomeTab("mypage") ? "active" : "")" @onclick='() => GoTab("mypage")'>
             <span class="sn-ico msym">person</span><span class="sn-lab">マイページ</span>
         </button>

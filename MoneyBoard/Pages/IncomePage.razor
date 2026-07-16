@@ -1,0 +1,328 @@
+@page "/income"
+@inject LedgerService Svc
+@inject IncomeStore IncomeStore
+@inject IJSRuntime JS
+@inject OverlayRegistryService Overlay
+@implements IDisposable
+@using MoneyBoardShared
+@using static MoneyBoard.MoneyFormat
+
+<div class="wrap">
+    <AppTitle Subtitle="収入（給与）記録" />
+    @* PC用の共通ページヘッダー（スマホは非表示）。右にボーナス月設定ショートカット＋年ナビ（Portfolio の価格更新メタと同じ配置流儀）。 *@
+    <PageHeader Icon="payments" Title="収入（給与）記録">
+        <Right>
+            <button class="inc-bonusmonth-btn" @onclick="() => _showBonusMonthDialog = true"><span class="msym">redeem</span>ボーナス月を設定</button>
+            <div class="inc-yearnav">
+                <button @onclick="() => SelectYear(-1)" aria-label="前の年"><span class="msym">chevron_left</span></button>
+                <div class="inc-yearnav-val">@(_year)年</div>
+                <button @onclick="() => SelectYear(1)" aria-label="次の年"><span class="msym">chevron_right</span></button>
+            </div>
+        </Right>
+    </PageHeader>
+
+    @if (IncomeStore.IsPending)
+    {
+        <div class="loading"><p class="pending-title">アクセス承認待ちです</p></div>
+    }
+    else if (LoadFailed)
+    {
+        <div class="loading">
+            データの読み込みに失敗しました。<br />
+            ネットワーク接続を確認して、再度お試しください。<br />
+            <button class="btn" @onclick="Load">再読み込み</button>
+        </div>
+    }
+    else if (!Loaded)
+    {
+        <div class="loading"><div class="spinner"></div></div>
+    }
+    else if (!HasAccount)
+    {
+        <div class="none">口座が登録されていません。マイページから口座を追加してください。</div>
+    }
+    else
+    {
+        @* スマホは PageHeader が非表示のため、年ナビをここに複製する。 *@
+        @if (IsMobile)
+        {
+            <div class="inc-yearnav inc-yearnav-mobile">
+                <button @onclick="() => SelectYear(-1)" aria-label="前の年"><span class="msym">chevron_left</span></button>
+                <div class="inc-yearnav-val">@(_year)年</div>
+                <button @onclick="() => SelectYear(1)" aria-label="次の年"><span class="msym">chevron_right</span></button>
+            </div>
+        }
+
+        @* ヒーロー：想定年収（額面・見込み）★主役（PC/スマホ共通） *@
+        <div class="stat hero inc-hero">
+            <div class="inc-hero-top">
+                <div class="inc-hero-left">
+                    <div class="hero-lab">
+                        想定年収（額面・見込み）
+                        <span class="hero-pill inc-pill-forecast"><span class="msym">insights</span>予測</span>
+                    </div>
+                    <div class="hero-val inc-hero-val">@MaskedYen(IsMasked, _summary.ProjectedGross)</div>
+                </div>
+                <div class="inc-hero-right">
+                    <div class="inc-hero-stat">
+                        <span class="inc-hero-stat-lab">年計（実績）</span>
+                        <span class="inc-hero-stat-val inc-hero-ok">@MaskedYen(IsMasked, _summary.ActualGrossYtd)</span>
+                    </div>
+                    <div class="inc-hero-stat">
+                        <span class="inc-hero-stat-lab">月平均</span>
+                        <span class="inc-hero-stat-val">@MaskedYen(IsMasked, _summary.MonthlyAvgGross)</span>
+                    </div>
+                </div>
+            </div>
+            <div class="inc-progress">
+                @for (int m = 1; m <= 12; m++)
+                {
+                    <span class="inc-progress-seg @(IsFilled(_months[m - 1]) ? "filled" : "")"></span>
+                }
+            </div>
+            <div class="inc-progress-note">入力済み @_summary.FilledSalaryMonths / 12ヶ月　・　埋まるほど予測が正確に</div>
+        </div>
+
+        @if (IsMobile)
+        {
+            @* スマホは既存の案2a（単カラム縦積み）をそのまま維持（PC専用リデザインの対象外）。 *@
+            @BreakdownCard
+            @ChipsSection
+            @FocusEditor
+        }
+        else
+        {
+            @* PC：3カラム（内訳／月選択・入力／この月の確認）で画面幅を使い切る（案A）。 *@
+            <div class="inc-columns">
+                <div class="inc-col-left">
+                    @BreakdownCard
+                    @NoteBox
+                </div>
+                <div class="inc-col-center">
+                    @ChipsSection
+                    @FocusEditor
+                </div>
+                <div class="inc-col-right">
+                    @MonthCheckCard
+                    @MiniBarCard
+                </div>
+            </div>
+        }
+    }
+
+    @* ボーナス月を設定（マイページ・口座設定と共有の BonusMonthSettings を使い回す・#134/#107） *@
+    @if (_showBonusMonthDialog)
+    {
+        <div class="dialog-overlay" @onclick="CloseBonusMonthDialog">
+            <div class="dialog-box" @onclick:stopPropagation="true">
+                <h4>ボーナス月を設定</h4>
+                <BonusMonthSettings />
+                <div class="dialog-btns">
+                    <button class="btn primary" @onclick="CloseBonusMonthDialog">閉じる</button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    // ── 想定年収の内訳（PC/スマホ共通・#107 案2a から流用） ──
+    private RenderFragment BreakdownCard => __builder =>
+    {
+        <div class="inc-card">
+            <div class="inc-card-head">
+                <span class="inc-card-title">想定年収の内訳</span>
+                <span class="inc-card-note">入力が増えるほど予測の精度が上がります</span>
+            </div>
+            <div class="inc-bar">
+                <span class="inc-bar-salary" style="width:@(SalaryBarPct)%"></span>
+                <span class="inc-bar-bonus" style="width:@(BonusBarPct)%"></span>
+            </div>
+            <div class="inc-legend">
+                <div class="inc-legend-item">
+                    <span class="inc-dot inc-dot-salary"></span>
+                    <div>
+                        <div class="inc-legend-lab">給料（想定・月平均×12）</div>
+                        <div class="inc-legend-val">@MaskedYen(IsMasked, _summary.SalaryEstimate)</div>
+                    </div>
+                </div>
+                <div class="inc-legend-item">
+                    <span class="inc-dot inc-dot-bonus"></span>
+                    <div>
+                        <div class="inc-legend-lab">賞与（想定・実績から）</div>
+                        <div class="inc-legend-val">@MaskedYen(IsMasked, _summary.BonusEstimate)</div>
+                    </div>
+                </div>
+            </div>
+            <div class="inc-foot">
+                <div>
+                    <div class="inc-foot-lab">手取りベース想定</div>
+                    <div class="inc-foot-val inc-foot-ok">@MaskedYen(IsMasked, _summary.ProjectedNet)</div>
+                </div>
+                <div>
+                    <div class="inc-foot-lab">控除見込み差（額面 − 手取り）</div>
+                    <div class="inc-foot-val inc-foot-bad">@MaskedYen(IsMasked, _summary.DeductionGap) <span class="inc-foot-pct">約@(_summary.DeductionPct)%</span></div>
+                </div>
+            </div>
+        </div>
+    };
+
+    // ── 注記（PC専用・新規） ──
+    private RenderFragment NoteBox => __builder =>
+    {
+        <div class="inc-note"><span class="msym">info</span>総支給は記録専用で、口座残高・統計の収入には含めません。手取りは月次タブと共有の値です。</div>
+    };
+
+    // ── 月を選択して入力（12ヶ月ミニマップ。PC/スマホ共通） ──
+    private RenderFragment ChipsSection => __builder =>
+    {
+        <div class="inc-chips-head">
+            <span class="inc-chips-lab">月を選択して入力</span>
+            <span class="inc-chips-legend">
+                <span class="inc-chips-legend-item"><span class="inc-dot inc-dot-salary"></span>給料</span>
+                <span class="inc-chips-legend-item"><span class="msym inc-chips-legend-bonus">redeem</span>賞与月</span>
+            </span>
+        </div>
+        <div class="inc-chips">
+            @for (int m = 1; m <= 12; m++)
+            {
+                var mi = _months[m - 1];
+                var mCopy = m;
+                <button class="inc-chip @(m == _month ? "selected" : (IsFilled(mi) ? "filled" : ""))" @onclick="() => SelectMonth(mCopy)">
+                    @if (mi.IsBonusMonth)
+                    {
+                        <span class="msym inc-chip-bonus-badge">redeem</span>
+                    }
+                    <span class="inc-chip-m">@m</span>
+                    <span class="inc-chip-amt">@(IsFilled(mi) ? YenMan(ChipTotal(mi)) : "未")</span>
+                </button>
+            }
+        </div>
+    };
+
+    // ── フォーカスカード：選択中の月の入力（常時表示・PC/スマホ共通） ──
+    private RenderFragment FocusEditor => __builder =>
+    {
+        <div class="inc-focus">
+            <div class="inc-focus-head">
+                <button class="inc-focus-nav" @onclick="PrevMonth" aria-label="前の月"><span class="msym">chevron_left</span></button>
+                <span class="inc-focus-m">@(_month)月</span>
+                @if (FocusIsBonusMonth)
+                {
+                    <span class="inc-pill-bonus"><span class="msym">redeem</span>ボーナス月</span>
+                }
+                @if (!FocusNetEditable)
+                {
+                    <span class="inc-pill-frozen"><span class="msym">lock</span>手取りは凍結（月次データあり）</span>
+                }
+                <span class="inc-autosave"><span class="msym">cloud_done</span>変更は自動保存されます</span>
+                <button class="inc-focus-nav" @onclick="NextMonth" aria-label="次の月"><span class="msym">chevron_right</span></button>
+            </div>
+
+            <div class="inc-focus-grid">
+                <div class="inc-field">
+                    <label class="inc-field-lab inc-lab-salary">給料 総支給（額面）を入力</label>
+                    <AmountInput CssClass="num inc-input inc-input-salary-gross" Value="@(RecordOf(FocusYm)?.SalaryGross ?? 0)"
+                                 ValueChanged="SetSalaryGross" />
+                </div>
+                <div class="inc-field">
+                    <label class="inc-field-lab inc-lab-sync"><span class="msym">sync_alt</span>給料 手取り（振込額）<span class="inc-sync-note">@NetNoteText</span></label>
+                    <AmountInput CssClass="@($"num inc-input inc-input-net{(FocusNetEditable ? "" : " frozen")}")" Value="@FocusSalaryNetValue"
+                                 Disabled="@(!FocusNetEditable)" ValueChanged="SetSalaryNet" />
+                </div>
+            </div>
+
+            @if (FocusIsBonusMonth)
+            {
+                <div class="inc-focus-sep"></div>
+                <div class="inc-focus-grid">
+                    <div class="inc-field">
+                        <label class="inc-field-lab inc-lab-bonus">賞与 総支給（額面）を入力</label>
+                        <AmountInput CssClass="num inc-input inc-input-bonus-gross" Value="@(RecordOf(FocusYm)?.BonusGross ?? 0)"
+                                     ValueChanged="SetBonusGross" />
+                    </div>
+                    <div class="inc-field">
+                        <label class="inc-field-lab inc-lab-sync"><span class="msym">sync_alt</span>賞与 手取り（振込額）<span class="inc-sync-note">@NetNoteText</span></label>
+                        <AmountInput CssClass="@($"num inc-input inc-input-net{(FocusNetEditable ? "" : " frozen")}")" Value="@FocusBonusNetValue"
+                                     Disabled="@(!FocusNetEditable)" ValueChanged="SetBonusNet" />
+                    </div>
+                </div>
+            }
+        </div>
+    };
+
+    // ── この月の確認（PC専用・新規。IncomeMath.BuildMonthCheck の額面集計＋前月比／前回賞与比）。
+    // 比較行は常に両方表示し、比較対象が無い場合は非表示ではなく「ー」にする
+    // （どの月を見てもカードの高さが変わらないようにするため）。 ──
+    private RenderFragment MonthCheckCard => __builder =>
+    {
+        var c = FocusMonthCheck;
+        <div class="inc-card inc-check-card">
+            <div class="inc-card-head">
+                <span class="inc-card-title">この月の確認 @(_month)月</span>
+            </div>
+            <div class="inc-check-row">
+                <span class="inc-check-lab">総支給合計（額面）</span>
+                <span class="inc-check-val inc-check-navy">@MaskedYen(IsMasked, c.TotalGross)</span>
+            </div>
+            <div class="inc-check-row">
+                <span class="inc-check-lab">手取り合計（振込額）</span>
+                <span class="inc-check-val inc-check-ok">@MaskedYen(IsMasked, c.TotalNet)</span>
+            </div>
+            <div class="inc-check-row">
+                <span class="inc-check-lab">控除額</span>
+                <span class="inc-check-val inc-check-bad">@MaskedYen(IsMasked, c.Deduction)</span>
+            </div>
+            <div class="inc-check-row">
+                <span class="inc-check-lab">控除率</span>
+                <span class="inc-check-val inc-check-bad">約@(c.DeductionPct)%</span>
+            </div>
+            <div class="inc-check-sep"></div>
+            <div class="inc-check-compare-row">
+                <span class="inc-check-lab">給与（額面）前月比</span>
+                <span class="inc-check-compare-val">
+                    <span class="@CompareClass(c.SalaryMomDiff)">@SignedYenText(c.SalaryMomDiff)</span>
+                    <span class="inc-check-compare-pct @CompareClass(c.SalaryMomDiff)">@SignedPctText(c.SalaryMomPct)</span>
+                </span>
+            </div>
+            <div class="inc-check-compare-row">
+                <span class="inc-check-lab">賞与（額面）前回賞与比</span>
+                <span class="inc-check-compare-val">
+                    <span class="@CompareClass(c.BonusVsPrevDiff)">@SignedYenText(c.BonusVsPrevDiff)</span>
+                    <span class="inc-check-compare-pct @CompareClass(c.BonusVsPrevDiff)">@SignedPctText(c.BonusVsPrevPct)</span>
+                </span>
+            </div>
+        </div>
+    };
+
+    // ── 月別総支給 ミニ棒グラフ（PC専用・新規。タップで月移動） ──
+    private RenderFragment MiniBarCard => __builder =>
+    {
+        <div class="inc-card inc-minibar-card">
+            <div class="inc-card-head">
+                <span class="inc-card-title">月別 総支給（額面）</span>
+                <span class="inc-card-note">タップで月移動</span>
+            </div>
+            <div class="inc-minibar">
+                @for (int m = 1; m <= 12; m++)
+                {
+                    var mi = _months[m - 1];
+                    var mCopy = m;
+                    <button class="inc-minibar-col @(m == _month ? "selected" : "")" @onclick="() => SelectMonth(mCopy)" title="@(m)月">
+                        <span class="inc-minibar-stack">
+                            <span class="inc-minibar-salary" style="height:@(SalaryBarHeightPct(mi))%"></span>
+                            <span class="inc-minibar-bonus" style="height:@(BonusBarHeightPct(mi))%"></span>
+                        </span>
+                        <span class="inc-minibar-m">@m</span>
+                    </button>
+                }
+            </div>
+        </div>
+    };
+
+    // 前月比/前回賞与比の色分け（プラス=green/マイナス=red/変化なし・比較対象なし=グレー）。
+    // 比較対象が無い（null）月は非表示ではなく「ー」を表示する（カードの高さをどの月でも揃えるため）。
+    private static string CompareClass(decimal? diff) => diff is > 0 ? "inc-check-ok" : diff is < 0 ? "inc-check-bad" : "inc-check-neutral";
+    private static string SignedYenText(decimal? v) => v is null ? "ー" : (v >= 0 ? "+¥" : "−¥") + Math.Abs(v.Value).ToString("#,0");
+    private static string SignedPctText(decimal? pct) => pct is null ? "" : $"({(pct.Value >= 0 ? "+" : "−")}{Math.Abs(pct.Value):0.#}%)";
+}

@@ -1,0 +1,68 @@
+@inject LedgerService Svc
+
+@* ボーナス月（賞与を受け取る月・#134）設定の共有部品。マイページの口座設定（AccountsTab）と
+   収入（給与）記録ページ（#107・ダイアログ内）の双方から使い回し、設定を1箇所に集約することで
+   「同じものを2箇所で編集できるが実体は同じ」を保証する（複製すると表記・挙動がドリフトするため）。
+   チェック変更は即保存せず確認ダイアログを挟む（今月以降にのみ反映・過去は不変であることを明示）。 *@
+<div class="bonus-months">
+    <div class="bonus-months-head">
+        <span class="set-title">ボーナス月</span>
+    </div>
+    <div class="bonus-months-grid">
+        @for (int m = 1; m <= 12; m++)
+        {
+            var month = m;
+            <label class="bonus-month-chip @(_bonusMonthsDraft.Contains(month) ? "on" : "")">
+                <input type="checkbox" checked="@_bonusMonthsDraft.Contains(month)"
+                       @onchange="e => ToggleBonusMonth(month, (bool)(e.Value ?? false))" />
+                <span>@month</span>
+            </label>
+        }
+    </div>
+    <div class="set-note">
+        賞与を受け取る月を選択します（複数可・0個も可）。月次管理タブのボーナス入力欄の表示・想定年収の見込みに使用し、過去に入力済みのボーナス・残高・統計には影響しません。
+    </div>
+</div>
+
+<ConfirmDialog IsVisible="@ShowBonusConfirm"
+               Title="ボーナス月の設定を変更しますか？"
+               Message="@("今月以降の月次管理タブの表示に反映されます。\n過去に入力済みのボーナス・残高・統計は変わりません。")"
+               ConfirmText="変更する"
+               OnConfirm="ConfirmBonusMonths"
+               OnCancel="CancelBonusMonths" />
+
+@code {
+    // 内部の確認ダイアログが開閉した瞬間を親へ通知する（親側の背面スクロールロック判定に使う）。
+    [Parameter] public EventCallback<bool> DialogOpenChanged { get; set; }
+
+    private HashSet<int> _bonusMonthsDraft = new();
+    private bool ShowBonusConfirm;
+
+    protected override void OnInitialized() => _bonusMonthsDraft = new HashSet<int>(Svc.State.BonusMonths);
+
+    private async Task SetShowBonusConfirm(bool value)
+    {
+        ShowBonusConfirm = value;
+        await DialogOpenChanged.InvokeAsync(value);
+    }
+
+    private Task ToggleBonusMonth(int month, bool val)
+    {
+        if (val) _bonusMonthsDraft.Add(month); else _bonusMonthsDraft.Remove(month);
+        return SetShowBonusConfirm(true);
+    }
+
+    private async Task ConfirmBonusMonths()
+    {
+        Svc.State.BonusMonths = BonusSchedule.Normalize(_bonusMonthsDraft);
+        _bonusMonthsDraft = new HashSet<int>(Svc.State.BonusMonths);
+        await SetShowBonusConfirm(false);
+        _ = Svc.SaveAsync();
+    }
+
+    private Task CancelBonusMonths()
+    {
+        _bonusMonthsDraft = new HashSet<int>(Svc.State.BonusMonths);
+        return SetShowBonusConfirm(false);
+    }
+}

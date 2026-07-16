@@ -21,6 +21,8 @@ builder.Services.AddScoped<AppStateStore>();
 builder.Services.AddScoped<LedgerService>();
 builder.Services.AddScoped<PortfolioService>();
 builder.Services.AddScoped<PortfolioStore>();
+builder.Services.AddScoped<IncomeService>();
+builder.Services.AddScoped<IncomeStore>();
 builder.Services.AddScoped<QuoteService>();
 builder.Services.AddScoped<ViewportService>();
 builder.Services.AddScoped<AmountMaskService>();

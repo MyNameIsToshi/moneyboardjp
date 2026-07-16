@@ -1,0 +1,747 @@
+/* =====================================================
+   収入（給与）記録ページ（#107）。案2a：フォーカス＋12ヶ月ミニマップ。
+   ダーク地ヒーロー・カード等は base.css/monthly.css の共通クラス（.stat.hero/.hero-lab/.hero-val/.hero-pill）
+   を流用し、このページ固有の見た目のみ inc- 接頭辞で追加する（新色は導入せず、ゴールド系は
+   統計の「臨時 #c9a23a」と同系の値をそのまま使う）。
+   ===================================================== */
+
+/* ── 年ナビ（ヘッダー右・PageHeader の Right スロット／スマホは複製） ── */
+.inc-yearnav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: #fff;
+  border: 1px solid #e7e4de;
+  border-radius: 11px;
+  padding: 3px;
+}
+
+.inc-yearnav button {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--sub);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+}
+
+.inc-yearnav button:hover {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.inc-yearnav-val {
+  min-width: 70px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.inc-yearnav-mobile {
+  margin-bottom: 14px;
+}
+
+/* ── ボーナス月を設定（ヘッダー右・ショートカット。ダイアログ本体はマイページ側#134を使い回す） ── */
+.inc-bonusmonth-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 7px 12px;
+  border: 1px solid #e7d9b0;
+  border-radius: 10px;
+  background: #faf3e0;
+  color: #8a6d1f;
+  cursor: pointer;
+}
+
+.inc-bonusmonth-btn:hover {
+  background: #f7efd9;
+}
+
+.inc-bonusmonth-btn .msym {
+  font-size: 15px;
+}
+
+/* ── ヒーロー：想定年収（額面・見込み） ── */
+.inc-hero {
+  flex-direction: column;
+  align-items: stretch;
+  margin-bottom: 16px;
+}
+
+.inc-hero-top {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.inc-hero-val {
+  font-size: 34px;
+}
+
+.inc-pill-forecast {
+  background: rgba(201, 162, 58, .22);
+  color: #e7c66b;
+}
+
+.inc-hero-right {
+  display: flex;
+  align-items: flex-end;
+  gap: 22px;
+  text-align: right;
+}
+
+.inc-hero-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.inc-hero-stat-lab {
+  font-size: 11.5px;
+  color: #b6b2ab;
+}
+
+.inc-hero-stat-val {
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.inc-hero-stat-val.inc-hero-ok {
+  color: #5fd1aa;
+}
+
+.inc-progress {
+  display: flex;
+  gap: 4px;
+  margin-top: 14px;
+}
+
+.inc-progress-seg {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, .16);
+}
+
+.inc-progress-seg.filled {
+  background: rgba(255, 255, 255, .82);
+}
+
+.inc-progress-note {
+  margin-top: 8px;
+  font-size: 10.5px;
+  color: #9a968f;
+}
+
+/* ── 想定年収の内訳 ── */
+.inc-card {
+  background: #fff;
+  border: 1px solid #ece9e3;
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(33, 38, 46, .03);
+  padding: 18px 22px;
+  margin-bottom: 16px;
+}
+
+.inc-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.inc-card-title {
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.inc-card-note {
+  font-size: 11px;
+  color: #a8a49d;
+}
+
+.inc-bar {
+  display: flex;
+  height: 14px;
+  border-radius: 7px;
+  overflow: hidden;
+  background: #f3f1ec;
+  margin-bottom: 14px;
+}
+
+.inc-bar-salary {
+  background: var(--accent);
+}
+
+.inc-bar-bonus {
+  background: #c9a23a;
+}
+
+.inc-legend {
+  display: flex;
+  gap: 28px;
+  flex-wrap: wrap;
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid #f0eee9;
+}
+
+.inc-legend-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.inc-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  margin-top: 3px;
+  flex: 0 0 auto;
+}
+
+.inc-dot-salary {
+  background: var(--accent);
+}
+
+.inc-dot-bonus {
+  background: #c9a23a;
+}
+
+.inc-legend-lab {
+  font-size: 12px;
+  color: var(--sub);
+}
+
+.inc-legend-val {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.inc-foot {
+  display: flex;
+  gap: 28px;
+  flex-wrap: wrap;
+}
+
+.inc-foot-lab {
+  font-size: 12px;
+  color: var(--sub);
+}
+
+.inc-foot-val {
+  font-size: 17px;
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+.inc-foot-val.inc-foot-ok {
+  color: var(--ok);
+}
+
+.inc-foot-val.inc-foot-bad {
+  color: var(--bad);
+}
+
+.inc-foot-pct {
+  font-size: 11px;
+  font-weight: 500;
+  color: #a8a49d;
+}
+
+/* ── 月を選択して入力（12ヶ月ミニマップ） ── */
+.inc-chips-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.inc-chips-lab {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #8f8b84;
+}
+
+.inc-chips-legend {
+  display: flex;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--sub);
+}
+
+.inc-chips-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.inc-chips-legend-bonus {
+  font-size: 13px;
+  color: #c9a23a;
+}
+
+.inc-chips {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.inc-chip {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 2px;
+  border: 1px solid #e8e3d8;
+  border-radius: 10px;
+  background: #faf8f3;
+  color: #a8a49d;
+  cursor: pointer;
+  font: inherit;
+}
+
+.inc-chip-bonus-badge {
+  position: absolute;
+  top: 3px;
+  right: 4px;
+  font-size: 10px;
+  color: #c9a23a;
+}
+
+.inc-chip.selected .inc-chip-bonus-badge {
+  color: #e7c66b;
+}
+
+.inc-chip.filled {
+  background: #fff;
+  color: #3a3733;
+  border-color: #e8e3d8;
+}
+
+.inc-chip.filled .inc-chip-amt {
+  color: #a8a49d;
+}
+
+.inc-chip.selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.inc-chip.selected .inc-chip-amt {
+  color: #c7d0dd;
+}
+
+.inc-chip-m {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.inc-chip-amt {
+  font-size: 9px;
+}
+
+/* ── フォーカスカード（選択中の月の入力・常時表示） ── */
+.inc-focus {
+  background: #fff;
+  border: 1px solid #ece9e3;
+  border-radius: 16px;
+  padding: 20px 22px;
+}
+
+.inc-focus-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.inc-autosave {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  font-size: 11px;
+  color: #0f6e56;
+}
+
+.inc-autosave .msym {
+  font-size: 14px;
+}
+
+.inc-focus-nav {
+  width: 30px;
+  height: 30px;
+  border: 1px solid #e7e4de;
+  border-radius: 9px;
+  background: #fff;
+  color: var(--sub);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.inc-focus-nav:hover {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.inc-focus-m {
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.inc-pill-bonus {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: 20px;
+  background: #f7efd9;
+  color: #8a6d1f;
+}
+
+.inc-pill-bonus .msym {
+  font-size: 13px;
+}
+
+.inc-pill-frozen {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: 20px;
+  background: #f0eee9;
+  color: #8f8b84;
+}
+
+.inc-pill-frozen .msym {
+  font-size: 13px;
+}
+
+.inc-focus-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.inc-focus-sep {
+  border-top: 1px solid #f0eee9;
+  margin: 16px 0;
+}
+
+.inc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.inc-field-lab {
+  font-size: 12.5px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.inc-lab-salary {
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.inc-lab-bonus {
+  font-weight: 700;
+  color: #8a6d1f;
+}
+
+.inc-lab-sync {
+  color: var(--sub);
+}
+
+.inc-lab-sync .msym {
+  font-size: 14px;
+  color: #c3bfb6;
+}
+
+.inc-sync-note {
+  font-size: 11px;
+  color: #c3bfb6;
+}
+
+.inc-input {
+  width: 100%;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.inc-input-salary-gross {
+  font-size: 23px;
+  font-weight: 700;
+  background: #eef2f8;
+  border: 1px solid #cdd8e6;
+  color: var(--ink);
+}
+
+.inc-input-salary-gross:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(31, 58, 95, .12);
+}
+
+.inc-input-bonus-gross {
+  font-size: 23px;
+  font-weight: 700;
+  background: #faf3e0;
+  border: 1px solid #e7d9b0;
+  color: var(--ink);
+}
+
+.inc-input-bonus-gross:focus {
+  outline: none;
+  border-color: #c9a23a;
+  box-shadow: 0 0 0 3px rgba(201, 162, 58, .16);
+}
+
+.inc-input-net {
+  font-size: 19px;
+  font-weight: 600;
+  background: #fcfbf9;
+  border: 1px solid #ddd9d2;
+  color: var(--ink);
+}
+
+.inc-input-net:focus {
+  outline: none;
+  border-color: #cfc9bd;
+}
+
+/* 凍結（過去月・月次データあり＝編集不可）は地色をはっきり変えて入力可と区別する */
+.inc-input-net.frozen,
+.inc-input-net:disabled {
+  background: #ece9e3;
+  border-color: #ddd9d2;
+  color: #8f8b84;
+  cursor: not-allowed;
+}
+
+/* =====================================================
+   PC専用：3カラムレイアウト（内訳／月選択・入力／この月の確認・#107 案A）
+   スマホは案2a（単カラム縦積み）のまま・対象外。
+   ===================================================== */
+.inc-columns {
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr) 330px;
+  gap: 18px;
+  align-items: start;
+  min-width: 1180px;
+}
+
+.inc-col-left,
+.inc-col-center {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.inc-col-right {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: sticky;
+  top: 20px;
+}
+
+/* ── 注記 ── */
+.inc-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: #f2f5f9;
+  border: 1px solid #dfe6ef;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 12px;
+  color: var(--sub);
+  line-height: 1.6;
+}
+
+.inc-note .msym {
+  font-size: 16px;
+  color: #6b8cae;
+  flex: 0 0 auto;
+}
+
+/* ── この月の確認 ── */
+.inc-check-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 6px 0;
+  font-size: 13px;
+}
+
+.inc-check-lab {
+  color: var(--sub);
+}
+
+.inc-check-val {
+  font-weight: 700;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.inc-check-navy {
+  color: var(--accent);
+}
+
+.inc-check-ok {
+  color: var(--ok);
+}
+
+.inc-check-bad {
+  color: var(--bad);
+}
+
+.inc-check-neutral {
+  color: var(--sub);
+}
+
+.inc-check-sep {
+  border-top: 1px solid #f0eee9;
+  margin: 8px 0;
+}
+
+.inc-check-compare-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 6px 0;
+  font-size: 12.5px;
+}
+
+.inc-check-compare-val {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.inc-check-compare-pct {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* ── 月別総支給 ミニ棒グラフ ── */
+.inc-minibar {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 76px;
+}
+
+.inc-minibar-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+}
+
+.inc-minibar-stack {
+  width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-start;
+  border-radius: 3px 3px 0 0;
+  overflow: hidden;
+  background: #f3f1ec;
+}
+
+.inc-minibar-salary {
+  width: 100%;
+  background: var(--accent);
+}
+
+.inc-minibar-bonus {
+  width: 100%;
+  background: #c9a23a;
+}
+
+.inc-minibar-m {
+  font-size: 9.5px;
+  color: #a8a49d;
+}
+
+.inc-minibar-col.selected .inc-minibar-stack {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.inc-minibar-col.selected .inc-minibar-m {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+@media (max-width: 760px) {
+  .inc-hero-val {
+    font-size: 29px;
+  }
+
+  .inc-hero-top {
+    align-items: flex-start;
+  }
+
+  .inc-hero-right {
+    gap: 16px;
+  }
+
+  .inc-chips {
+    grid-template-columns: repeat(6, 1fr);
+  }
+
+  .inc-focus-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .inc-input-salary-gross,
+  .inc-input-bonus-gross {
+    font-size: 21px;
+  }
+
+  .inc-input-net {
+    font-size: 17px;
+  }
+}

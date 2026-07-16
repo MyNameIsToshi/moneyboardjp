@@ -9,6 +9,9 @@ public static class MoneyFormat
     /// <summary>符号つき ¥ 表示（増＝+¥ / 減＝−¥。負号は U+2212）。要約ヒーロー等で増減を明示する用途。</summary>
     public static string SignedYen(decimal v) => (v >= 0 ? "+¥" : "−¥") + Math.Abs(v).ToString("#,0");
 
+    /// <summary>万単位の概略表示（例: ¥43万・¥43.2万）。小数第1位までで端数が無ければ整数表示（#107 月チップ）。</summary>
+    public static string YenMan(decimal v) => "¥" + Math.Round(v / 10000m, 1).ToString("0.#") + "万";
+
     /// <summary>ApexCharts 用 JS フォーマッタ。万単位の概略表示（例: ¥123万）。Y軸ラベル・ドーナツ値で共有。</summary>
     public const string ChartYenMan = "function(v){return '¥'+Math.round(v/10000)+'万'}";
 
