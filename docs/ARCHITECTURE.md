@@ -348,9 +348,9 @@ Transfer
 
 ### 共通ヘッダー（ブランドタイトル）
 - ブランドタイトル「MoneyBoard vX.Y.Z」は共有コンポーネント `MoneyBoard/Components/AppTitle.razor` に集約。版はアセンブリの `InformationalVersion` を読む（全画面で同一供給源）。
-- `Subtitle` パラメータに画面名を渡すと「v1.5.0 · ポートフォリオ」のようにドット区切りで併記（`.app-subtitle`）。Home は Subtitle なし。
+- 画面名併記の `Subtitle` パラメータは撤去済み（#145）。PC は `.pf-head`/`.graph-header` が CSS 非表示で元々描画されず、スマホは下部ナビが常時表示され選択中タブも強調されるため冗長、かつ常設リロードボタン（#132）がタイトル行に収まらず折り返す原因にもなっていたため、PC/スマホどちらにも表示箇所が無い状態＝実質使われていなかった。
 - **PC**：ブランドは左サイドナビ最上部（`.sidenav-brand`）に出すため、各ページ頭のヘッダー（`.home-head`/`.pf-head`/`.graph-header`）は CSS で非表示（`.app-shell.has-sidenav` 配下）。
-- **スマホ**：サイドナビが無いため、各ページ頭の AppTitle を従来どおり表示（#39/#40）。
+- **スマホ**：サイドナビが無いため、各ページ頭の AppTitle を表示（#39/#40）。
 - **お知らせベル（#38）**：`AppTitle` 右端に🔔＋未読バッジを内蔵。PC/スマホいずれも同一コンポーネントのため二重実装なしで両対応。押下で `AnnouncementListDialog`（新しい順・全件・Markdown本文）を開き既読化。更新後の初回表示（未読あり）は `AnnouncementWhatsNewDialog` を自動表示。データは `MoneyBoard/wwwroot/announcements.json`（repo同梱・デプロイ配信）を `AnnouncementService` が読込・localStorage の最終既読idで未読管理。
 
 ### ナビゲーション（PC=サイドナビ / スマホ=下部バー）
