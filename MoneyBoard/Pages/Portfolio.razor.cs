@@ -367,7 +367,7 @@ public partial class Portfolio
     private List<ChartPoint> PnlSeries = new();     // 評価損益（総資産 − 取得原価・円。スナップショット以降）
 
     // 推移の表示期間（1W/1M/3M/6M/1Y/ALL）。
-    private string _trendPeriod = "ALL";
+    private string _trendPeriod = "3M";
     private static readonly (string Key, string Label)[] TrendPeriods =
     {
         ("1W", "1W"), ("1M", "1M"), ("3M", "3M"), ("6M", "6M"), ("1Y", "1Y"), ("ALL", "ALL"),
