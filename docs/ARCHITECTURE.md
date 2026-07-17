@@ -133,8 +133,8 @@ C:\Development\moneyboard\
       MonthlyTab.razor        月次管理タブ（収入[給料/ボーナス/ATM入金/臨時収入]・支出[固定費/カード/ATM出金/手入力]・送金。サマリ=ヒーロー、口座カードは折りたたみ＋ヒーロー/収入・支出・振込ゾーン構成・#43/#81 リデザイン）
       CardTab.razor           カードタブ（明細の手入力/カードCSV取込[JCB/三井住友/PayPay/au PAY/楽天]/AIで読取[スクショ]/一括カテゴリ・カードごと折りたたみ・#49でリデザイン）
       MyPageTab.razor         マイページタブ（プロフィールヒーロー＋設定カードのグリッド[PC]/折りたたみ[スマホ]・アクセス管理は2列色分け・#50でリデザイン）
-      CategorySettings.razor  カテゴリ管理（12色・追加/編集/削除[確認ダイアログ・使用中は対象月/件数を明示し「未分類」化を警告した上で削除可・#113]・D&D並び替え）
-      CardSettings.razor      カード管理（名前＋口座・追加/削除[確認ダイアログ]・D&D並び替え）
+      CategorySettings.razor  カテゴリ管理（12色・追加[PC=ダイアログ・スマホ=ドラフト編集シート・#143]/編集/削除[確認ダイアログ・使用中は対象月/件数を明示し「未分類」化を警告した上で削除可・#113]・D&D並び替え）
+      CardSettings.razor      カード管理（名前＋口座・追加[PC=ダイアログ・スマホ=ドラフト編集シート・#143]/削除[確認ダイアログ]・D&D並び替え）
       CycleInfo.razor         月ナビ横の ⓘ ツールチップ（当月=15日サイクルの実期間を表示）
       AmountInput.razor       金額入力共通（フォーカス中はカンマ無し・空欄許可・blurで確定・`AllowNegative`既定false=マイナス禁止／`CardDetail.Amount`のみtrueで返金の手入力を許可・#112）
       SpendBreakdownCard.razor 統計のドーナツ＋一覧カード（⑥カテゴリ別/⑦カード別で共用）
@@ -144,6 +144,7 @@ C:\Development\moneyboard\
       Dialog\
         ConfirmDialog.razor   削除確認ダイアログ
         WarnDialog.razor      警告ダイアログ
+        AddDialog.razor       追加ダイアログ共通部品（名前入力＋任意の追加フィールドはChildContent・#143。CardSettings/CategorySettingsのPC追加で使用。AccountsTab/FixedCostTabの追加ダイアログは対象外＝別issue想定）
     Pages\
       Home.razor              タブシェル（月次/カード/固定費設定/マイページ・読込中はスピナー+操作不可）
       GraphPage.razor         統計ページ（7種・期間指定・sticky ヘッダー・内訳ドリルダウンモーダル）
