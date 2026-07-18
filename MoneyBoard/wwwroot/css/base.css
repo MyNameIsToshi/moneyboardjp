@@ -69,7 +69,9 @@ body {
 .wrap {
   max-width: 980px;
   margin: 0 auto;
-  padding: var(--wrap-pad-top) 16px 64px;
+  /* 横方向はノッチ機種の横持ち（viewport-fit=cover で本文が safe-area へ広がる）に備え
+     env(safe-area-inset-*) を確保。縦持ち・PCは env=0 のため従来どおり 16px。 */
+  padding: var(--wrap-pad-top) max(16px, env(safe-area-inset-right)) 64px max(16px, env(safe-area-inset-left));
 }
 
 .loading {
