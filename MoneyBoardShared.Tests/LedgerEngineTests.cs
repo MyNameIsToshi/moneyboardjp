@@ -631,7 +631,7 @@ public class LedgerEngineTests
     [Fact]
     public void ShouldCreateLedgerFor_NonWalletAccount_AlwaysTrue()
     {
-        var a = new Account { IsWallet = false };
+        var a = new Account { Type = AccountType.Normal };
         Assert.True(LedgerEngine.ShouldCreateLedgerFor(a, "202601"));
     }
 
@@ -639,7 +639,7 @@ public class LedgerEngineTests
     public void ShouldCreateLedgerFor_WalletWithoutStartYm_AlwaysTrue()
     {
         // 旧データ・移行直後などで WalletStartYm 未設定の場合は制限しない（後方互換）。
-        var a = new Account { IsWallet = true, WalletStartYm = null };
+        var a = new Account { Type = AccountType.Wallet, WalletStartYm = null };
         Assert.True(LedgerEngine.ShouldCreateLedgerFor(a, "202601"));
     }
 
@@ -649,14 +649,14 @@ public class LedgerEngineTests
     [InlineData("202607", true)]   // 作成月より後 → 作る
     public void ShouldCreateLedgerFor_Wallet_RespectsStartYm(string ym, bool expected)
     {
-        var a = new Account { IsWallet = true, WalletStartYm = "202606" };
+        var a = new Account { Type = AccountType.Wallet, WalletStartYm = "202606" };
         Assert.Equal(expected, LedgerEngine.ShouldCreateLedgerFor(a, ym));
     }
 
     // 口座a・口座b・財布wの最小 state と、3口座すべての台帳を持つ当月 MonthData を返す。
     private static AppState WalletState(out MonthData mo, out Account wallet)
     {
-        wallet = new Account { Id = "w", IsWallet = true };
+        wallet = new Account { Id = "w", Type = AccountType.Wallet };
         var state = new AppState
         {
             Accounts = { new Account { Id = "a" }, new Account { Id = "b" }, wallet }

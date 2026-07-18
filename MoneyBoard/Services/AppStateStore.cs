@@ -122,10 +122,14 @@ public class AppStateStore(StorageService storage)
             if (result == SaveResult.Conflict)
             {
                 // 別タブ/別端末が先に更新済み。ローカルの変更で上書きせず最新を読み込む。
+                // 読み込んだ内容は LoadAsync と同じくスキーマ移行を通す（#147）。旧スキーマの端末が
+                // 先に保存していた場合、ここで移行を挟まないとそのセッションは未移行の State で
+                // 動き続ける（例: 財布が Type=Normal のまま＝財布として扱われなくなる）。
                 try
                 {
                     State = await storage.LoadAsync() ?? State;
                     SeedBaselines();
+                    if (SchemaMigration.Apply(State)) RequestSave();
                 }
                 catch { /* 再読込失敗時は既存 State を維持 */ }
                 StateReloadedExternally?.Invoke();

@@ -219,14 +219,14 @@ public class LedgerService(AppStateStore store)
     // 財布は他の口座と異なる特殊枠のため常に先頭に固定表示（並び替え対象外・#77 フォローアップ）。
     public List<Account> ActiveAccounts =>
         State.Accounts.Where(a => !a.IsDeleted)
-            .OrderByDescending(a => a.IsWallet)
+            .OrderByDescending(a => a.Type == AccountType.Wallet)
             .ThenBy(a => a.SortOrder)
             .ToList();
 
     // 固定費（支出/収入）・カードの引き落とし口座など、支出/収入の計上先を選ぶ「口座を選択」用（#124）。
     // 財布は現金の出納枠であり、計上先としては想定外（財布への/からの出入りは振替ゾーンに一本化＝#77）。
     // 既に財布が計上先として設定されている既存データは、この一覧から選び直せなくなるだけで自動解除はしない。
-    public List<Account> NonWalletAccounts => ActiveAccounts.Where(a => !a.IsWallet).ToList();
+    public List<Account> NonWalletAccounts => ActiveAccounts.Where(a => a.Type != AccountType.Wallet).ToList();
 
     public List<string> GetFixedCostsUsingAccount(string accountId) =>
         State.FixedCosts.Where(f => f.AccountId == accountId).Select(f => f.Name).ToList();
@@ -263,7 +263,7 @@ public class LedgerService(AppStateStore store)
     // カード削除(#49)と同じ「当月以降を掃除・過去は凍結」で正常に完了する設計のため、このガードを適用しない。
     public List<string> GetFutureMonthsUsingAccount(string accountId)
     {
-        if (State.Accounts.FirstOrDefault(a => a.Id == accountId)?.IsWallet == true) return new();
+        if (State.Accounts.FirstOrDefault(a => a.Id == accountId)?.Type == AccountType.Wallet) return new();
         var cycleStart = CurrentCycleStartYm();
         return State.Months
             .Where(kvp => string.CompareOrdinal(kvp.Key, cycleStart) >= 0)
@@ -285,7 +285,7 @@ public class LedgerService(AppStateStore store)
         var a = State.Accounts.FirstOrDefault(x => x.Id == accountId);
         if (a == null) return;
         a.IsDeleted = true;
-        if (a.IsWallet) CleanupWalletOff(accountId);
+        if (a.Type == AccountType.Wallet) CleanupWalletOff(accountId);
         else RecalcWalletCurrentAndFuture();   // 非財布口座の削除で当該口座のATM出金が財布へ実体化されなくなるため、当月以降の財布を再計算する（#77）。
     }
 

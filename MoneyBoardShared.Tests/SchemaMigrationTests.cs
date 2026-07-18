@@ -68,4 +68,58 @@ public class SchemaMigrationTests
         Assert.Equal("cat-food", state.CategoryRules["スーパー"]);
         Assert.Empty(state.CategoryPrefixRules);
     }
+
+    [Fact]
+    public void Apply_V10ToV11_ConvertsIsWalletTrue_ToTypeWallet()
+    {
+        // v11 は口座種別の enum 化（#147）。旧 IsWallet==true は Type=Wallet へ変換される。
+        var state = new AppState
+        {
+            SchemaVersion = 10,
+            Accounts =
+            {
+                new Account { Id = "a", IsWallet = false },
+                new Account { Id = "w", IsWallet = true },
+            },
+        };
+
+        var changed = SchemaMigration.Apply(state);
+
+        Assert.True(changed);
+        Assert.Equal(SchemaMigration.CurrentVersion, state.SchemaVersion);
+        Assert.Equal(AccountType.Normal, state.Accounts[0].Type);
+        Assert.Equal(AccountType.Wallet, state.Accounts[1].Type);
+    }
+
+    [Fact]
+    public void Apply_V10ToV11_DoesNotOverwriteAlreadySetType()
+    {
+        // 旧フラグはクリアせず残すため、種別を Wallet 以外へ変えた口座に移行が再適用されても
+        // その変更を巻き戻さないこと（Type が設定済みなら旧フラグより優先）。
+        var state = new AppState
+        {
+            SchemaVersion = 10,
+            Accounts = { new Account { Id = "e", IsWallet = true, Type = AccountType.EMoney } },
+        };
+
+        SchemaMigration.Apply(state);
+
+        Assert.Equal(AccountType.EMoney, state.Accounts[0].Type);
+    }
+
+    [Fact]
+    public void Apply_IsIdempotent_ForWalletCreatedOnV11()
+    {
+        // v11 以降に作成された財布（Type/IsWallet の両方が立つ）は、再度 Apply しても Wallet のまま。
+        var state = new AppState
+        {
+            SchemaVersion = SchemaMigration.CurrentVersion,
+            Accounts = { new Account { Id = "w", IsWallet = true, Type = AccountType.Wallet } },
+        };
+
+        var changed = SchemaMigration.Apply(state);
+
+        Assert.False(changed);
+        Assert.Equal(AccountType.Wallet, state.Accounts[0].Type);
+    }
 }

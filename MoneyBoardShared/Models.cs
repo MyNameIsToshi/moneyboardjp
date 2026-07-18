@@ -49,6 +49,11 @@ public class Card
     public bool IsDeleted { get; set; }            // ソフト削除（過去明細の名前引きのため残す）
 }
 
+// 口座種別（#147）。EMoney は本 issue では未使用（後続 feat で導入）。
+// 数値でシリアライズされ保存データに残るため、値は明示し**末尾追加のみ**とする（挿入・並べ替えは
+// 既存データの種別を別の値へ化けさせる）。Portfolio の AccountKind と同じ append-only 運用。
+public enum AccountType { Normal = 0, Wallet = 1, EMoney = 2 }
+
 // ── 口座 ──────────────────────────────────────────
 public class Account
 {
@@ -58,7 +63,14 @@ public class Account
     public int SortOrder { get; set; }
     public bool IsDeleted { get; set; }
     public bool IsBonusAccount { get; set; }
-    // 現金の手元残高・使い道を追跡する特殊口座（#77）。アクティブ（!IsDeleted）は同時に1個のみ。
+    // 口座種別（#147）。財布（現金の手元残高・使い道を追跡する特殊口座・#77）はここが Wallet。
+    // アクティブな Wallet（!IsDeleted）は同時に1個のみ。
+    public AccountType Type { get; set; }
+    // v10以前の後方互換フィールド（#147）。判定の正本は Type で、**アプリロジックからは参照しない**。
+    // Type の別名として読み書きだけを維持する：旧データ（IsWallet のみ）は SchemaMigration v11 が
+    // Type へ変換し、保存時は Type と矛盾しない値を書き戻す。全クライアントが v11 以降に揃うまでは、
+    // 更新を保留した旧クライアント（Type を知らず、このフィールドだけを見る）が同じデータを開いても
+    // 財布判定を落とさないようにするため、書き戻し側も維持する必要がある。
     public bool IsWallet { get; set; }
     // 財布を作成した月（yyyyMM）。他の口座と異なり、財布は「作成した月」を恒久的な起点（開始残高の入力月）
     // とするため、この月より前へは月次展開（EnsureMonth）で遡って台帳を作らない（#77 フォローアップ）。

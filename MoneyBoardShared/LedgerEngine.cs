@@ -68,14 +68,14 @@ public static class LedgerEngine
     }
 
     // ── 財布（現金）── ATM入出金の対称実体化（materialize・#77）──────
-    // アクティブな財布（IsWallet && !IsDeleted）は同時に1個のみ。無ければ何もしない
+    // アクティブな財布（Type==Wallet && !IsDeleted）は同時に1個のみ。無ければ何もしない
     // （既存の口座ATM入出金フィールドは従来どおり手入力のまま）。
-    public static Account? ActiveWallet(AppState state) => state.Accounts.FirstOrDefault(a => a.IsWallet && !a.IsDeleted);
+    public static Account? ActiveWallet(AppState state) => state.Accounts.FirstOrDefault(a => a.Type == AccountType.Wallet && !a.IsDeleted);
 
     // 財布は作成月（WalletStartYm）より前の月へ台帳を遡って作らない（#77 フォローアップ）。他の口座と異なり
     // 起点月（開始残高の入力月）を作成月に固定し、過去月を開いても起点が移動しないようにするための判定。
     public static bool ShouldCreateLedgerFor(Account a, string ym) =>
-        !a.IsWallet || a.WalletStartYm == null || string.CompareOrdinal(ym, a.WalletStartYm) >= 0;
+        a.Type != AccountType.Wallet || a.WalletStartYm == null || string.CompareOrdinal(ym, a.WalletStartYm) >= 0;
 
     // 口座⇄財布のATM入出金を対称に実体化する。派生値は保存するため、残高計算（LedgerMath.Close）は
     // 無改修で乗り、財布削除後も過去月に凍結保存される。ym を跨がず「この月」のみを対象にする
