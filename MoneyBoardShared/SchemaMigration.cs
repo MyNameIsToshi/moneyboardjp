@@ -29,16 +29,25 @@ public static class SchemaMigration
     //      として型上は残るが、移行後はアプリロジックから参照されない）。
     public const int CurrentVersion = 11;
 
+    /// <summary>
+    /// Account.Type（口座種別）が導入された版数（#147）。これ未満のクライアントが書いたデータは
+    /// Type を持たないため、旧 IsWallet から種別を復元してよい（<see cref="RestoreWalletTypeFromLegacyFlag"/>）。
+    /// </summary>
+    public const int AccountTypeVersion = 11;
+
     /// <summary>最新スキーマへ移行する。実際に変更が発生した場合のみ true を返す（=保存が必要）。</summary>
     public static bool Apply(AppState state)
     {
         var from = state.SchemaVersion;
+        // 未来の版数（自分より新しいクライアントが書いたデータ）を旧クライアントが開いた場合、
+        // 版数を巻き戻して保存すると新フィールドが欠落する（#154）。何もせず変更なしを返す。
+        if (from > CurrentVersion) return false;
 
-        if (state.SchemaVersion < 4) NormalizeCategoryRuleKeys(state);
-        if (state.SchemaVersion < 11) MigrateWalletFlagToType(state);
+        if (from < 4) NormalizeCategoryRuleKeys(state);
+        if (from < AccountTypeVersion) RestoreWalletTypeFromLegacyFlag(state.Accounts);
 
         state.SchemaVersion = CurrentVersion;
-        return from != CurrentVersion;
+        return from < CurrentVersion;
     }
 
     // 表記ゆれ（全角/半角・空白）で分裂した CategoryRules を正規化キーへ統合する。
@@ -55,12 +64,20 @@ public static class SchemaMigration
         state.CategoryRules = merged;
     }
 
-    // 旧 Account.IsWallet==true を Type=AccountType.Wallet へ変換する（#147）。
-    // Type が既に設定済みの口座は上書きしない：旧フラグはクリアせず残すため、種別を Wallet 以外へ
-    // 変えた口座に再適用されると、その変更を巻き戻してしまう。
-    private static void MigrateWalletFlagToType(AppState state)
+    /// <summary>
+    /// 旧 <c>Account.IsWallet==true</c> を <c>Type=AccountType.Wallet</c> へ復元する（#147）。
+    /// クライアント（移行）とサーバー（保存時の正規化・#154）の双方から使う共通規則。
+    /// </summary>
+    /// <remarks>
+    /// <para>Type が既に設定済みの口座は上書きしない：旧フラグはクリアせず残すため、種別を Wallet 以外へ
+    /// 変えた口座に再適用されると、その変更を巻き戻してしまう。</para>
+    /// <para><b>呼び出し側の責務</b>：<c>Type == Normal</c> は「通常口座」と「Type 未送信（v11 未満）」を
+    /// 区別できないため、<b>データ元が <see cref="AccountTypeVersion"/> 未満のときだけ呼ぶこと</b>。
+    /// v11 以降のデータに適用すると、Wallet→通常口座へ変更した口座を Wallet へ巻き戻す（#154）。</para>
+    /// </remarks>
+    public static void RestoreWalletTypeFromLegacyFlag(List<Account> accounts)
     {
-        foreach (var a in state.Accounts)
+        foreach (var a in accounts)
         {
             if (a.IsWallet && a.Type == AccountType.Normal) a.Type = AccountType.Wallet;
         }

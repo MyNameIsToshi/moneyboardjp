@@ -30,6 +30,17 @@ public class SchemaMigrationTests
     }
 
     [Fact]
+    public void Apply_FutureVersion_DoesNotDowngrade_AndReportsNoChange()
+    {
+        // 新クライアントが書いた未来版数のデータを旧クライアントが開いても、版数を巻き戻さない（#154）。
+        var state = new AppState { SchemaVersion = SchemaMigration.CurrentVersion + 1 };
+        var changed = SchemaMigration.Apply(state);
+
+        Assert.False(changed);
+        Assert.Equal(SchemaMigration.CurrentVersion + 1, state.SchemaVersion);
+    }
+
+    [Fact]
     public void Apply_V3ToV4_MergesCategoryRuleKeys_ByNormalizedStoreName()
     {
         // 全角/半角の表記ゆれで分裂した同一店名のルールが統合される（#27）
