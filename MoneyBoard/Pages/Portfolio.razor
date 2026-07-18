@@ -115,7 +115,7 @@
         {
             RenderFragment compBlock(List<SpendSlice> data, ApexChartOptions<SpendSlice> opt, string colLabel, string keySuffix) =>
                 @<div class="spend">
-                    <div class="spend-chart">
+                    <div class="spend-chart chart-box" style="--chart-h:260px">
                         <ApexChart TItem="SpendSlice" Options="opt" @key="@($"comp-{keySuffix}-{_compRev}-{_maskRev}")">
                             <ApexPointSeries TItem="SpendSlice"
                                              Items="data"
@@ -129,15 +129,17 @@
                         <div class="spend-row spend-head">
                             <span></span><span>@colLabel</span><span>評価額</span><span>割合</span>
                         </div>
-                        @foreach (var s in data)
-                        {
-                            <div class="spend-row">
-                                <span class="color-dot" style="background:@s.Color"></span>
-                                <span class="spend-name">@s.Label</span>
-                                <span class="spend-amt">@MaskedYen(IsMasked, s.Value)</span>
-                                <span class="spend-pct">@CompPct(s.Value, SlicesTotal(data))</span>
-                            </div>
-                        }
+                        <div class="spend-rows">
+                            @foreach (var s in data)
+                            {
+                                <div class="spend-row">
+                                    <span class="color-dot" style="background:@s.Color"></span>
+                                    <span class="spend-name">@s.Label</span>
+                                    <span class="spend-amt">@MaskedYen(IsMasked, s.Value)</span>
+                                    <span class="spend-pct">@CompPct(s.Value, SlicesTotal(data))</span>
+                                </div>
+                            }
+                        </div>
                         <div class="spend-row spend-total">
                             <span></span><span>合計</span>
                             <span class="spend-amt">@MaskedYen(IsMasked, SlicesTotal(data))</span>
@@ -192,21 +194,25 @@
             <div class="graph-grid pf-trend-grid">
                 <div class="graph-card">
                     <h4>総資産・元本の推移</h4>
-                    <ApexChart TItem="ChartPoint" Options="AssetLineOpt" @key="@($"asset-{_trendRev}-{_maskRev}")">
-                        <ApexPointSeries TItem="ChartPoint" Items="CostSeries" SeriesType="SeriesType.Line"
-                                         Name="元本" XValue="@(e => (object)e.XDate)" YValue="@(e => e.Value)" />
-                        <ApexPointSeries TItem="ChartPoint" Items="AssetSeries" SeriesType="SeriesType.Line"
-                                         Name="総資産" XValue="@(e => (object)e.XDate)" YValue="@(e => e.Value)" />
-                    </ApexChart>
+                    <div class="chart-box" style="--chart-h:235px">
+                        <ApexChart TItem="ChartPoint" Options="AssetLineOpt" @key="@($"asset-{_trendRev}-{_maskRev}")">
+                            <ApexPointSeries TItem="ChartPoint" Items="CostSeries" SeriesType="SeriesType.Line"
+                                             Name="元本" XValue="@(e => (object)e.XDate)" YValue="@(e => e.Value)" />
+                            <ApexPointSeries TItem="ChartPoint" Items="AssetSeries" SeriesType="SeriesType.Line"
+                                             Name="総資産" XValue="@(e => (object)e.XDate)" YValue="@(e => e.Value)" />
+                        </ApexChart>
+                    </div>
                 </div>
                 @if (PnlSeries.Count > 0)
                 {
                     <div class="graph-card">
                         <h4>評価損益の推移</h4>
-                        <ApexChart TItem="ChartPoint" Options="PnlLineOpt" @key="@($"pnl-{_trendRev}-{_maskRev}")">
-                            <ApexPointSeries TItem="ChartPoint" Items="PnlSeries" SeriesType="SeriesType.Line"
-                                             Name="評価損益" XValue="@(e => e.Label)" YValue="@(e => e.Value)" />
-                        </ApexChart>
+                        <div class="chart-box" style="--chart-h:235px">
+                            <ApexChart TItem="ChartPoint" Options="PnlLineOpt" @key="@($"pnl-{_trendRev}-{_maskRev}")">
+                                <ApexPointSeries TItem="ChartPoint" Items="PnlSeries" SeriesType="SeriesType.Line"
+                                                 Name="評価損益" XValue="@(e => e.Label)" YValue="@(e => e.Value)" />
+                            </ApexChart>
+                        </div>
                     </div>
                 }
             </div>
