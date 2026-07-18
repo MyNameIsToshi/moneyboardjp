@@ -11,16 +11,13 @@
    本文側の select 等がダイアログより手前に描画されてしまうため）。
    常設リロードボタン（#132）はPWA起動時のみ表示する（通常のブラウザタブはブラウザ自身のリロードが
    あるため冗長）。PCはベルと同様 SideNav 側の独立ナビ項目に分離するため ShowReload="false" を渡す
-   （AppTitle内に置くとタイトル行が折り返してサイドバー全体が1行分下がってしまうため）。 *@
+   （AppTitle内に置くとタイトル行が折り返してサイドバー全体が1行分下がってしまうため）。
+   Subtitle（画面名併記）はPC/スマホどちらも使われなくなったため撤去した（#145）。 *@
 <div class="app-title">
     MoneyBoard
     @if (!string.IsNullOrEmpty(AppVersion))
     {
         <span class="app-ver">@AppVersion</span>
-    }
-    @if (!string.IsNullOrEmpty(Subtitle))
-    {
-        <span class="app-subtitle">@Subtitle</span>
     }
     @if (ShowReload && AppUpdateSvc.IsStandalone)
     {
@@ -41,9 +38,6 @@
 </div>
 
 @code {
-    /// <summary>画面名（タイトル右に小さく併記。未指定なら表示しない）。</summary>
-    [Parameter] public string? Subtitle { get; set; }
-
     /// <summary>お知らせベルを表示するか（既定 true）。PCサイドバーは SideNav 側に独立したナビ項目として
     /// 出すため false を渡す（#38 フォローアップ）。</summary>
     [Parameter] public bool ShowBell { get; set; } = true;

@@ -13,6 +13,7 @@
   --badbg: #f7e9e7;
   --accent: #1f3a5f;
   --r: 12px;
+  --wrap-pad-top: 20px;
 }
 
 * {
@@ -68,7 +69,9 @@ body {
 .wrap {
   max-width: 980px;
   margin: 0 auto;
-  padding: 20px 16px 64px;
+  /* 横方向はノッチ機種の横持ち（viewport-fit=cover で本文が safe-area へ広がる）に備え
+     env(safe-area-inset-*) を確保。縦持ち・PCは env=0 のため従来どおり 16px。 */
+  padding: var(--wrap-pad-top) max(16px, env(safe-area-inset-right)) 64px max(16px, env(safe-area-inset-left));
 }
 
 .loading {
@@ -123,24 +126,6 @@ body {
   letter-spacing: 0;
   color: var(--sub);
   vertical-align: middle;
-}
-
-/* タイトル右の画面名（ポートフォリオ / 統計 等。AppTitle の Subtitle） */
-.app-subtitle {
-  margin-left: 10px;
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: .01em;
-  color: var(--ink);
-  vertical-align: middle;
-}
-
-/* バージョンと画面名の間のドット区切り */
-.app-subtitle::before {
-  content: "·";
-  margin-right: 10px;
-  color: var(--sub);
-  font-weight: 400;
 }
 
 /* お知らせベル（AppTitle内・#38）。app-title は幅が狭い場面(サイドナビ)もあるため折り返し可能に */

@@ -127,6 +127,36 @@
   color: #a8a49d;
 }
 
+/* 集計軸トグル（請求月/利用月・#105） */
+.axis-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.axis-toggle-label {
+  font-size: 12px;
+  color: var(--sub);
+}
+
+/* ちらつき対策（#151）：期間/集計軸/マスク切替で @key が変わり ApexChart が
+   破棄→再生成される瞬間、コンテナの高さを min-height であらかじめ予約し、
+   周囲の graph-card が縮んで戻るレイアウトシフトを防ぐ。
+   予約値は Chart.Height そのものではなく、実測した「安定時の実高さ」を使う：
+   凡例(Legend)を持つ棒/線グラフは ApexCharts が Chart.Height 設定値より
+   実際は+15px前後大きく描画する（ドーナツは凡例込みで Chart.Height どおりに収まる）ため、
+   Chart.Height と同値で予約すると再生成の瞬間だけ実高さより低い予約値まで
+   一旦沈んでから元に戻る「本物の縮小→復帰」が見えてしまう（Playwrightでの
+   フレーム単位計測で発覚）。コンボ=355px・ドーナツ以外の棒/線4枚=255px・
+   ドーナツ2枚=300px（各 razor 側で --chart-h インラインにより指定）。
+   予約は下限のみ・幅は width:100% 流動のまま（スマホでも同じ min-height が有効）。 */
+.chart-box {
+  min-height: var(--chart-h, 255px);
+  width: 100%;
+}
+
 /* =====================================================
    要約バンド（ヒーロー＋指標4枚）。.stat/.hero は monthly.css を流用
    ===================================================== */
@@ -201,6 +231,20 @@
   .spend {
     grid-template-columns: 1fr;
   }
+}
+
+/* ちらつき対策の追補（#151）：期間/集計軸トグルで対象カテゴリ・カードの件数が
+   変わると一覧の行数が変わり、ドーナツの min-height（.chart-box）とは無関係に
+   カード全体（.graph-card）の高さが大きく変動してガタつく（実機確認で発覚）。
+   一覧本体（見出し・合計行を除く行部分）だけを DetailDialog の .dd-list と同じ
+   max-height + overflow-y:auto の内部スクロールにして、行数差がカードの外寸に
+   波及しないようにする。 */
+.spend-rows {
+  max-height: 300px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #d8d3c8 transparent;
 }
 
 .spend-row {

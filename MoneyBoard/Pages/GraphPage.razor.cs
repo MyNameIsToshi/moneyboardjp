@@ -18,6 +18,10 @@ public partial class GraphPage
         { "current", "当月" }, { "3", "3ヶ月" }, { "6", "6ヶ月" }, { "12", "12ヶ月" }, { "all", "全期間" }
     };
 
+    // カテゴリ別/カード別 ドーナツ＋一覧の集計軸（#105）。"billing"=請求月（月次ドキュメント所属・既定）／
+    // "usage"=利用月（CardDetail.Date の年月）。(B)「カテゴリ別 月別利用推移」はこのトグルの影響を受けず常に利用月固定。
+    private string SpendAxis = "billing";
+
     private List<ChartPoint> MonthlyDebitData = new();
     private Dictionary<string, List<ChartPoint>> BalanceSeriesData = new();
     private List<ChartPoint> SalaryData = new();
@@ -81,6 +85,8 @@ public partial class GraphPage
     private ApexChartOptions<ChartPoint> ComboOptions = default!;
     private ApexChartOptions<ChartPoint> BalanceLineOptions = default!;
     private ApexChartOptions<ChartPoint> IncomeBreakdownOptions = default!;
+    private ApexChartOptions<ChartPoint> CategoryTrendOptions = default!;
+    private ApexChartOptions<ChartPoint> CardTrendOptions = default!;
 
     private static Grid SoftGrid() => new() { BorderColor = "#f0eee9" };
     private ApexChartOptions<ChartPoint> NewLineOptions() => new()
@@ -92,12 +98,26 @@ public partial class GraphPage
         Yaxis = new List<YAxis> { new() { Labels = new YAxisLabels { Formatter = YFmt } } }
     };
 
-    private ApexChartOptions<ChartPoint> NewBarOptions(bool stacked = false) => new()
+    // sharedTooltip=true：積み上げ棒でホバー時に系列（要素）単位ではなく、その月全体を1つとして
+    // ハイライト・ツールチップ表示する（#105・カテゴリ別/カード別月別推移で使用。タップ時のドリルダウンが
+    // 系列に関わらず「その月全体」の内容を開く仕様のため、ホバーの見た目もそれに合わせる。要望で追加）。
+    private ApexChartOptions<ChartPoint> NewBarOptions(bool stacked = false, bool sharedTooltip = false) => new()
     {
         Chart = new Chart { Height = 240, Stacked = stacked, Toolbar = new Toolbar { Show = false } },
         Grid = SoftGrid(),
-        Tooltip = new Tooltip { Y = new TooltipY { Formatter = YTip } },
-        Yaxis = new List<YAxis> { new() { Labels = new YAxisLabels { Formatter = YFmt } } }
+        // sharedTooltip=false のときは Shared/Intersect を未設定のままにして ApexCharts 既定
+        // （shared=true・intersect=false）を保つ（この共通関数を使う既存チャート＝収入の内訳推移の
+        // ツールチップ挙動を変えないため）。sharedTooltip=true のときだけ shared=true を明示する
+        // （intersect は既定 false のままでよい＝shared=true と両立できる。両方 true だと ApexCharts が例外）。
+        Tooltip = sharedTooltip
+            ? new Tooltip { Shared = true, Intersect = false, Y = new TooltipY { Formatter = YTip } }
+            : new Tooltip { Y = new TooltipY { Formatter = YTip } },
+        Yaxis = new List<YAxis> { new() { Labels = new YAxisLabels { Formatter = YFmt } } },
+        // shared 時は states.hover の既定ダークンフィルタ（要素＝系列単位のハイライト）が shared の
+        // グレー帯（月単位のハイライト）と同時に効いてちらつくため無効化する（実機確認で発覚・要望対応）。
+        States = sharedTooltip
+            ? new States { Hover = new StatesHover { Filter = new StatesFilter { Type = StatesFilterType.none } } }
+            : null
     };
 
     // メイン：収入(棒)・支出(棒)＋収支(折れ線)のコンボ。色は既存トークン（収入=緑/支出=赤/収支線=navy）。
@@ -113,16 +133,27 @@ public partial class GraphPage
 
     private void RebuildChartOptions()
     {
+        // 色を持つチャート（ドーナツ・月別推移）は BuildChartData でしか色を再設定しない一方、
+        // マスク切替ではこのメソッドだけが呼ばれ BuildChartData は呼ばれないため、再生成前に
+        // 旧インスタンスの Colors を退避し、再生成後に引き継ぐ（引き継がないとマスク切替で
+        // カテゴリ色/カードパレットが ApexCharts 既定色に戻り、ドーナツと不整合になる）。
+        var catColors = DonutOptions?.Colors;
+        var cardColors = CardDonutOptions?.Colors;
+        var catTrendColors = CategoryTrendOptions?.Colors;
+        var cardTrendColors = CardTrendOptions?.Colors;
+
         ComboOptions = NewComboOptions();
         BalanceLineOptions = NewLineOptions();
         IncomeBreakdownOptions = NewBarOptions(stacked: true);
-        // ドーナツは再生成後に色を引き継ぐ（BuildCategorySpend/BuildCardSpend で設定済みの色を保持）
-        var catColors = DonutOptions?.Colors;
-        var cardColors = CardDonutOptions?.Colors;
+        CategoryTrendOptions = NewBarOptions(stacked: true, sharedTooltip: true);
+        CardTrendOptions = NewBarOptions(stacked: true, sharedTooltip: true);
         DonutOptions = NewDonutOptions();
         CardDonutOptions = NewDonutOptions();
+
         if (catColors != null) DonutOptions.Colors = catColors;
         if (cardColors != null) CardDonutOptions.Colors = cardColors;
+        if (catTrendColors != null) CategoryTrendOptions.Colors = catTrendColors;
+        if (cardTrendColors != null) CardTrendOptions.Colors = cardTrendColors;
         _maskRev++;
     }
 
@@ -149,19 +180,24 @@ public partial class GraphPage
     private Dictionary<string, List<DetailDialog.DetailRow>> CategoryDetails = new();   // カテゴリキー → 明細（3列目=カード名）
     private Dictionary<string, List<DetailDialog.DetailRow>> CardDetails = new();       // カードキー   → 明細（3列目=カテゴリ名）
     private DetailModal? _detail;   // 開いているモーダル（null=閉）
+    // 現在開いているダイアログが (B)(C) 月別推移の棒タップ由来か（そのymを保持。null=別の起動元）。
+    // 由来の場合のみダイアログ内に「集計別/明細別」トグル（ToolbarExtra）を出す（#105）。
+    private string? _trendYm;
 
     private void OpenCatDetail(string key)
     {
         var s = CategorySpendData.FirstOrDefault(x => x.Key == key);
+        _trendYm = null;
         // 未分類（CategoryId 空）のドリルダウンのみ「カテゴリ設定」操作を出す
         if (s != null) _detail = new(s.Label, s.Color, s.Count, s.Value, CategoryDetails.GetValueOrDefault(key) ?? new(), string.IsNullOrEmpty(key));
     }
     private void OpenCardDetail(string key)
     {
         var s = CardSpendData.FirstOrDefault(x => x.Key == key);
+        _trendYm = null;
         if (s != null) _detail = new(s.Label, s.Color, s.Count, s.Value, CardDetails.GetValueOrDefault(key) ?? new(), false);
     }
-    private void CloseDetail() => _detail = null;
+    private void CloseDetail() { _detail = null; _trendYm = null; }
 
     // 「選択してカテゴリ設定」（#118）：DetailRow.Id → 実体（CardDetail/Debit）へ反映するデリゲート。
     // 月をまたいだ複数の CardDetail/Debit を直接書き換えるため、BuildCategorySpend の再構築ごとに作り直す。
@@ -181,6 +217,7 @@ public partial class GraphPage
     // 反映後、開いている「未分類」ドリルダウンを最新の集計で更新する（対象が0件になった場合は閉じる）。
     private void RefreshCategorizeDialog()
     {
+        _trendYm = null;
         var s = CategorySpendData.FirstOrDefault(x => x.Key == "");
         _detail = s != null
             ? new(s.Label, s.Color, s.Count, s.Value, CategoryDetails.GetValueOrDefault("") ?? new(), true)
@@ -199,12 +236,14 @@ public partial class GraphPage
             OpenCardDetail(CardSpendData[sel.DataPointIndex].Key);
     }
 
-    private record DetailModal(string Title, string Color, int Count, decimal Total, List<DetailDialog.DetailRow> Rows, bool ShowCategorize);
+    // SubLabel は既定 ""＝呼び出し元は RangeLabel（期間全体）を表示する既存パターンのまま。
+    // 単月ドリルダウン（(B) の月別利用推移タップ等）は明示的に月ラベルを渡して上書きする。
+    private record DetailModal(string Title, string Color, int Count, decimal Total, List<DetailDialog.DetailRow> Rows, bool ShowCategorize, string SubLabel = "");
 
     // ── 収入/支出の項目別内訳モーダル（④・⑤から起動＝期間合計。コンボ棒タップ＝タップした月のみ）──
     private record BreakdownModal(string Title, string SubLabel, decimal Total, List<BreakdownDialog.BreakdownItem> Items);
     private BreakdownModal? _breakdown;
-    private void CloseBreakdown() => _breakdown = null;
+    private void CloseBreakdown() { _breakdown = null; _trendYm = null; }
 
     // メインコンボの収入棒→収入内訳、支出棒→支出内訳（系列0=収入, 1=支出, 2=収支線=ドリルダウンなし）。
     // DataPointIndex＝タップした月（GetTargetYms() の並びと一致）で対象月を1つだけに絞る。
@@ -224,6 +263,7 @@ public partial class GraphPage
     // 指定 yms の収入を項目（給料/ボーナス/各臨時収入名）で合算
     private void OpenIncomeBreakdown(List<string> yms, string title, string subLabel)
     {
+        _trendYm = null;
         var items = new List<BreakdownDialog.BreakdownItem>
         {
             new("給料", yms.Sum(ym => MonthSum(ym, l => l.Salary))),
@@ -244,6 +284,7 @@ public partial class GraphPage
     // 指定 yms の支出を項目（月次の Debit 名。カードはカード名で1項目・ATMは対象外）で合算
     private void OpenExpenseBreakdown(List<string> yms, string title, string subLabel)
     {
+        _trendYm = null;
         var items = LedgersIn(yms)
             .SelectMany(l => l.Debits)
             .GroupBy(d => string.IsNullOrWhiteSpace(d.Name) ? "（名称なし）" : d.Name)
@@ -259,6 +300,7 @@ public partial class GraphPage
     // マスタ変更後は過去月の Debits は据え置きのため、再計算するとマスタ変更前後で二重計上・不整合が生じる）。
     private void OpenFixedBreakdown()
     {
+        _trendYm = null;
         var yms = GetTargetYms();
         var items = LedgersIn(yms)
             .SelectMany(l => l.Debits)
@@ -335,6 +377,7 @@ public partial class GraphPage
         SelectedPeriod = p;
         _detail = null;
         _breakdown = null;
+        _trendYm = null;
         // 期間指定に切替時、未設定なら全期間の端を初期値にする
         if (p == "custom" && string.IsNullOrEmpty(_customStart))
         {
@@ -344,7 +387,18 @@ public partial class GraphPage
         BuildChartData();
     }
 
-    private void OnCustomChanged() { _detail = null; _breakdown = null; BuildChartData(); }
+    private void OnCustomChanged() { _detail = null; _breakdown = null; _trendYm = null; BuildChartData(); }
+
+    // 集計軸トグル（#105）：カテゴリ別/カード別 ドーナツ+一覧の期間メンバーシップを切り替える。
+    private void SetSpendAxis(string axis)
+    {
+        if (SpendAxis == axis) return;
+        SpendAxis = axis;
+        _detail = null;
+        _breakdown = null;
+        _trendYm = null;
+        BuildChartData();
+    }
 
     // 期間選択→対象 ym（昇順）。計算本体は StatsMath（純粋ロジック・テスト対象）へ委譲する。
     // 「当月」は未来月を先行作成済みでも実際の給料サイクル(15日〜14日)を指すよう、
@@ -397,6 +451,8 @@ public partial class GraphPage
         // カード色（CardPalette 割当）を先に確定し、カテゴリ明細のカードバッジ色に流用する
         BuildCardSpend(yms);
         BuildCategorySpend(yms);
+        BuildCategoryTrend(yms);
+        BuildCardTrend(yms);
     }
 
     // cardId → ドーナツ/バッジで使う色（BuildCardSpend で確定）
@@ -540,6 +596,165 @@ public partial class GraphPage
 
     private static string IncomeName(IncomeItem i) => string.IsNullOrWhiteSpace(i.Name) ? "その他収入" : i.Name;
 
+    // ── (B)(C) カテゴリ別／カード別 月別推移（#105）─────────────────────
+    // 横軸(x軸=月)の各バケットに属するカード明細は SpendAxis トグル（ドーナツ+一覧用）と連動する
+    // （ユーザー要望で「請求月/利用月」トグルを推移にも連動させる方針に変更）：
+    // billing=請求月（ドキュメント所属＝ CardDetailsByBillingMonth と同じ定義）／
+    // usage=利用月（CardDetail.Date の年月＝ CardDetailsByExactUsageYm）。
+    // 現金支出は利用日を持たないため対象外（カード明細のみ）。
+    private List<CategoryTrendSeries> CategoryTrend = new();
+    private record CategoryTrendSeries(string Name, string Color, List<ChartPoint> Data);
+    private List<CardTrendSeries> CardTrend = new();
+    private record CardTrendSeries(string Name, string Color, List<ChartPoint> Data);
+
+    // 月別推移の1バケット（x軸1点＝ym）に属するカード明細。SpendAxis に連動。
+    private List<CardDetail> CardDetailsAtBucket(string ym) =>
+        SpendAxis == "usage"
+            ? CardDetailsByExactUsageYm(ym).ToList()
+            : Svc.State.Months.GetValueOrDefault(ym)?.CardDetails ?? new List<CardDetail>();
+
+    // 月別推移の共通骨組み：各 ym バケット（CardDetailsAtBucket）を keyOf でグルーピングし、
+    // キー別・月別の金額系列を「合計降順」で返す。名前・色の解決だけをカテゴリ別/カード別で差し替える。
+    private List<(string Key, List<ChartPoint> Data)> BuildTrendSeries(List<string> yms, Func<CardDetail, string> keyOf)
+    {
+        // ym → キー → 金額合計
+        var amountsByYm = yms.ToDictionary(
+            ym => ym,
+            ym => CardDetailsAtBucket(ym).GroupBy(keyOf).ToDictionary(g => g.Key, g => g.Sum(d => d.Amount)));
+
+        return amountsByYm.Values.SelectMany(d => d.Keys).Distinct()
+            .Select(key => (Key: key, Data: yms.Select(ym => new ChartPoint
+            {
+                Label = LedgerService.Label(ym),
+                Value = amountsByYm[ym].GetValueOrDefault(key, 0)
+            }).ToList()))
+            .OrderByDescending(x => x.Data.Sum(p => p.Value))
+            .ToList();
+    }
+
+    private void BuildCategoryTrend(List<string> yms)
+    {
+        var knownCategoryIds = Svc.State.Categories.Select(c => c.Id).ToHashSet();
+        // 色・名前はカテゴリ設定色に合わせる（BuildCategorySpend と同じ方針・データ並びと同順）
+        CategoryTrend = BuildTrendSeries(yms, d => StatsMath.NormalizeCategoryKey(d.CategoryId, knownCategoryIds))
+            .Select(x =>
+            {
+                var cat = Svc.CategoryById(x.Key);
+                return new CategoryTrendSeries(cat?.Name ?? "未分類", cat?.Color ?? "#bdbdbd", x.Data);
+            })
+            .ToList();
+        CategoryTrendOptions.Colors = CategoryTrend.Select(s => s.Color).ToList();
+    }
+
+    private void BuildCardTrend(List<string> yms)
+    {
+        // 表示順にパレット色を割り当てる（BuildCardSpend と同じ方針）
+        CardTrend = BuildTrendSeries(yms, d => d.CardId ?? "")
+            .Select((x, i) => new CardTrendSeries(
+                Svc.CardById(x.Key)?.Name is { Length: > 0 } n ? n : "（不明）",
+                CardPalette[i % CardPalette.Length],
+                x.Data))
+            .ToList();
+        CardTrendOptions.Colors = CardTrend.Select(s => s.Color).ToList();
+    }
+
+    // 棒タップ時にどちらを開くか（"summary"=カテゴリ別/カード別の集計内訳／"detail"=明細別）。
+    // カテゴリ別推移・カード別推移の両チャートで共通の1つのモード。ダイアログ自体に埋め込んだ
+    // トグル（TrendModeToggle・ToolbarExtra 経由）で開いたまま切替できる（実装後のユーザー要望で
+    // グラフ上の外置きトグルから移設）。
+    private string _trendDrilldownMode = "summary";
+    // 対象月・どちらのチャートから開いたか（集計内訳の軸に必要）を覚えておき、
+    // ダイアログを開いたまま SetTrendDrilldownMode でモード切替できるようにする。
+    private bool _trendIsCategoryChart;
+
+    private void OnCategoryTrendSelected(SelectedData<ChartPoint> sel) => HandleTrendSelected(sel, isCategoryChart: true);
+    private void OnCardTrendSelected(SelectedData<ChartPoint> sel) => HandleTrendSelected(sel, isCategoryChart: false);
+
+    // 棒（月）タップ→対象月とどちらのチャートかを覚えて、現在のモードでドリルダウンを開く。
+    private void HandleTrendSelected(SelectedData<ChartPoint> sel, bool isCategoryChart)
+    {
+        var yms = GetTargetYms();
+        if (sel.DataPointIndex < 0 || sel.DataPointIndex >= yms.Count) return;
+        _trendYm = yms[sel.DataPointIndex];
+        _trendIsCategoryChart = isCategoryChart;
+        OpenTrendDrilldown();
+    }
+
+    // _trendYm/_trendIsCategoryChart/_trendDrilldownMode の現在値に応じて表示するダイアログを（再）構築する。
+    // ダイアログ内トグルからのモード切替時、ダイアログを閉じずに中身だけ差し替えるために分離。
+    // _detail・_breakdown はコンポーネントが別（DetailDialog/BreakdownDialog）のため、切替先を
+    // 設定する前に反対側を明示的に null にしておかないと両方同時に表示されてしまう。
+    private void OpenTrendDrilldown()
+    {
+        if (_trendYm is not { } ym) return;
+        if (_trendDrilldownMode == "detail")
+        {
+            _breakdown = null;
+            OpenTrendDetail(ym);
+        }
+        else
+        {
+            _detail = null;
+            if (_trendIsCategoryChart) OpenCategoryTrendSummary(ym);
+            else OpenCardTrendSummary(ym);
+        }
+    }
+
+    // ダイアログ内トグル（TrendModeToggle）から呼ばれる。_trendYm が立っている間はダイアログを
+    // 閉じずに表示だけ切り替える。
+    private void SetTrendDrilldownMode(string mode)
+    {
+        _trendDrilldownMode = mode;
+        if (_trendYm is not null) OpenTrendDrilldown();
+    }
+
+    // 集計別モード（カテゴリ別推移）：項目（カテゴリ）ごとの合計（既存の内訳ダイアログ導線に倣う）
+    private void OpenCategoryTrendSummary(string ym)
+    {
+        var knownCategoryIds = Svc.State.Categories.Select(c => c.Id).ToHashSet();
+        var items = CardDetailsAtBucket(ym)
+            .GroupBy(d => StatsMath.NormalizeCategoryKey(d.CategoryId, knownCategoryIds))
+            .Select(g => new BreakdownDialog.BreakdownItem(Svc.CategoryById(g.Key)?.Name ?? "未分類", g.Sum(d => d.Amount)))
+            .Where(x => x.Amount != 0)
+            .OrderByDescending(x => x.Amount)
+            .ToList();
+        var label = LedgerService.Label(ym);
+        _breakdown = new($"{label}のカテゴリ別内訳", $"{label}（1ヶ月）", items.Sum(x => x.Amount), items);
+    }
+
+    // 集計別モード（カード別推移）：項目（カード）ごとの合計
+    private void OpenCardTrendSummary(string ym)
+    {
+        var items = CardDetailsAtBucket(ym)
+            .GroupBy(d => d.CardId ?? "")
+            .Select(g => new BreakdownDialog.BreakdownItem(
+                Svc.CardById(g.Key)?.Name is { Length: > 0 } n ? n : "（不明）", g.Sum(d => d.Amount)))
+            .Where(x => x.Amount != 0)
+            .OrderByDescending(x => x.Amount)
+            .ToList();
+        var label = LedgerService.Label(ym);
+        _breakdown = new($"{label}のカード別内訳", $"{label}（1ヶ月）", items.Sum(x => x.Amount), items);
+    }
+
+    // 明細別モード：その月（バケット）のカード明細を1行ずつ表示（既存の DetailDialog を再利用。
+    // ドーナツ側の「選択してカテゴリ設定」はスコープ外＝閲覧専用で ShowCategorize=false）。
+    // カテゴリ別/カード別どちらの推移チャートから開いても同一内容（対象カード明細は同じバケット）。
+    private void OpenTrendDetail(string ym)
+    {
+        var knownCategoryIds = Svc.State.Categories.Select(c => c.Id).ToHashSet();
+        var details = CardDetailsAtBucket(ym);
+        var rows = details
+            .Select(d =>
+            {
+                var cat = Svc.CategoryById(StatsMath.NormalizeCategoryKey(d.CategoryId, knownCategoryIds));
+                return new DetailDialog.DetailRow(d.Date, d.Name, cat?.Name ?? "未分類", d.Amount, cat?.Color ?? "#bdbdbd");
+            })
+            .OrderByDescending(r => r.Date)
+            .ToList();
+        var label = LedgerService.Label(ym);
+        _detail = new(label, "", details.Count, details.Sum(d => d.Amount), rows, false, $"{label}（1ヶ月）");
+    }
+
     // 期間中の各月について Label/Value のチャート点を作る共通処理
     private static List<ChartPoint> BuildSeries(List<string> yms, Func<string, decimal> valueOf) =>
         yms.Select(ym => new ChartPoint { Label = LedgerService.Label(ym), Value = valueOf(ym) }).ToList();
@@ -551,8 +766,30 @@ public partial class GraphPage
     // 期間中の全台帳／全カード明細をまとめて列挙（月が無ければスキップ）。内訳ダイアログ・ドーナツ集計で共有する。
     private IEnumerable<Ledger> LedgersIn(IEnumerable<string> yms) =>
         yms.SelectMany(ym => Svc.State.Months.GetValueOrDefault(ym)?.Ledgers.Values ?? Enumerable.Empty<Ledger>());
+
+    // カテゴリ別/カード別 ドーナツ+一覧が対象とするカード明細（#105・SpendAxis トグルで切替）。
+    // 現金支出（CashDebitsIn）はこのトグルの影響を受けず常に請求月バケットのまま（Debit は利用日を持たないため）。
     private List<CardDetail> CardDetailsIn(IEnumerable<string> yms) =>
+        SpendAxis == "usage" ? CardDetailsByUsageMonth(yms) : CardDetailsByBillingMonth(yms);
+
+    // 請求月＝月次ドキュメント所属（既存の集計方式）。指定 yms のドキュメントに計上済みの明細をそのまま集める。
+    private List<CardDetail> CardDetailsByBillingMonth(IEnumerable<string> yms) =>
         yms.SelectMany(ym => Svc.State.Months.GetValueOrDefault(ym)?.CardDetails ?? Enumerable.Empty<CardDetail>()).ToList();
+
+    // 利用月＝CardDetail.Date の年月。ドキュメント所属月とは無関係に、全月のカード明細を横断して
+    // 利用月が対象期間 yms に含まれるものだけを集める（全月データはクライアント常駐のため低コスト）。
+    private List<CardDetail> CardDetailsByUsageMonth(IEnumerable<string> yms)
+    {
+        var target = yms.ToHashSet();
+        return Svc.State.Months.Values
+            .SelectMany(mo => mo.CardDetails)
+            .Where(d => StatsMath.UsageYmOf(d.Date) is { } uym && target.Contains(uym))
+            .ToList();
+    }
+
+    // 利用月がちょうど ym と一致するカード明細を全月横断で列挙する（(B) の月別集計・ドリルダウン共通で使用）。
+    private IEnumerable<CardDetail> CardDetailsByExactUsageYm(string ym) =>
+        Svc.State.Months.Values.SelectMany(mo => mo.CardDetails).Where(d => StatsMath.UsageYmOf(d.Date) == ym);
 
     // 財布の現金支出（#77）を ym・口座つきで列挙する。財布口座（過去に財布だった口座も含め
     // Svc.State.Accounts から IsWallet で判定・ソフト削除済みでも過去月の参照のため対象に含める）の

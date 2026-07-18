@@ -4,15 +4,19 @@
    計算・データ結線は不変で、主従・要約・保有の見せ方・質感のみ刷新（#45）。
    ===================================================== */
 /* 最上部（トップバー＋総資産ヒーロー＋指数）をスクロール追従で固定（統計の graph-sticky と同流儀）。
-   padding-top＋同量の負 margin で、スクロール時に上へ内容が覗く隙間を背景(paper)で覆う。 */
+   padding-top＋同量の負 margin で、スクロール時に上へ内容が覗く隙間を背景(paper)で覆う。
+   この量は .wrap の padding-top と一致させる必要がある（#146）ため、ハードコードせず
+   共通変数 --wrap-pad-top（base.css の :root）を参照する。ずれると、スマホ（.app-scroll が
+   sticky の基準＝overflow-y:auto）では静止時から sticky のクランプが働き、その分だけ
+   中身（AppTitle・ヒーロー）が下にずれて見える。 */
 .pf-sticky {
   position: sticky;
   top: 0;
   z-index: 10;
   background: var(--paper);
   margin-bottom: 6px;
-  padding-top: 24px;
-  margin-top: -24px;
+  padding-top: var(--wrap-pad-top);
+  margin-top: calc(-1 * var(--wrap-pad-top));
 }
 
 .pf-head {

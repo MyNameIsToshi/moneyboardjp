@@ -77,6 +77,20 @@ else
     カードの利用明細合計が、選択した口座のその月の支出に反映されます（明細機能は今後追加）。
 </div>
 
+<!-- 追加ダイアログ（PC・#143） -->
+<AddDialog IsVisible="@ShowAddDialog" Title="カードを追加" NameLabel="カード名" NamePlaceholder="例：楽天カード"
+           @bind-Name="NewName" ErrorMessage="@AddError"
+           OnConfirm="ExecuteAdd" OnCancel="CloseAddDialog">
+    <label>引き落とし口座</label>
+    <select @bind="NewAccountId">
+        <option value="">引き落とし口座を選択</option>
+        @foreach (var a in Svc.NonWalletAccounts)
+        {
+            <option value="@a.Id">@a.Name</option>
+        }
+    </select>
+</AddDialog>
+
 <ConfirmDialog IsVisible="@ShowConfirm"
                Title="カードを削除しますか？"
                Message="@ConfirmMessage"
@@ -120,8 +134,8 @@ else
 @code {
     [CascadingParameter(Name = "IsMobile")] public bool IsMobile { get; set; }
 
-    // いずれかのダイアログ表示中は背面スクロールをロック（削除確認/口座未登録警告/編集シート）。
-    private bool AnyDialogOpen => ShowConfirm || ShowNoAccountWarn || Editing is not null;
+    // いずれかのダイアログ表示中は背面スクロールをロック（追加/削除確認/口座未登録警告/編集シート）。
+    private bool AnyDialogOpen => ShowAddDialog || ShowConfirm || ShowNoAccountWarn || Editing is not null;
     private bool _scrollLocked;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -195,15 +209,49 @@ else
     {
         // 口座が1件も無いとカードの引き落とし先が決められないため、先に口座登録を促す（財布は対象外＝#124）。
         if (!Svc.NonWalletAccounts.Any()) { ShowNoAccountWarn = true; return; }
-        var card = new Card
+        // スマホはドラフトとして編集シートを開く（決定時にコミット）。PCは追加ダイアログ（口座・固定費と統一・#143）。
+        if (IsMobile)
         {
-            Name = "",
-            AccountId = Svc.NonWalletAccounts.FirstOrDefault()?.Id ?? "",
+            var card = new Card
+            {
+                Name = "",
+                AccountId = Svc.NonWalletAccounts.FirstOrDefault()?.Id ?? "",
+                SortOrder = Ordered.Count()
+            };
+            _draft = card; _editId = card.Id; _isNew = true;
+        }
+        else OpenAddDialog();
+    }
+
+    // ── 追加ダイアログ（PC・#143）──────────────────
+    private string NewName = "";
+    private string NewAccountId = "";
+    private string AddError = "";
+    private bool ShowAddDialog;
+
+    private void OpenAddDialog()
+    {
+        NewName = "";
+        NewAccountId = Svc.NonWalletAccounts.FirstOrDefault()?.Id ?? "";
+        AddError = "";
+        ShowAddDialog = true;
+    }
+
+    private void CloseAddDialog() => ShowAddDialog = false;
+
+    private void ExecuteAdd()
+    {
+        if (string.IsNullOrWhiteSpace(NewName)) { AddError = "カード名を入力してください。"; return; }
+        if (string.IsNullOrWhiteSpace(NewAccountId)) { AddError = "引き落とし口座を選択してください。"; return; }
+
+        Svc.State.Cards.Add(new Card
+        {
+            Name      = NewName.Trim(),
+            AccountId = NewAccountId,
             SortOrder = Ordered.Count()
-        };
-        // スマホはドラフトとして編集シートを開く（決定時にコミット）。PCは従来どおり即追加＋インライン編集。
-        if (IsMobile) { _draft = card; _editId = card.Id; _isNew = true; }
-        else { Svc.State.Cards.Add(card); Save(); }
+        });
+        Save();
+        ShowAddDialog = false;
     }
 
     // ── 削除（確認ダイアログで消えるデータを明示）──

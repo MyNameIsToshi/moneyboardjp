@@ -14,6 +14,11 @@
             <span class="dd-meta">@Items.Count 項目 ・ @SubLabel</span>
         </div>
 
+        @if (ToolbarExtra is not null)
+        {
+            <div class="dd-tools">@ToolbarExtra</div>
+        }
+
         <div class="dd-list bd-list">
             @foreach (var it in Items)
             {
@@ -41,6 +46,10 @@
     [Parameter] public decimal Total { get; set; }
     [Parameter] public List<BreakdownItem> Items { get; set; } = new();
     [Parameter] public EventCallback OnClose { get; set; }
+    // ツールバーに任意の追加コンテンツを差し込む拡張スロット（既定null＝非表示、既存呼び出し元に影響なし）。
+    // 呼び出し元固有の切替UI（例：#105の月別推移ドリルダウンでの「集計別/明細別」トグル）を、
+    // 本コンポーネント自体を変更せず埋め込むために使う。
+    [Parameter] public RenderFragment? ToolbarExtra { get; set; }
 
     public record BreakdownItem(string Name, decimal Amount);
 

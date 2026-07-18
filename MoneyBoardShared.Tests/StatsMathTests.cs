@@ -152,4 +152,27 @@ public class StatsMathTests
         var dangling = StatsMath.NormalizeCategoryKey("deleted-cat-id", KnownCategoryIds);
         Assert.Equal(empty, dangling);
     }
+
+    // UsageYmOf（#105）：CardDetail.Date から利用月キー（"yyyyMM"）を取り出す
+    [Fact]
+    public void UsageYmOf_ValidDate_ReturnsYyyyMm()
+    {
+        var r = StatsMath.UsageYmOf("2026-07-15");
+        Assert.Equal("202607", r);
+    }
+
+    [Fact]
+    public void UsageYmOf_EmptyDate_ReturnsNull()
+    {
+        var r = StatsMath.UsageYmOf("");
+        Assert.Null(r);
+    }
+
+    [Fact]
+    public void UsageYmOf_MalformedDate_ReturnsNull()
+    {
+        // 区切り文字が "-" でない、または短すぎる場合は不正とみなす
+        Assert.Null(StatsMath.UsageYmOf("2026/07/15"));
+        Assert.Null(StatsMath.UsageYmOf("2026-07"));
+    }
 }

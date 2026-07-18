@@ -8,7 +8,7 @@
 <div class="wrap">
     <div class="graph-sticky">
         <div class="graph-header">
-            <AppTitle Subtitle="統計" />
+            <AppTitle />
         </div>
         @* PC用の共通ページヘッダー（スマホは非表示。サイドナビと同じ字形・画面名） *@
         <PageHeader Icon="bar_chart" Title="統計" Subtitle="収支・カテゴリ" />
@@ -108,6 +108,7 @@
             </div>
             @if (IncomeData.Any())
             {
+                <div class="chart-box" style="--chart-h:355px">
                 <ApexChart TItem="ChartPoint" Options="ComboOptions" @key="@($"combo-{PeriodKey}-{_maskRev}")"
                            OnDataPointSelection="OnIncomeVsExpenseSelected">
                     <ApexPointSeries TItem="ChartPoint"
@@ -129,6 +130,7 @@
                                      XValue="@(e => e.Label)"
                                      YValue="@(e => e.Value)" />
                 </ApexChart>
+                </div>
             }
             else { <div class="graph-placeholder">データなし</div> }
         </div>
@@ -143,6 +145,7 @@
                 </div>
                 @if (IncomeBreakdown.Any())
                 {
+                    <div class="chart-box" style="--chart-h:255px">
                     <ApexChart TItem="ChartPoint" Options="IncomeBreakdownOptions" @key="@($"inc-{PeriodKey}-{_maskRev}")"
                                OnDataPointSelection="OnIncomeBreakdownSelected">
                         @foreach (var s in IncomeBreakdown)
@@ -155,6 +158,7 @@
                                              YValue="@(e => e.Value)" />
                         }
                     </ApexChart>
+                    </div>
                 }
                 else { <div class="graph-placeholder">データなし</div> }
             </div>
@@ -164,6 +168,7 @@
                 <h4>口座別 月末残高推移</h4>
                 @if (BalanceSeriesData.Any())
                 {
+                    <div class="chart-box" style="--chart-h:255px">
                     <ApexChart TItem="ChartPoint" Options="BalanceLineOptions" @key="@($"bal-{PeriodKey}-{_maskRev}")">
                         @foreach (var series in BalanceSeriesData)
                         {
@@ -175,9 +180,23 @@
                                              YValue="@(e => e.Value)" />
                         }
                     </ApexChart>
+                    </div>
                 }
                 else { <div class="graph-placeholder">データなし</div> }
             </div>
+        </div>
+
+        <!-- 集計軸トグル（請求月/利用月・#105）：カテゴリ別/カード別 ドーナツ+一覧の期間メンバーシップに使う -->
+        <div class="axis-toggle">
+            <span class="axis-toggle-label">集計軸</span>
+            <button type="button" class="period-btn @(SpendAxis == "billing" ? "active" : "")"
+                    @onclick='() => SetSpendAxis("billing")'>請求月</button>
+            <button type="button" class="period-btn @(SpendAxis == "usage" ? "active" : "")"
+                    @onclick='() => SetSpendAxis("usage")'>利用月</button>
+            @if (SpendAxis == "usage")
+            {
+                <span class="graph-card-hint">直近の利用月は未請求・未取込の利用が含まれず、少なく見えることがあります</span>
+            }
         </div>
 
         <!-- 〔カテゴリ｜カード〕の2列ブロック（ドーナツ＋一覧） -->
@@ -188,7 +207,7 @@
                                 Items="CategorySpendData"
                                 Total="CategoryTotal"
                                 Options="DonutOptions"
-                                RenderKey="@($"cat-{PeriodKey}-{_maskRev}")"
+                                RenderKey="@($"cat-{PeriodKey}-{SpendAxis}-{_maskRev}")"
                                 EmptyMessage="カード明細・現金支出がありません"
                                 OnRowClick="OpenCatDetail"
                                 OnSliceSelected="OnSliceSelected" />
@@ -199,10 +218,64 @@
                                 Items="CardSpendData"
                                 Total="CardTotal"
                                 Options="CardDonutOptions"
-                                RenderKey="@($"card-{PeriodKey}-{_maskRev}")"
+                                RenderKey="@($"card-{PeriodKey}-{SpendAxis}-{_maskRev}")"
                                 EmptyMessage="カード明細がありません"
                                 OnRowClick="OpenCardDetail"
                                 OnSliceSelected="OnCardSliceSelected" />
+        </div>
+
+        <!-- 〔カテゴリ別｜カード別〕月別推移の2列ブロック（新規・#105）。横軸(月)のバケットは集計軸トグルに連動。
+             棒タップ時の「集計別/明細別」切替はグラフの外ではなく開いたダイアログ内トグルで行う（ユーザー要望） -->
+        <div class="graph-row2">
+            <div class="graph-card">
+                <div class="graph-card-head">
+                    <h4>カテゴリ別 月別推移</h4>
+                    <span class="graph-card-hint">棒タップで内訳</span>
+                </div>
+                @if (CategoryTrend.Any())
+                {
+                    <div class="chart-box" style="--chart-h:255px">
+                    <ApexChart TItem="ChartPoint" Options="CategoryTrendOptions" @key="@($"cattrend-{PeriodKey}-{SpendAxis}-{_maskRev}")"
+                               OnDataPointSelection="OnCategoryTrendSelected">
+                        @foreach (var s in CategoryTrend)
+                        {
+                            <ApexPointSeries TItem="ChartPoint"
+                                             Items="s.Data"
+                                             SeriesType="SeriesType.Bar"
+                                             Name="@s.Name"
+                                             XValue="@(e => e.Label)"
+                                             YValue="@(e => e.Value)" />
+                        }
+                    </ApexChart>
+                    </div>
+                }
+                else { <div class="graph-placeholder">データなし</div> }
+            </div>
+
+            <div class="graph-card">
+                <div class="graph-card-head">
+                    <h4>カード別 月別推移</h4>
+                    <span class="graph-card-hint">棒タップで内訳</span>
+                </div>
+                @if (CardTrend.Any())
+                {
+                    <div class="chart-box" style="--chart-h:255px">
+                    <ApexChart TItem="ChartPoint" Options="CardTrendOptions" @key="@($"cardtrend-{PeriodKey}-{SpendAxis}-{_maskRev}")"
+                               OnDataPointSelection="OnCardTrendSelected">
+                        @foreach (var s in CardTrend)
+                        {
+                            <ApexPointSeries TItem="ChartPoint"
+                                             Items="s.Data"
+                                             SeriesType="SeriesType.Bar"
+                                             Name="@s.Name"
+                                             XValue="@(e => e.Label)"
+                                             YValue="@(e => e.Value)" />
+                        }
+                    </ApexChart>
+                    </div>
+                }
+                else { <div class="graph-placeholder">データなし</div> }
+            </div>
         </div>
 
     </div>
@@ -211,15 +284,28 @@
     @if (_detail is not null)
     {
         <DetailDialog Title="@_detail.Title" Color="@_detail.Color" Count="_detail.Count"
-                      Total="_detail.Total" SubLabel="@RangeLabel" Rows="_detail.Rows"
+                      Total="_detail.Total" SubLabel="@(string.IsNullOrEmpty(_detail.SubLabel) ? RangeLabel : _detail.SubLabel)" Rows="_detail.Rows"
                       ShowCategorize="_detail.ShowCategorize" Categories="Svc.CategoriesOrdered"
-                      OnApplyCategory="ApplyCategorize" OnClose="CloseDetail" />
+                      OnApplyCategory="ApplyCategorize" OnClose="CloseDetail"
+                      ToolbarExtra="@(_trendYm is not null ? TrendModeToggle() : null)" />
     }
 
     @if (_breakdown is not null)
     {
         <BreakdownDialog Title="@_breakdown.Title" SubLabel="@_breakdown.SubLabel"
                          Total="_breakdown.Total" Items="_breakdown.Items"
-                         OnClose="CloseBreakdown" />
+                         OnClose="CloseBreakdown"
+                         ToolbarExtra="@(_trendYm is not null ? TrendModeToggle() : null)" />
     }
 </div>
+
+@code {
+    // ダイアログの ToolbarExtra に差し込む「集計別/明細別」トグル（DetailDialog の dd-seg と同じ見た目）。
+    // Razor テンプレート構文（@<div>）が必要なため、集計・状態ロジックの集約先である
+    // GraphPage.razor.cs ではなくここに置く（_trendDrilldownMode・SetTrendDrilldownMode は同じ
+    // partial class の .razor.cs 側で定義）。
+    private RenderFragment TrendModeToggle() => @<div class="dd-seg">
+        <button class="@(_trendDrilldownMode == "summary" ? "on" : "")" @onclick='() => SetTrendDrilldownMode("summary")'>集計別</button>
+        <button class="@(_trendDrilldownMode == "detail" ? "on" : "")" @onclick='() => SetTrendDrilldownMode("detail")'>明細別</button>
+    </div>;
+}

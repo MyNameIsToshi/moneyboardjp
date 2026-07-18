@@ -1,0 +1,38 @@
+@if (IsVisible)
+{
+    <div class="dialog-overlay" @onclick="Cancel">
+        <div class="dialog-box" @onclick:stopPropagation="true">
+            <h4>@Title</h4>
+            <div class="dialog-form">
+                <label>@NameLabel</label>
+                <input value="@Name" @oninput="OnNameInput" placeholder="@NamePlaceholder" />
+                @ChildContent
+            </div>
+            @if (!string.IsNullOrEmpty(ErrorMessage))
+            {
+                <div class="dialog-error">@ErrorMessage</div>
+            }
+            <div class="dialog-btns">
+                <button class="btn" @onclick="Cancel">キャンセル</button>
+                <button class="btn primary" @onclick="Confirm">追加する</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public string NameLabel { get; set; } = "名前";
+    [Parameter] public string NamePlaceholder { get; set; } = "";
+    [Parameter] public string Name { get; set; } = "";
+    [Parameter] public EventCallback<string> NameChanged { get; set; }
+    [Parameter] public string ErrorMessage { get; set; } = "";
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public EventCallback OnConfirm { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private async Task OnNameInput(ChangeEventArgs e) => await NameChanged.InvokeAsync(e.Value?.ToString() ?? "");
+    private async Task Confirm() => await OnConfirm.InvokeAsync();
+    private async Task Cancel() => await OnCancel.InvokeAsync();
+}

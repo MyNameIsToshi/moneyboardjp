@@ -69,6 +69,21 @@ else
     使用中のカテゴリを削除すると、該当のカード明細・現金支出は「未分類」になります。
 </div>
 
+<!-- 追加ダイアログ（PC・#143） -->
+<AddDialog IsVisible="@ShowAddDialog" Title="カテゴリを追加" NameLabel="カテゴリ名" NamePlaceholder="例：食費"
+           @bind-Name="NewName" ErrorMessage="@AddError"
+           OnConfirm="ExecuteAdd" OnCancel="CloseAddDialog">
+    <label>色</label>
+    <div class="cat-palette">
+        @foreach (var color in Palette)
+        {
+            <button class="cat-color @(NewColor == color ? "sel" : "")"
+                    style="background:@color"
+                    @onclick="() => NewColor = color" title="@color"></button>
+        }
+    </div>
+</AddDialog>
+
 <!-- 削除確認ダイアログ -->
 <ConfirmDialog IsVisible="@ShowConfirm"
                Title="カテゴリを削除しますか？"
@@ -108,8 +123,8 @@ else
 @code {
     [CascadingParameter(Name = "IsMobile")] public bool IsMobile { get; set; }
 
-    // いずれかのダイアログ表示中は背面スクロールをロック（削除確認/編集シート）。
-    private bool AnyDialogOpen => ShowConfirm || Editing is not null;
+    // いずれかのダイアログ表示中は背面スクロールをロック（追加/削除確認/編集シート）。
+    private bool AnyDialogOpen => ShowAddDialog || ShowConfirm || Editing is not null;
     private bool _scrollLocked;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -175,15 +190,43 @@ else
         // 未使用の色を優先的に割り当てる
         var used = Svc.State.Categories.Select(c => c.Color).ToHashSet();
         var color = Palette.FirstOrDefault(p => !used.Contains(p)) ?? Palette[0];
-        var c = new Category
+        // スマホはドラフトとして編集シートを開く（決定時にコミット）。PCは追加ダイアログ（口座・固定費と統一・#143）。
+        if (IsMobile)
         {
-            Name = "",
-            Color = color,
+            var c = new Category { Name = "", Color = color, SortOrder = Svc.State.Categories.Count };
+            _draft = c; _editId = c.Id; _isNew = true;
+        }
+        else OpenAddDialog(color);
+    }
+
+    // ── 追加ダイアログ（PC・#143）──────────────────
+    private string NewName = "";
+    private string NewColor = "";
+    private string AddError = "";
+    private bool ShowAddDialog;
+
+    private void OpenAddDialog(string color)
+    {
+        NewName = "";
+        NewColor = color;
+        AddError = "";
+        ShowAddDialog = true;
+    }
+
+    private void CloseAddDialog() => ShowAddDialog = false;
+
+    private void ExecuteAdd()
+    {
+        if (string.IsNullOrWhiteSpace(NewName)) { AddError = "カテゴリ名を入力してください。"; return; }
+
+        Svc.State.Categories.Add(new Category
+        {
+            Name      = NewName.Trim(),
+            Color     = NewColor,
             SortOrder = Svc.State.Categories.Count
-        };
-        // スマホはドラフトとして編集シートを開く（決定時にコミット）。PCは従来どおり即追加＋インライン編集。
-        if (IsMobile) { _draft = c; _editId = c.Id; _isNew = true; }
-        else { Svc.State.Categories.Add(c); Save(); }
+        });
+        Save();
+        ShowAddDialog = false;
     }
 
     private void SetColor(Category c, string color) { c.Color = color; Save(); }

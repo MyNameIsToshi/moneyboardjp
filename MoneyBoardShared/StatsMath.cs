@@ -40,4 +40,14 @@ public static class StatsMath
     /// </summary>
     public static string NormalizeCategoryKey(string? categoryId, IReadOnlyCollection<string> knownCategoryIds) =>
         !string.IsNullOrEmpty(categoryId) && knownCategoryIds.Contains(categoryId) ? categoryId : "";
+
+    /// <summary>
+    /// CardDetail.Date（"yyyy-MM-dd"）から利用月キー（"yyyyMM"）を取り出す（#105）。
+    /// 請求月（月次ドキュメント所属）ではなく実際にカードを使った月で集計する軸のために使う。
+    /// 形式が不正・空なら null（呼び出し側で対象外として扱う）。
+    /// </summary>
+    public static string? UsageYmOf(string date) =>
+        date.Length >= 10 && date[4] == '-' && date[7] == '-'
+            ? date[..4] + date[5..7]
+            : null;
 }
