@@ -21,6 +21,11 @@
             <span class="dd-meta">@Count 件 ・ @SubLabel</span>
         </div>
 
+        @if (ToolbarExtra is not null)
+        {
+            <div class="dd-tools">@ToolbarExtra</div>
+        }
+
         @if (CardSummary.Count > 1)
         {
             <div class="dd-chips">
@@ -119,6 +124,10 @@
     [Parameter] public List<Category> Categories { get; set; } = new();
     [Parameter] public EventCallback OnClose { get; set; }
     [Parameter] public EventCallback<(HashSet<string> Ids, string? CategoryId)> OnApplyCategory { get; set; }
+    // ツールバーに任意の追加コンテンツを差し込む拡張スロット（既定null＝非表示、既存呼び出し元に影響なし）。
+    // 呼び出し元固有の切替UI（例：#105の月別推移ドリルダウンでの「集計別/明細別」トグル）を、
+    // 本コンポーネント自体を変更せず埋め込むために使う。
+    [Parameter] public RenderFragment? ToolbarExtra { get; set; }
 
     // 明細1行。Sub はカテゴリ別=カード名 / カード別=カテゴリ名 を入れる補足列。
     // SubColor は Sub に対応する色（カード別ドーナツ／カテゴリ設定色）。バッジ・金額バーに使う。

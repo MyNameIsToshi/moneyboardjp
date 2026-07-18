@@ -127,6 +127,20 @@
   color: #a8a49d;
 }
 
+/* 集計軸トグル（請求月/利用月・#105） */
+.axis-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.axis-toggle-label {
+  font-size: 12px;
+  color: var(--sub);
+}
+
 /* =====================================================
    要約バンド（ヒーロー＋指標4枚）。.stat/.hero は monthly.css を流用
    ===================================================== */
