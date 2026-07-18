@@ -6,7 +6,7 @@
     <!-- アプリのバージョン（セマンティックバージョニング）。GitHub の Releases/タグ vX.Y.Z と一致させる。
          上げるときはここを編集し、同じ番号で GitHub に Release/タグ（例 v0.9.0）を切る。
          ヘッダー右に v@AppVersion として表示される。 -->
-    <Version>2.17.0</Version>
+    <Version>2.18.0</Version>
     <!-- リリースごとの強制/任意アップデート切替（#142）。true にすると更新ダイアログが「更新する」ボタンのみ
          （あとで手段なし）になる。既定 false（従来どおり任意）。 -->
     <ForceUpdate>false</ForceUpdate>
