@@ -116,6 +116,9 @@ public partial class DataApi(ILogger<DataApi> logger, CosmosClient cosmos, Fireb
                 doc.Id = SettingsId;
                 doc.UserId = userId!;
                 doc.Type = "settings";
+                // 口座種別をサーバー側で正規化してから永続化する（#154）。ObjectSync はリストを参照ごと
+                // コピーするため、これは env.Settings.Accounts も書き換える点に注意（以降 env 側は読まない）。
+                NormalizeAccountTypes(doc.Accounts, doc.SchemaVersion);
                 batch.UpsertItem(doc, BatchOptions(env.Settings.Etag));
                 ops.Add(("settings", ""));
             }
@@ -196,6 +199,23 @@ public partial class DataApi(ILogger<DataApi> logger, CosmosClient cosmos, Fireb
             ms.Write(buffer, 0, read);
         }
         return System.Text.Encoding.UTF8.GetString(ms.GetBuffer(), 0, (int)ms.Length);
+    }
+
+    // 口座種別の正規化（#154）。サーバー側で Type/IsWallet の矛盾を収束させ、スキーマの権威を
+    // クライアント版数から切り離す。internal=MoneyBoardApi.Tests から検証。
+    //
+    // 旧フラグからの復元は **v11 未満のクライアントが送ったデータに限る**。Type==Normal は
+    // 「通常口座」と「Type を知らないクライアントが送らなかった」の区別が付かないため、
+    // v11 以降にも適用すると Wallet→通常口座 の変更を保存のたびに巻き戻してしまう（#148 で
+    // 種別変更 UI が入ると顕在化する）。書き戻し（IsWallet を Type に合わせる）は版数に依らず行う。
+    internal static void NormalizeAccountTypes(List<Account> accounts, int schemaVersion)
+    {
+        if (schemaVersion < SchemaMigration.AccountTypeVersion)
+            SchemaMigration.RestoreWalletTypeFromLegacyFlag(accounts);
+
+        // 旧クライアント（Type を知らず IsWallet だけを見る）が同じデータを開いても財布判定を
+        // 落とさないよう、後方互換フィールドを Type と矛盾しない値へ揃える。
+        foreach (var a in accounts) a.IsWallet = a.Type == AccountType.Wallet;
     }
 
     // 異常に巨大なコレクションを拒否（DoS / 破損データ対策）。internal=MoneyBoardApi.Tests から検証。

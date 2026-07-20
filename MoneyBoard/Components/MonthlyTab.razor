@@ -59,14 +59,14 @@
         {
             var a = accts[i];
             var l = Mo.Ledgers[a.Id];
-            var isWallet = a.IsWallet;
+            var isWallet = a.Type == AccountType.Wallet;
             var close = Svc.CloseOf(Svc.CurrentMonth, a.Id);
             var bad = close < 0;
             var outgoing = Mo.Transfers.Where(t => t.From == a.Id).ToList();
             var incoming = Mo.Transfers.Where(t => t.To == a.Id).ToList();
             // 財布は通常の口座間振込ピッカーから除外（財布⇄口座のやり取りはATM入金に一本化・#77）。
             // 財布カード自身にとっては、この一覧がそのままATM入金（財布→口座）の対象口座候補になる。
-            var others = accts.Where(x => x.Id != a.Id && !x.IsWallet).ToList();
+            var others = accts.Where(x => x.Id != a.Id && x.Type != AccountType.Wallet).ToList();
             var isAnchor = Svc.IsOpeningAnchor(Svc.CurrentMonth, a.Id);
             var cardDebits = l.Debits.Where(d => d.CardId != null).ToList();
             var fixedDebits = l.Debits.Where(d => d.CardId == null && d.IsFixed).ToList();
@@ -188,7 +188,7 @@
                                    内訳を固定費/カードと同様に折りたたみ表示する（#77フォローアップ）。 *@
                                 @if (isWallet)
                                 {
-                                    var atmInSources = accts.Where(x => !x.IsWallet)
+                                    var atmInSources = accts.Where(x => x.Type != AccountType.Wallet)
                                         .Select(x => (Account: x, Amount: Mo.Ledgers.TryGetValue(x.Id, out var xl) ? xl.AtmWithdraw : 0m))
                                         .Where(x => x.Amount != 0)
                                         .ToList();
@@ -602,7 +602,7 @@
             if (isPast)
                 return Svc.State.Accounts
                     .Where(a => Mo.Ledgers.ContainsKey(a.Id) && (!a.IsDeleted || LedgerEngine.HasActivity(Mo, a.Id)))
-                    .OrderByDescending(a => a.IsWallet)
+                    .OrderByDescending(a => a.Type == AccountType.Wallet)
                     .ThenBy(a => a.SortOrder)
                     .ToList();
             return Svc.ActiveAccounts;
@@ -704,7 +704,7 @@
     private void AddTransfer(string aid)
     {
         // 財布は通常の振込ピッカーの対象外（#77）。
-        var others = ActiveAccountsForMonth.Where(x => x.Id != aid && !x.IsWallet).ToList();
+        var others = ActiveAccountsForMonth.Where(x => x.Id != aid && x.Type != AccountType.Wallet).ToList();
         if (others.Count == 0) return;
         Mo.Transfers.Add(new Transfer { From = aid, To = others[0].Id });
         Save();
