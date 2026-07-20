@@ -50,4 +50,41 @@ public static class StatsMath
         date.Length >= 10 && date[4] == '-' && date[7] == '-'
             ? date[..4] + date[5..7]
             : null;
+
+    /// <summary>
+    /// 口座別の系列を口座の並び順のまま組み立てる（#157）。値は一意な Id で解決するため、
+    /// 同名の口座が複数あっても破綻しない（口座名をキーにした Dictionary では重複キー例外に
+    /// なっていた）。戻り値を Dictionary ではなく List にしているのは、系列の並び順が色パレットの
+    /// 割当順（ActiveAccounts 順）と対応する必要があるため（Dictionary の列挙順は仕様上保証されない）。
+    /// 表示名は結果の中で必ず一意になる：既出の名前に当たったら " (2)", " (3)" … と、未使用の名前に
+    /// 行き着くまで連番を進める（実機確認で発覚：ApexCharts の凡例ホバーは系列を名前で解決するため、
+    /// 同名のままだと常に1件目がハイライトされる）。連番の付いた名前が別口座の実名（"楽天 (2)" 等）と
+    /// 衝突する場合も次の番号へ送るため、一意性は入力の口座名によらず保たれる。
+    /// 名前が重複していない口座は影響を受けない。
+    /// </summary>
+    public static List<(string Name, TValue Data)> BuildAccountSeries<TValue>(
+        IEnumerable<(string Id, string Name)> accounts, Func<string, TValue> valueOf)
+    {
+        var list = accounts.ToList();
+        // 実在する口座名の集合。連番で作った名前がこれを奪わないようにする。
+        var realNames = list.Select(a => a.Name).ToHashSet();
+        var used = new HashSet<string>();
+        var series = new List<(string Name, TValue Data)>(list.Count);
+
+        foreach (var a in list)
+        {
+            var displayName = a.Name;
+            // HashSet.Add は「未使用だった」ときだけ true。実名は常にそのまま採用される。
+            if (!used.Add(displayName))
+            {
+                // 既出の名前。未使用かつ他の口座の実名でもない連番に行き着くまで番号を送る。
+                var n = 2;
+                do { displayName = $"{a.Name} ({n++})"; }
+                while (used.Contains(displayName) || realNames.Contains(displayName));
+                used.Add(displayName);
+            }
+            series.Add((displayName, valueOf(a.Id)));
+        }
+        return series;
+    }
 }
