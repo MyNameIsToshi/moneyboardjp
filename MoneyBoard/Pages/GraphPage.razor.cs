@@ -23,7 +23,8 @@ public partial class GraphPage
     private string SpendAxis = "billing";
 
     private List<ChartPoint> MonthlyDebitData = new();
-    private Dictionary<string, List<ChartPoint>> BalanceSeriesData = new();
+    // 系列順が色割当順（BalancePalette）と対応するため、順序が保証される List で保持する（#157）。
+    private List<(string Name, List<ChartPoint> Data)> BalanceSeriesData = new();
     private List<ChartPoint> SalaryData = new();
     private List<ChartPoint> BonusData = new();
     private List<ChartPoint> IncomeData = new();
@@ -319,8 +320,10 @@ public partial class GraphPage
     // カードは色設定を持たないため、表示順に割り当てる固定パレット。
     private static readonly string[] CardPalette = MoneyFormat.DonutPalette;
 
-    // ② 口座別月末残高推移の線色（spec §5：青/橙/赤/緑をローテ）。
-    private static readonly string[] BalancePalette = { "#3a52c0", "#b86a18", "#a3261f", "#2c7a52" };
+    // ② 口座別月末残高推移の線色（spec §5：青/橙/赤/緑をローテ。紫/青緑を追加し4→6色に拡張・#157。
+    // 口座が5件以上あると4色では循環して同色が発生していたため）。
+    private static readonly string[] BalancePalette =
+        { "#3a52c0", "#b86a18", "#a3261f", "#2c7a52", "#6b4c9a", "#1f7d7a" };
     // ③ 収入内訳：給料=navy／ボーナス=緑／臨時収入=ゴールド（spec §5）。
     private const string IncomeGold = "#c9a23a";
 
@@ -431,11 +434,13 @@ public partial class GraphPage
         IncomeData       = BuildSeries(yms, ym => MonthSum(ym, l => l.Salary + l.Bonus + l.Incomes.Sum(i => i.Amount)));
         BuildIncomeBreakdown(yms);
 
-        BalanceSeriesData = Svc.ActiveAccounts.ToDictionary(
-            a => a.Name,
-            a => BuildSeries(yms, ym => Svc.CloseOf(ym, a.Id)));
-        // ② 口座線色を規定パレットでローテ（spec §5。系列順＝口座順）
-        BalanceLineOptions.Colors = Svc.ActiveAccounts
+        // 残高は一意な Id で解決する（#157：口座名で引くと同名口座が破綻する）。並び順＝ActiveAccounts 順。
+        BalanceSeriesData = StatsMath.BuildAccountSeries(
+            Svc.ActiveAccounts.Select(a => (a.Id, a.Name)),
+            id => BuildSeries(yms, ym => Svc.CloseOf(ym, id)));
+        // ② 口座線色を規定パレットでローテ（spec §5。系列順＝口座順）。ActiveAccounts を再列挙せず
+        // 系列リスト自身から導出することで、i 番目の系列と Colors[i] の対応を構造的に保証する。
+        BalanceLineOptions.Colors = BalanceSeriesData
             .Select((_, i) => BalancePalette[i % BalancePalette.Length]).ToList();
 
         // マスタの現在値ではなく実際に記帳された固定費 Debit（IsFixed）を合計（OpenFixedBreakdown と同じ理由）

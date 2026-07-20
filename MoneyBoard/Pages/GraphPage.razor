@@ -173,9 +173,9 @@
                         @foreach (var series in BalanceSeriesData)
                         {
                             <ApexPointSeries TItem="ChartPoint"
-                                             Items="series.Value"
+                                             Items="series.Data"
                                              SeriesType="SeriesType.Line"
-                                             Name="@series.Key"
+                                             Name="@series.Name"
                                              XValue="@(e => e.Label)"
                                              YValue="@(e => e.Value)" />
                         }

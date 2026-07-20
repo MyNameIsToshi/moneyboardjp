@@ -175,4 +175,78 @@ public class StatsMathTests
         Assert.Null(StatsMath.UsageYmOf("2026/07/15"));
         Assert.Null(StatsMath.UsageYmOf("2026-07"));
     }
+
+    // BuildAccountSeries（#157）：口座名で系列を引くと同名口座で破綻していた不具合の回帰テスト。
+    [Fact]
+    public void BuildAccountSeries_DuplicateAccountNames_KeepsBothSeriesSeparately()
+    {
+        // 「楽天」という同名の口座が2つ。旧実装（口座名キーの ToDictionary）はここで
+        // ArgumentException を投げ、統計ページ全体が描画できなくなっていた。
+        var accounts = new[] { ("acc-1", "楽天"), ("acc-2", "楽天"), ("acc-3", "三井住友") };
+
+        var r = StatsMath.BuildAccountSeries(accounts, id => id + "-balance");
+
+        // 同名でも2系列とも残り、値は Id で解決されるため取り違えが起きない
+        Assert.Equal(3, r.Count);
+        Assert.Equal(new[] { "楽天", "楽天 (2)", "三井住友" }, r.Select(x => x.Name));
+        Assert.Equal(new[] { "acc-1-balance", "acc-2-balance", "acc-3-balance" }, r.Select(x => x.Data));
+    }
+
+    [Fact]
+    public void BuildAccountSeries_ThreeDuplicateNames_NumbersSecondAndThirdOnly()
+    {
+        // 実機確認で発覚：ApexCharts の凡例ホバーは系列を「名前」で解決するため、
+        // 同名のままだと常に1件目がハイライトされる。2件目以降に連番を付けて一意化する。
+        var accounts = new[] { ("acc-1", "あいち銀行"), ("acc-2", "あいち銀行"), ("acc-3", "あいち銀行") };
+
+        var r = StatsMath.BuildAccountSeries(accounts, id => id);
+
+        Assert.Equal(new[] { "あいち銀行", "あいち銀行 (2)", "あいち銀行 (3)" }, r.Select(x => x.Name));
+    }
+
+    [Fact]
+    public void BuildAccountSeries_GeneratedSuffixCollidesWithRealName_SkipsToNextNumber()
+    {
+        // 連番で作った名前が「別口座の実名」と衝突しうる。ここで先勝ちを許すと、
+        // 一意化したはずの凡例ホバーが再び同名衝突を起こす。
+        var accounts = new[] { ("acc-1", "楽天"), ("acc-2", "楽天"), ("acc-3", "楽天 (2)") };
+
+        var r = StatsMath.BuildAccountSeries(accounts, id => id);
+
+        // acc-2 は "楽天 (2)"（acc-3 の実名）を避けて "楽天 (3)" になる
+        Assert.Equal(new[] { "楽天", "楽天 (3)", "楽天 (2)" }, r.Select(x => x.Name));
+        Assert.Equal(r.Select(x => x.Name).Distinct().Count(), r.Count);
+    }
+
+    [Fact]
+    public void BuildAccountSeries_UniqueNames_AreNotRenamed()
+    {
+        // 重複していない口座名はそのまま（連番なし）で影響を受けない
+        var accounts = new[] { ("acc-1", "楽天"), ("acc-2", "三井住友"), ("acc-3", "みずほ") };
+
+        var r = StatsMath.BuildAccountSeries(accounts, id => id);
+
+        Assert.Equal(new[] { "楽天", "三井住友", "みずほ" }, r.Select(x => x.Name));
+    }
+
+    [Fact]
+    public void BuildAccountSeries_PreservesAccountOrder()
+    {
+        // 系列の並び順は色パレット（BalancePalette）の割当順と 1:1 で対応するため、
+        // 入力（ActiveAccounts）の順序がそのまま保たれる必要がある。
+        var accounts = new[] { ("acc-3", "財布"), ("acc-1", "みずほ"), ("acc-2", "楽天") };
+
+        var r = StatsMath.BuildAccountSeries(accounts, id => id);
+
+        Assert.Equal(new[] { "財布", "みずほ", "楽天" }, r.Select(x => x.Name));
+        Assert.Equal(new[] { "acc-3", "acc-1", "acc-2" }, r.Select(x => x.Data));
+    }
+
+    [Fact]
+    public void BuildAccountSeries_NoAccounts_ReturnsEmpty()
+    {
+        var r = StatsMath.BuildAccountSeries(System.Array.Empty<(string, string)>(), id => id);
+
+        Assert.Empty(r);
+    }
 }
