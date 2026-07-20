@@ -59,14 +59,19 @@
         {
             var a = accts[i];
             var l = Mo.Ledgers[a.Id];
+            // 財布固有UI（ATM入金の自動受取fold・振替ゾーンの財布モード）専用。それ以外の種別依存分岐は
+            // 意味ごとの述語（#164）を使う。
             var isWallet = a.Type == AccountType.Wallet;
+            var canReceiveSalary = a.Type.CanReceiveSalary();
+            var participatesInAtm = a.Type.ParticipatesInAtm();
+            var hasCategorizedSpending = a.Type.HasCategorizedSpending();
             var close = Svc.CloseOf(Svc.CurrentMonth, a.Id);
             var bad = close < 0;
             var outgoing = Mo.Transfers.Where(t => t.From == a.Id).ToList();
             var incoming = Mo.Transfers.Where(t => t.To == a.Id).ToList();
             // 財布は通常の口座間振込ピッカーから除外（財布⇄口座のやり取りはATM入金に一本化・#77）。
             // 財布カード自身にとっては、この一覧がそのままATM入金（財布→口座）の対象口座候補になる。
-            var others = accts.Where(x => x.Id != a.Id && x.Type != AccountType.Wallet).ToList();
+            var others = accts.Where(x => x.Id != a.Id && x.Type.ParticipatesInAtm()).ToList();
             var isAnchor = Svc.IsOpeningAnchor(Svc.CurrentMonth, a.Id);
             var cardDebits = l.Debits.Where(d => d.CardId != null).ToList();
             var fixedDebits = l.Debits.Where(d => d.CardId == null && d.IsFixed).ToList();
@@ -76,13 +81,13 @@
             // ボーナス入力欄の表示可否（#134）：①現受取口座かつボーナス月かつ当月以降（ボーナス月の設定変更が
             // 過去月の表示へ遡って反映されないように＝過去凍結）／②実額記録済み（受取口座変更後の過去凍結分を含む）／
             // ③「＋ボーナスを追加」で手動追加済み。
-            var showBonus = !isWallet && BonusSchedule.ShouldShowBonusInput(a.IsBonusAccount, isCurrentOrFutureMonth, Svc.State.BonusMonths, bonusMonth, l.Bonus, _manualBonusShown.Contains(a.Id + "|" + Svc.CurrentMonth));
+            var showBonus = canReceiveSalary && BonusSchedule.ShouldShowBonusInput(a.IsBonusAccount, isCurrentOrFutureMonth, Svc.State.BonusMonths, bonusMonth, l.Bonus, _manualBonusShown.Contains(a.Id + "|" + Svc.CurrentMonth));
             // ATM は資産移動のためセクション合計には含めない（既存の統計集計と同じ流儀）。
             var incomeTotal = l.Salary + l.Bonus + l.Incomes.Sum(x => x.Amount);
             var spendTotal = l.Debits.Sum(d => d.Amount);
             var netFlow = incomeTotal - spendTotal;
             // 財布は給料/ボーナスのセクションが無いため、その分をカウントから外す（#77）。
-            var incomeCount = (isWallet ? 0 : 1) + (showBonus ? 1 : 0) + l.Incomes.Count;
+            var incomeCount = (canReceiveSalary ? 1 : 0) + (showBonus ? 1 : 0) + l.Incomes.Count;
             // 収支バーの flex 比（culture 依存のカンマ/小数点区切りが CSS に混ざらないよう invariant で文字列化）。
             var barIn = Math.Max(incomeTotal, 0.01m).ToString(System.Globalization.CultureInfo.InvariantCulture);
             var barOut = Math.Max(spendTotal, 0.01m).ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -162,14 +167,14 @@
                         @if (incomeOpen)
                         {
                             <div class="zone-body">
-                                @if (!isWallet)
+                                @if (canReceiveSalary)
                                 {
                                     <div class="field">
                                         <label>給料</label>
                                         <AmountInput CssClass="num" Value="@l.Salary" ValueChanged="v => { l.Salary = v; Svc.RequestSave(); }" />
                                     </div>
                                 }
-                                @if (!isWallet)
+                                @if (canReceiveSalary)
                                 {
                                     @if (showBonus)
                                     {
@@ -188,7 +193,7 @@
                                    内訳を固定費/カードと同様に折りたたみ表示する（#77フォローアップ）。 *@
                                 @if (isWallet)
                                 {
-                                    var atmInSources = accts.Where(x => x.Type != AccountType.Wallet)
+                                    var atmInSources = accts.Where(x => x.Type.ParticipatesInAtm())
                                         .Select(x => (Account: x, Amount: Mo.Ledgers.TryGetValue(x.Id, out var xl) ? xl.AtmWithdraw : 0m))
                                         .Where(x => x.Amount != 0)
                                         .ToList();
@@ -286,7 +291,7 @@
                         <button class="zone-head" @onclick="() => ToggleExpense(a.Id)">
                             <span class="zone-chip zone-chip-expense msym">trending_down</span>
                             <span class="zone-name zone-name-expense">支出</span>
-                            <span class="zone-count">@(isWallet ? "現金支出" : "固定費・カード他")</span>
+                            <span class="zone-count">@(hasCategorizedSpending ? "現金支出" : "固定費・カード他")</span>
                             <span class="zone-spacer"></span>
                             <span class="zone-subtotal zone-subtotal-expense">@MaskedSignedYen(IsMasked,-spendTotal)</span>
                             <span class="msym zone-chev">@(expenseOpen ? "expand_less" : "expand_more")</span>
@@ -295,7 +300,7 @@
                         {
                             <div class="zone-body">
                                 @* 固定費＝表示専用（折りたたみ）。金額の変更は固定費設定タブから。財布は非対象（#77）。 *@
-                                @if (!isWallet && fixedDebits.Count > 0)
+                                @if (participatesInAtm && fixedDebits.Count > 0)
                                 {
                                     <div class="fold @(fixedOpen ? "open" : "")">
                                         <button class="fold-head" @onclick="() => ToggleFixed(a.Id)">
@@ -329,7 +334,7 @@
                                     </div>
                                 }
                                 @* カード由来＝表示専用（折りたたみ）。展開で各カードへのリンク行。財布は非対象（#77）。 *@
-                                @if (!isWallet && cardDebits.Count > 0)
+                                @if (participatesInAtm && cardDebits.Count > 0)
                                 {
                                     <div class="fold @(cardOpen ? "open" : "")">
                                         <button class="fold-head" @onclick="() => ToggleCardBlock(a.Id)">
@@ -356,7 +361,7 @@
                                 }
                                 @* ATM出金（資産移動のため統計には含めない）。財布はATM出金を持たず、
                                    財布→口座の「ATM入金」は下の振替ゾーンで扱う（#77フォローアップ）。 *@
-                                @if (!isWallet)
+                                @if (participatesInAtm)
                                 {
                                     <div class="row atm-row">
                                         <span class="atm-label"><span class="msym">local_atm</span> ATM出金</span>
@@ -366,7 +371,7 @@
                                 @* 財布の現金支出はカテゴリ選択が加わり1行に収まらないため、スマホでは
                                    カード（カード明細のCardTabと同パターン）＋タップで編集シートを開く方式にする（#77フォローアップ）。
                                    非財布の手入力支出（カテゴリなし）は従来どおり1行編集のまま。 *@
-                                @if (isWallet && IsMobile)
+                                @if (hasCategorizedSpending && IsMobile)
                                 {
                                     @foreach (var d in manualDebits)
                                     {
@@ -388,7 +393,7 @@
                                     {
                                         <div class="row">
                                             <input class="name" @bind="d.Name" @bind:after="Save" placeholder="項目" />
-                                            @if (isWallet)
+                                            @if (hasCategorizedSpending)
                                             {
                                                 <select class="cat" @bind="d.CategoryId" @bind:after="Save">
                                                     <option value="">未分類</option>
@@ -403,7 +408,7 @@
                                         </div>
                                     }
                                 }
-                                <button class="add-line" @onclick="() => { if (isWallet && IsMobile) AddCashDebitMobile(a.Id); else AddDebit(a.Id); }"><span class="msym">add</span>@(isWallet ? "現金支出を追加" : "支出を追加")</button>
+                                <button class="add-line" @onclick="() => { if (hasCategorizedSpending && IsMobile) AddCashDebitMobile(a.Id); else AddDebit(a.Id); }"><span class="msym">add</span>@(hasCategorizedSpending ? "現金支出を追加" : "支出を追加")</button>
                             </div>
                         }
                     </div>
@@ -704,7 +709,7 @@
     private void AddTransfer(string aid)
     {
         // 財布は通常の振込ピッカーの対象外（#77）。
-        var others = ActiveAccountsForMonth.Where(x => x.Id != aid && x.Type != AccountType.Wallet).ToList();
+        var others = ActiveAccountsForMonth.Where(x => x.Id != aid && x.Type.ParticipatesInAtm()).ToList();
         if (others.Count == 0) return;
         Mo.Transfers.Add(new Transfer { From = aid, To = others[0].Id });
         Save();

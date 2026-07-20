@@ -54,6 +54,22 @@ public class Card
 // 既存データの種別を別の値へ化けさせる）。Portfolio の AccountKind と同じ append-only 運用。
 public enum AccountType { Normal = 0, Wallet = 1, EMoney = 2 }
 
+// 口座種別に依存する分岐を意味ごとに述語化する（#164）。3種別では CanReceiveSalary と
+// ParticipatesInAtm の真理値は偶然一致するが、将来の種別追加で分岐しうる別の問いのため分けて定義する。
+// switch式を使わず比較で書くことで、未定義の AccountType 値（例:細工したリクエストの type:999）を
+// 渡されても例外にならず false を返す（#147 からの申し送り）。
+public static class AccountTypePredicates
+{
+    // 給料・ボーナス欄の出し分け（MonthlyTab）。Normal のみ。
+    public static bool CanReceiveSalary(this AccountType type) => type == AccountType.Normal;
+
+    // 財布の ATM materialize（ATM出金→財布のATM入金）の対象。Normal のみ。
+    public static bool ParticipatesInAtm(this AccountType type) => type == AccountType.Normal;
+
+    // 手入力支出にカテゴリを付ける UI（財布・電子マネー）。
+    public static bool HasCategorizedSpending(this AccountType type) => type is AccountType.Wallet or AccountType.EMoney;
+}
+
 // ── 口座 ──────────────────────────────────────────
 public class Account
 {
