@@ -49,10 +49,26 @@ public class Card
     public bool IsDeleted { get; set; }            // ソフト削除（過去明細の名前引きのため残す）
 }
 
-// 口座種別（#147）。EMoney は本 issue では未使用（後続 feat で導入）。
+// 口座種別（#147）。EMoney は電子マネー（Suica/PayPay 等のチャージ式プリペイド口座・#148 で導入）。
 // 数値でシリアライズされ保存データに残るため、値は明示し**末尾追加のみ**とする（挿入・並べ替えは
 // 既存データの種別を別の値へ化けさせる）。Portfolio の AccountKind と同じ append-only 運用。
 public enum AccountType { Normal = 0, Wallet = 1, EMoney = 2 }
+
+// 口座種別に依存する分岐を意味ごとに述語化する（#164）。3種別では CanReceiveSalary と
+// ParticipatesInAtm の真理値は偶然一致するが、将来の種別追加で分岐しうる別の問いのため分けて定義する。
+// switch式を使わず比較で書くことで、未定義の AccountType 値（例:細工したリクエストの type:999）を
+// 渡されても例外にならず false を返す（#147 からの申し送り）。
+public static class AccountTypePredicates
+{
+    // 給料・ボーナス欄の出し分け（MonthlyTab）。Normal のみ。
+    public static bool CanReceiveSalary(this AccountType type) => type == AccountType.Normal;
+
+    // 財布の ATM materialize（ATM出金→財布のATM入金）の対象。Normal のみ。
+    public static bool ParticipatesInAtm(this AccountType type) => type == AccountType.Normal;
+
+    // 手入力支出にカテゴリを付ける UI（財布・電子マネー）。
+    public static bool HasCategorizedSpending(this AccountType type) => type is AccountType.Wallet or AccountType.EMoney;
+}
 
 // ── 口座 ──────────────────────────────────────────
 public class Account
@@ -72,9 +88,13 @@ public class Account
     // 更新を保留した旧クライアント（Type を知らず、このフィールドだけを見る）が同じデータを開いても
     // 財布判定を落とさないようにするため、書き戻し側も維持する必要がある。
     public bool IsWallet { get; set; }
-    // 財布を作成した月（yyyyMM）。他の口座と異なり、財布は「作成した月」を恒久的な起点（開始残高の入力月）
-    // とするため、この月より前へは月次展開（EnsureMonth）で遡って台帳を作らない（#77 フォローアップ）。
+    // 財布を作成した月（yyyyMM）。v11以前の後方互換フィールド（#148）。判定の正本は StartYm で、
+    // アプリロジックからは参照しない。旧クライアント互換のため、財布作成時のみ StartYm と同時に書き続ける。
     public string? WalletStartYm { get; set; }
+    // 口座を作成した月（yyyyMM）。財布・電子マネーはこの月より前へは月次展開（EnsureMonth）で遡って
+    // 台帳を作らない（#77 フォローアップの WalletStartYm を#148で全種別へ一般化）。通常口座は
+    // 引き続き未設定のまま＝最初に開いた月が起点になる従来仕様を維持する。
+    public string? StartYm { get; set; }
 }
 
 // ── 固定費マスタ ──────────────────────────────────
@@ -196,8 +216,8 @@ public class Debit
                                                  // 当月のみ、true ならマスタ変更の再展開で上書きしない（翌月以降は編集有無に関わらず常にマスタへ追随）。
     public string? FixedCostId { get; set; }
     public string? CardId { get; set; }   // カード由来 Debit の目印（明細合計を反映・読み取り専用）
-    // 財布の現金支出（#77）のみ手入力で設定。他の Debit（固定費・カード・通常口座の手入力支出）は
-    // 未設定のまま＝統計のカテゴリ別集計（GraphPage.BuildCategorySpend）には混入しない。
+    // 財布・電子マネーの手入力支出（#77・#148）のみ設定。他の Debit（固定費・カード・通常口座の
+    // 手入力支出）は未設定のまま＝統計のカテゴリ別集計（GraphPage.BuildCategorySpend）には混入しない。
     public string? CategoryId { get; set; }
 }
 

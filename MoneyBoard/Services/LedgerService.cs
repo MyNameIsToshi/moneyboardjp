@@ -226,7 +226,7 @@ public class LedgerService(AppStateStore store)
     // 固定費（支出/収入）・カードの引き落とし口座など、支出/収入の計上先を選ぶ「口座を選択」用（#124）。
     // 財布は現金の出納枠であり、計上先としては想定外（財布への/からの出入りは振替ゾーンに一本化＝#77）。
     // 既に財布が計上先として設定されている既存データは、この一覧から選び直せなくなるだけで自動解除はしない。
-    public List<Account> NonWalletAccounts => ActiveAccounts.Where(a => a.Type != AccountType.Wallet).ToList();
+    public List<Account> NonWalletAccounts => ActiveAccounts.Where(a => a.Type.ParticipatesInAtm()).ToList();
 
     public List<string> GetFixedCostsUsingAccount(string accountId) =>
         State.FixedCosts.Where(f => f.AccountId == accountId).Select(f => f.Name).ToList();

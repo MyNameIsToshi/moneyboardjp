@@ -228,6 +228,13 @@ public partial class DataApi(ILogger<DataApi> logger, CosmosClient cosmos, Fireb
             if (env.Settings.FixedIncomes.Count > MaxFixedIncomes) { reason = $"fixedIncomes={env.Settings.FixedIncomes.Count}"; return false; }
             if (env.Settings.Categories.Count > MaxCategories) { reason = $"categories={env.Settings.Categories.Count}"; return false; }
             if (env.Settings.Cards.Count > MaxCards) { reason = $"cards={env.Settings.Cards.Count}"; return false; }
+            // AccountType は整数で永続化され、未定義値も素通しでキャストされる（#164・#147からの申し送り）。
+            // 述語（AccountTypePredicates）はswitchを使わないため未定義値でも例外にはならないが、
+            // 保存データに未定義値を残さないよう入口で拒否する。
+            foreach (var a in env.Settings.Accounts)
+            {
+                if (!Enum.IsDefined(typeof(AccountType), a.Type)) { reason = $"accountType={(int)a.Type}"; return false; }
+            }
         }
         if (env.Months.Count > MaxMonthsPerSave) { reason = $"months={env.Months.Count}"; return false; }
         foreach (var (ym, m) in env.Months)

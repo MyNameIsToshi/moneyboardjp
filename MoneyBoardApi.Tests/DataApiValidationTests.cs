@@ -85,4 +85,37 @@ public class DataApiValidationTests
         Assert.False(DataApi.IsStructurallyValid(env, out var reason));
         Assert.Contains("debits", reason);
     }
+
+    [Fact]
+    public void UndefinedAccountType_ReturnsFalse_WithReason()
+    {
+        // 細工したリクエスト等による未定義の AccountType 値（#164・#147からの申し送り）。
+        var env = new DataEnvelope
+        {
+            Settings = new SettingsPart { Accounts = { new Account { Type = (AccountType)999 } } },
+        };
+
+        Assert.False(DataApi.IsStructurallyValid(env, out var reason));
+        Assert.Contains("accountType", reason);
+    }
+
+    [Fact]
+    public void DefinedAccountTypes_AreAllAccepted()
+    {
+        var env = new DataEnvelope
+        {
+            Settings = new SettingsPart
+            {
+                Accounts =
+                {
+                    new Account { Type = AccountType.Normal },
+                    new Account { Type = AccountType.Wallet },
+                    new Account { Type = AccountType.EMoney },
+                },
+            },
+        };
+
+        Assert.True(DataApi.IsStructurallyValid(env, out var reason));
+        Assert.Equal("", reason);
+    }
 }
