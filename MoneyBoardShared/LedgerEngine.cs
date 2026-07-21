@@ -72,10 +72,11 @@ public static class LedgerEngine
     // （既存の口座ATM入出金フィールドは従来どおり手入力のまま）。
     public static Account? ActiveWallet(AppState state) => state.Accounts.FirstOrDefault(a => a.Type == AccountType.Wallet && !a.IsDeleted);
 
-    // 財布は作成月（WalletStartYm）より前の月へ台帳を遡って作らない（#77 フォローアップ）。他の口座と異なり
-    // 起点月（開始残高の入力月）を作成月に固定し、過去月を開いても起点が移動しないようにするための判定。
+    // 財布・電子マネーは作成月（StartYm）より前の月へ台帳を遡って作らない（#77 フォローアップ・#148 で
+    // 全種別へ一般化）。他の口座と異なり起点月（開始残高の入力月）を作成月に固定し、過去月を開いても
+    // 起点が移動しないようにするための判定。通常口座は StartYm を持たないため常に true（従来仕様）。
     public static bool ShouldCreateLedgerFor(Account a, string ym) =>
-        a.Type != AccountType.Wallet || a.WalletStartYm == null || string.CompareOrdinal(ym, a.WalletStartYm) >= 0;
+        a.StartYm == null || string.CompareOrdinal(ym, a.StartYm) >= 0;
 
     // 口座⇄財布のATM入出金を対称に実体化する。派生値は保存するため、残高計算（LedgerMath.Close）は
     // 無改修で乗り、財布削除後も過去月に凍結保存される。ym を跨がず「この月」のみを対象にする
@@ -86,8 +87,10 @@ public static class LedgerEngine
         if (wallet == null) return;
         if (!mo.Ledgers.TryGetValue(wallet.Id, out var walletLedger)) return;
 
+        // ATM機構に参加する口座（通常口座のみ）に限定する。財布自身は自己ループ防止のため、
+        // 電子マネーはATM機構に一切関与しない設計（#148）のため、いずれも ParticipatesInAtm() で自然に除外される。
         var otherAccountIds = state.Accounts
-            .Where(a => !a.IsDeleted && a.Id != wallet.Id)   // 財布自身は自己ループ防止のため除外
+            .Where(a => !a.IsDeleted && a.Type.ParticipatesInAtm())
             .Select(a => a.Id)
             .ToList();
 

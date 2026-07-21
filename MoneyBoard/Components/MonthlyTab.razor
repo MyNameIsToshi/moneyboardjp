@@ -54,6 +54,8 @@
         @{
             var bonusMonth = Ym.Parse(Svc.CurrentMonth).Month;
             var isCurrentOrFutureMonth = LedgerService.IsCurrentOrFutureCycle(Svc.CurrentMonth);
+            // 電子マネーが存在する場合、通常口座の振込ゾーンはチャージ先も兼ねるため見出しに明示する（実機確認フィードバック）。
+            var hasEMoneyAccount = accts.Any(x => x.Type == AccountType.EMoney);
         }
         @for (int i = 0; i < accts.Count; i++)
         {
@@ -62,6 +64,7 @@
             // 財布固有UI（ATM入金の自動受取fold・振替ゾーンの財布モード）専用。それ以外の種別依存分岐は
             // 意味ごとの述語（#164）を使う。
             var isWallet = a.Type == AccountType.Wallet;
+            var isEMoney = a.Type == AccountType.EMoney;
             var canReceiveSalary = a.Type.CanReceiveSalary();
             var participatesInAtm = a.Type.ParticipatesInAtm();
             var hasCategorizedSpending = a.Type.HasCategorizedSpending();
@@ -72,6 +75,9 @@
             // 財布は通常の口座間振込ピッカーから除外（財布⇄口座のやり取りはATM入金に一本化・#77）。
             // 財布カード自身にとっては、この一覧がそのままATM入金（財布→口座）の対象口座候補になる。
             var others = accts.Where(x => x.Id != a.Id && x.Type.ParticipatesInAtm()).ToList();
+            // 通常の振込ピッカー（財布以外の口座間送金）は財布のみ除外する。電子マネーはチャージ先として
+            // 含める必要があるため、others（ATM materialize 用・電子マネーも除外）とは対象が異なる（#148）。
+            var transferTargets = accts.Where(x => x.Id != a.Id && x.Type != AccountType.Wallet).ToList();
             var isAnchor = Svc.IsOpeningAnchor(Svc.CurrentMonth, a.Id);
             var cardDebits = l.Debits.Where(d => d.CardId != null).ToList();
             var fixedDebits = l.Debits.Where(d => d.CardId == null && d.IsFixed).ToList();
@@ -104,7 +110,7 @@
             <div class="acct @(bad ? "bad" : "") @(collapsed ? "collapsed" : "")">
                 @* ヘッダーをクリックでカード全体を開閉。畳むと月末残高をヘッダーに出す。 *@
                 <button class="ahead" @onclick="() => ToggleAccount(a.Id)">
-                    <span class="acct-chip @chip msym">@(isWallet ? "account_balance_wallet" : "account_balance")</span>
+                    <span class="acct-chip @chip msym">@a.Type.Icon()</span>
                     <span class="aname">@a.Name</span>
                     <span class="badge">@(bad ? "不足" : "OK")</span>
                     @if (collapsed)
@@ -224,20 +230,24 @@
                                         }
                                     </div>
                                 }
-                                else if (Svc.HasActiveWallet)
+                                else if (participatesInAtm)
                                 {
-                                    <div class="row atm-row">
-                                        <span class="atm-label"><span class="msym">local_atm</span> ATM入金（財布より）</span>
-                                        <span class="atm-auto">@MaskedYen(IsMasked,l.AtmDeposit)</span>
-                                    </div>
+                                    @if (Svc.HasActiveWallet)
+                                    {
+                                        <div class="row atm-row">
+                                            <span class="atm-label"><span class="msym">local_atm</span> ATM入金（財布より）</span>
+                                            <span class="atm-auto">@MaskedYen(IsMasked,l.AtmDeposit)</span>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="row atm-row">
+                                            <span class="atm-label"><span class="msym">local_atm</span> ATM入金</span>
+                                            <AmountInput CssClass="amt" Value="@l.AtmDeposit" ValueChanged="v => { l.AtmDeposit = v; Svc.RequestSave(); }" />
+                                        </div>
+                                    }
                                 }
-                                else
-                                {
-                                    <div class="row atm-row">
-                                        <span class="atm-label"><span class="msym">local_atm</span> ATM入金</span>
-                                        <AmountInput CssClass="amt" Value="@l.AtmDeposit" ValueChanged="v => { l.AtmDeposit = v; Svc.RequestSave(); }" />
-                                    </div>
-                                }
+                                @* 電子マネーはATM機構に一切関与しないため、上記いずれの行も表示しない（#148）。 *@
                                 @* 収入固定費＝表示専用（折りたたみ）。金額未固定はここで月ごとに金額を編集できる（#95）。 *@
                                 @if (fixedIncomes.Count > 0)
                                 {
@@ -291,7 +301,7 @@
                         <button class="zone-head" @onclick="() => ToggleExpense(a.Id)">
                             <span class="zone-chip zone-chip-expense msym">trending_down</span>
                             <span class="zone-name zone-name-expense">支出</span>
-                            <span class="zone-count">@(hasCategorizedSpending ? "現金支出" : "固定費・カード他")</span>
+                            <span class="zone-count">@(isWallet ? "現金支出" : isEMoney ? "電子マネー利用" : "固定費・カード他")</span>
                             <span class="zone-spacer"></span>
                             <span class="zone-subtotal zone-subtotal-expense">@MaskedSignedYen(IsMasked,-spendTotal)</span>
                             <span class="msym zone-chev">@(expenseOpen ? "expand_less" : "expand_more")</span>
@@ -408,7 +418,7 @@
                                         </div>
                                     }
                                 }
-                                <button class="add-line" @onclick="() => { if (hasCategorizedSpending && IsMobile) AddCashDebitMobile(a.Id); else AddDebit(a.Id); }"><span class="msym">add</span>@(hasCategorizedSpending ? "現金支出を追加" : "支出を追加")</button>
+                                <button class="add-line" @onclick="() => { if (hasCategorizedSpending && IsMobile) AddCashDebitMobile(a.Id); else AddDebit(a.Id); }"><span class="msym">add</span>@(isWallet ? "現金支出を追加" : isEMoney ? "利用を追加" : "支出を追加")</button>
                             </div>
                         }
                     </div>
@@ -422,7 +432,7 @@
                     <div class="zone zone-transfer">
                         <button class="zone-head" @onclick="() => ToggleTransfer(a.Id)">
                             <span class="zone-chip zone-chip-transfer msym">swap_horiz</span>
-                            <span class="zone-name zone-name-transfer">@(isWallet ? "振替（ATM入金 → 口座）" : "振込")</span>
+                            <span class="zone-name zone-name-transfer">@(isWallet ? "振替（ATM入金 → 口座）" : isEMoney ? "チャージ" : hasEMoneyAccount ? "振込 & チャージ" : "振込")</span>
                             <span class="zone-count">@(isWallet ? l.WalletAtmDeposits.Count : outgoing.Count + incoming.Count) 件</span>
                             <span class="zone-spacer"></span>
                             @if (isWallet)
@@ -476,7 +486,7 @@
                                     {
                                         <div class="row">
                                             <select class="name" @bind="t.To" @bind:after="Save">
-                                                @foreach (var o in others)
+                                                @foreach (var o in transferTargets)
                                                 {
                                                     <option value="@o.Id">@o.Name へ</option>
                                                 }
@@ -485,7 +495,7 @@
                                             <button class="x" @onclick="() => RemoveTransfer(t.Id)">✕</button>
                                         </div>
                                     }
-                                    <button class="add-line" @onclick="() => AddTransfer(a.Id)"><span class="msym">add</span>振込を追加</button>
+                                    <button class="add-line" @onclick="() => AddTransfer(a.Id)"><span class="msym">add</span>@(isEMoney ? "チャージを追加" : "振込を追加")</button>
                                     @if (incoming.Any())
                                     {
                                         <div class="xfer-in-list">
@@ -708,10 +718,10 @@
 
     private void AddTransfer(string aid)
     {
-        // 財布は通常の振込ピッカーの対象外（#77）。
-        var others = ActiveAccountsForMonth.Where(x => x.Id != aid && x.Type.ParticipatesInAtm()).ToList();
-        if (others.Count == 0) return;
-        Mo.Transfers.Add(new Transfer { From = aid, To = others[0].Id });
+        // 財布は通常の振込ピッカーの対象外（#77）。電子マネーはチャージ先として含める（#148）。
+        var targets = ActiveAccountsForMonth.Where(x => x.Id != aid && x.Type != AccountType.Wallet).ToList();
+        if (targets.Count == 0) return;
+        Mo.Transfers.Add(new Transfer { From = aid, To = targets[0].Id });
         Save();
     }
     private void RemoveTransfer(string tid) { Mo.Transfers.RemoveAll(t => t.Id == tid); Save(); }

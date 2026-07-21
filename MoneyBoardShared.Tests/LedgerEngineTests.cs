@@ -615,6 +615,26 @@ public class LedgerEngineTests
     }
 
     [Fact]
+    public void ExpandWallet_ExcludesEMoneyAccounts_FromAtmMaterialization()
+    {
+        // 電子マネーはATM機構に一切関与しない設計（#148）。UI上は不可能な値（AtmWithdraw・
+        // WalletAtmDepositsの宛先）が紛れ込んでも、ExpandWalletが常に無視することを防御的に確認する。
+        var state = new AppState
+        {
+            Accounts = { new Account { Id = "e", Type = AccountType.EMoney }, new Account { Id = "w", Type = AccountType.Wallet } }
+        };
+        var mo = new MonthData();
+        mo.Ledgers["e"] = new Ledger { AtmWithdraw = 1_000m };
+        mo.Ledgers["w"] = new Ledger();
+        mo.Ledgers["w"].WalletAtmDeposits.Add(new WalletAtmDeposit { AccountId = "e", Amount = 500m });
+
+        LedgerEngine.ExpandWallet(state, mo);
+
+        Assert.Equal(0m, mo.Ledgers["w"].AtmDeposit);   // 電子マネーのAtmWithdrawは合算対象外
+        Assert.Equal(0m, mo.Ledgers["e"].AtmDeposit);   // 電子マネーのAtmDepositはExpandWalletの対象外のため変化しない
+    }
+
+    [Fact]
     public void ExpandWallet_SkipsSoftDeletedNonWalletAccounts()
     {
         var state = WalletState(out var mo, out _);
@@ -627,10 +647,11 @@ public class LedgerEngineTests
         Assert.Equal(500m, mo.Ledgers["w"].AtmDeposit);   // 削除済み口座は合算対象外
     }
 
-    // ── 財布の起点固定（ShouldCreateLedgerFor・#77フォローアップ）─────
+    // ── 起点月の固定（ShouldCreateLedgerFor・#77フォローアップ・#148で全種別へ一般化）─────
     [Fact]
-    public void ShouldCreateLedgerFor_NonWalletAccount_AlwaysTrue()
+    public void ShouldCreateLedgerFor_NormalAccount_AlwaysTrue()
     {
+        // 通常口座は StartYm を持たないため常に true（従来仕様＝最初に開いた月が起点）。
         var a = new Account { Type = AccountType.Normal };
         Assert.True(LedgerEngine.ShouldCreateLedgerFor(a, "202601"));
     }
@@ -638,8 +659,8 @@ public class LedgerEngineTests
     [Fact]
     public void ShouldCreateLedgerFor_WalletWithoutStartYm_AlwaysTrue()
     {
-        // 旧データ・移行直後などで WalletStartYm 未設定の場合は制限しない（後方互換）。
-        var a = new Account { Type = AccountType.Wallet, WalletStartYm = null };
+        // 旧データ・移行直後などで StartYm 未設定の場合は制限しない（後方互換）。
+        var a = new Account { Type = AccountType.Wallet, StartYm = null };
         Assert.True(LedgerEngine.ShouldCreateLedgerFor(a, "202601"));
     }
 
@@ -649,7 +670,18 @@ public class LedgerEngineTests
     [InlineData("202607", true)]   // 作成月より後 → 作る
     public void ShouldCreateLedgerFor_Wallet_RespectsStartYm(string ym, bool expected)
     {
-        var a = new Account { Type = AccountType.Wallet, WalletStartYm = "202606" };
+        var a = new Account { Type = AccountType.Wallet, StartYm = "202606" };
+        Assert.Equal(expected, LedgerEngine.ShouldCreateLedgerFor(a, ym));
+    }
+
+    [Theory]
+    [InlineData("202605", false)]  // 作成月より前 → 作らない
+    [InlineData("202606", true)]   // 作成月 → 作る（起点）
+    [InlineData("202607", true)]   // 作成月より後 → 作る
+    public void ShouldCreateLedgerFor_EMoney_RespectsStartYm(string ym, bool expected)
+    {
+        // #148：財布専用だった起点固定を電子マネーにも一般化する。
+        var a = new Account { Type = AccountType.EMoney, StartYm = "202606" };
         Assert.Equal(expected, LedgerEngine.ShouldCreateLedgerFor(a, ym));
     }
 

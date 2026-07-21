@@ -28,14 +28,14 @@ else if (IsMobile)
         <div class="list-card-wrap">
             <button class="list-card" @onclick="() => OpenEdit(a.Id)">
                 <div class="cat-card-row">
-                    <span class="acct-row-chip msym">@(a.Type == AccountType.Wallet ? "account_balance_wallet" : "account_balance")</span>
+                    <span class="acct-row-chip msym">@a.Type.Icon()</span>
                     <span class="list-card-name">@(string.IsNullOrEmpty(a.Name) ? "(名称未設定)" : a.Name)</span>
                     <span class="list-card-chev msym">chevron_right</span>
                 </div>
-                @if (a.Type == AccountType.Wallet || a.IsBonusAccount)
+                @if (a.Type != AccountType.Normal || a.IsBonusAccount)
                 {
                     <div class="list-card-sub">
-                        @if (a.Type == AccountType.Wallet) { <span class="bonus-tag">財布（現金）</span> }
+                        @if (a.Type.Tag() is { } typeTag) { <span class="bonus-tag">@typeTag</span> }
                         @if (a.IsBonusAccount) { <span class="bonus-tag">ボーナス受取</span> }
                     </div>
                 }
@@ -74,7 +74,7 @@ else
                 {
                     <span class="drag-handle msym">drag_indicator</span>
                 }
-                <span class="acct-row-chip msym">@(a.Type == AccountType.Wallet ? "account_balance_wallet" : "account_balance")</span>
+                <span class="acct-row-chip msym">@a.Type.Icon()</span>
                 @if (a.Type == AccountType.Wallet)
                 {
                     <span class="set-input wallet-name-fixed">@a.Name</span>
@@ -84,9 +84,9 @@ else
                     <input class="set-input" @bind="a.Name" @bind:after="Save" placeholder="口座名" />
                 }
                 <span class="acct-bonus">
-                    @if (a.Type == AccountType.Wallet)
+                    @if (a.Type.Tag() is { } typeTag)
                     {
-                        <span class="bonus-tag">財布（現金）</span>
+                        <span class="bonus-tag">@typeTag</span>
                     }
                     else
                     {
@@ -146,6 +146,19 @@ else
                 <label>口座名</label>
                 <input @bind="NewName" placeholder="例：三菱UFJ 普通" @bind:event="oninput" />
             </div>
+            <div class="dialog-form">
+                <label>種別</label>
+                <label class="sheet-check">
+                    <input type="radio" name="newAccountType" checked="@(NewType == AccountType.Normal)"
+                           @onchange="() => NewType = AccountType.Normal" />
+                    通常口座
+                </label>
+                <label class="sheet-check">
+                    <input type="radio" name="newAccountType" checked="@(NewType == AccountType.EMoney)"
+                           @onchange="() => NewType = AccountType.EMoney" />
+                    電子マネー
+                </label>
+            </div>
             @if (!string.IsNullOrEmpty(AddError))
             {
                 <div class="dialog-error">@AddError</div>
@@ -178,6 +191,23 @@ else
     <ChildContent>
         @if (Editing is not null)
         {
+            @* 種別は作成時のみ選択可（後から変更するUIは提供しない・#148）。財布は専用ボタンから作成するためここには出ない。 *@
+            @if (_isNew)
+            {
+                <div class="sheet-field">
+                    <label>種別</label>
+                    <label class="sheet-check">
+                        <input type="radio" name="draftAccountType" checked="@(Editing.Type == AccountType.Normal)"
+                               @onchange="() => Editing.Type = AccountType.Normal" />
+                        通常口座
+                    </label>
+                    <label class="sheet-check">
+                        <input type="radio" name="draftAccountType" checked="@(Editing.Type == AccountType.EMoney)"
+                               @onchange="() => Editing.Type = AccountType.EMoney" />
+                        電子マネー
+                    </label>
+                </div>
+            }
             <div class="sheet-field">
                 <label>口座名</label>
                 @if (Editing.Type == AccountType.Wallet)
@@ -189,10 +219,10 @@ else
                     <input @bind="Editing.Name" @bind:after="Save" placeholder="口座名" />
                 }
             </div>
-            @if (Editing.Type == AccountType.Wallet)
+            @if (Editing.Type.Tag() is { } typeTag)
             {
                 <div class="sheet-field">
-                    <span class="bonus-tag">財布（現金）</span>
+                    <span class="bonus-tag">@typeTag</span>
                 </div>
             }
             else
@@ -256,6 +286,8 @@ else
             _isNew = false; _draft = null; _editId = null;
             if (d is not null && !string.IsNullOrWhiteSpace(d.Name))
             {
+                // 電子マネーは起点月（StartYm）を作成時の当月サイクルに固定する（財布と同じ・#148）。
+                if (d.Type == AccountType.EMoney) d.StartYm = LedgerService.CurrentCycleStartYm();
                 Svc.State.Accounts.Add(d);
                 if (d.IsBonusAccount) SetBonusAccount(d.Id);   // 1口座のみ＝コミット時に確定
                 else Save();
@@ -278,17 +310,19 @@ else
     }
 
     // 財布を追加：アクティブな財布は同時に1個のみ（ヘッダーのボタン自体を出し分けて防ぐが、念のため二重にガード）。
-    // WalletStartYm＝作成した「実際の当月サイクル」を恒久的な起点として記録する（Svc.CurrentMonth は
+    // 起点月＝作成した「実際の当月サイクル」を恒久的な起点として記録する（Svc.CurrentMonth は
     // 月次タブで表示中だった月＝過去/未来月の場合があり起点としては不適切なため使わない・#77フォローアップ）。
     private void AddWallet()
     {
         if (Svc.HasActiveWallet) return;
+        var startYm = LedgerService.CurrentCycleStartYm();
         Svc.State.Accounts.Add(new Account
         {
             Name = "財布",
             Type = AccountType.Wallet,
             IsWallet = true,   // 旧クライアント互換のため Type と同時に立てる（Models.cs の IsWallet 参照・#147）
-            WalletStartYm = LedgerService.CurrentCycleStartYm(),
+            WalletStartYm = startYm,   // v11以前の後方互換のため StartYm と同時に立てる（#148）
+            StartYm = startYm,
             SortOrder = Svc.State.Accounts.Count
         });
         Save();
@@ -400,9 +434,12 @@ else
     }
 
     // ── 追加ダイアログ ──────────────────────────────
+    private AccountType NewType = AccountType.Normal;
+
     private void OpenAddDialog()
     {
         NewName  = "";
+        NewType  = AccountType.Normal;
         AddError = "";
         ShowAddDialog = true;
     }
@@ -416,9 +453,13 @@ else
         Svc.State.Accounts.Add(new Account
         {
             Name      = NewName.Trim(),
+            Type      = NewType,
+            // 電子マネーは起点月（StartYm）を作成時の当月サイクルに固定する（財布と同じ・#148）。
+            StartYm   = NewType == AccountType.EMoney ? LedgerService.CurrentCycleStartYm() : null,
             SortOrder = Svc.State.Accounts.Count
         });
         NewName = "";
+        NewType = AccountType.Normal;
         Save();
         ShowAddDialog = false;
     }

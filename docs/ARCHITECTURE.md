@@ -679,6 +679,14 @@ Transfer
   - **固定費（支出/収入）・カードの引き落とし口座選択からも財布を除外（#124・口座間振込ピッカー除外#77のフォローアップ）**：`others` フィルタで口座間振込ピッカーからは既に除外していたが、固定費・カードの「口座を選択」`<select>` は `Svc.ActiveAccounts`（財布を含む）をそのまま使っており、財布を支出/収入の計上先として選べてしまっていた。財布は現金の出納枠であり、固定費・カードの引き落とし口座として選ぶのは業務上想定外（財布への/からの出入りは振替ゾーンに一本化＝#77）のため、`LedgerService` に `NonWalletAccounts`（当時は `ActiveAccounts.Where(a => a.Type != AccountType.Wallet)`。#164 で述語ベースへ置換）を追加し、`FixedCostTab`・`CardSettings` の口座選択 `<select>`（新規追加ダイアログ／編集シート／インライン行・PC/スマホ両方）と、口座未登録警告・新規追加時の既定口座をこちらに差し替えた。口座フィルター（表示絞り込み用の`<select>`ではないチェックボックスメニュー）と `AccountName` によるラベル表示は従来どおり `ActiveAccounts` のまま据え置き、**既に財布が計上先として設定されている既存データは自動解除せず**、選択肢から消えるだけで名前表示（`AccountName`）は引き続き正しく解決される（ソフト削除済み口座を参照する既存ケースと同じ「表示は残るが選び直しはできない」という既存の許容パターンに倣った）。
   - **口座種別分岐の述語化（#164）**：`MonthlyTab` の `isWallet` 直接比較（21箇所）は「給料を受け取れるか／ATM機構に参加するか／カテゴリ付き支出UIか／財布固有UIか」という4つの異なる問いを1つのブールで代用していたため、種別が3つになる#148で機械的な一般化（`isWallet || isEMoney`等）が誤る懸念があった。`MoneyBoardShared.AccountTypePredicates`（`CanReceiveSalary`/`ParticipatesInAtm`/`HasCategorizedSpending`。いずれも`switch`を使わず`==`/`is`比較で実装し、未定義の`AccountType`値でも例外にならず`false`を返す）を新設し、軸ごとに分岐を置き換えた。財布固有UI（ATM入金の自動受取fold・振替ゾーンの財布モード・口座一覧の先頭固定ソート）は`Type == AccountType.Wallet`の直接比較のまま残す。`LedgerService.NonWalletAccounts`は`ParticipatesInAtm`（Normalのみ）で再実装（3種別では`CanReceiveSalary`と真理値表が一致するが、将来の種別追加で分岐しうる別概念のため使い分けを保った）。挙動不変（バージョン据え置き）。
   - **AccountType の値域検証（#147からの申し送り・#164で対応）**：`AccountType`は整数で永続化され、未定義値（例:細工したリクエストの`type:999`）も素通しでキャストされる。述語は`switch`を使わないため未定義値を渡されても例外にはならないが、保存データに未定義値を残さないよう`DataApi.IsStructurallyValid`で`Enum.IsDefined`により入口で拒否する方式を採用（正規化して`Normal`へ丸める案もあったが、将来クライアントが導入する未知の種別を保存時に静かに`Normal`へ書き換えてしまうと復元不能なデータ破損になるため、保存自体を拒否する方が安全と判断）。
+- **電子マネー口座（Suica/PayPay等のチャージ式プリペイド口座）＝ `AccountType.EMoney` を財布と並ぶ第3の口座種別として追加（#148）** … 財布と異なり複数登録可・作成後の種別変更UIは提供しない（前提：ベータ公開前・既存ユーザーがEMoneyを通常口座として運用しているケースはゼロのため種別移行も不要）。
+  - **チャージ＝既存 `Transfer`、専用フィールドは追加しない**：電子マネーへのチャージは資産 X → 資産 Y の移動として `Transfer { From, To, Amount }` でそのまま表せるため、`Ledger` へ新規フィールドを足さず `LedgerMath.Close` も無改修。クレカ発チャージ（`Transfer` が口座ID前提のため表せない）はスコープ外とし、後続 `#168` でカード明細に「チャージ（振替）区分」を導入する方式を検討する。
+  - **ATM機構（財布のmaterialize・#77）には一切関与しない**：`Ledger.AtmDeposit`/`AtmWithdraw` は電子マネーでは常に0のまま。理由は財布の`ExpandWallet`が「全非財布口座の`AtmWithdraw`合計」を財布の`AtmDeposit`にする実体化方式のため、電子マネーへのチャージをそこに乗せると財布への入金として二重計上されるため。`LedgerEngine.ExpandWallet`の集計対象（`otherAccountIds`）を`Type != Wallet`から`Type.ParticipatesInAtm()`（Normalのみ）へ変更し、電子マネーを構造的に除外（UIで隠すだけでなく純粋ロジック側でも不変条件として保証）。
+  - **利用＝`Debit`に`CategoryId`を付けたカテゴリ付き支出（財布と同型）**：`AccountTypePredicates.HasCategorizedSpending`（Wallet/EMoney）で`MonthlyTab`のカテゴリselect・支出集計を出し分け。`GraphPage.CashDebitsIn`の絞り込みを`Type == Wallet`から`Type.HasCategorizedSpending()`へ拡張し、電子マネーの利用もカテゴリ別支出（グラフ・ドリルダウン・「選択してカテゴリ設定」）に反映されるようにした。
+  - **起点月の一般化（`WalletStartYm` → `StartYm`）**：財布専用だった起点固定（#77フォローアップ）を電子マネーにも適用する必要があり、`Account.StartYm`（汎用）を新設して`LedgerEngine.ShouldCreateLedgerFor`を全種別対応にした（通常口座は`StartYm`を持たないため従来どおり無制限）。スキーマ v12 で`WalletStartYm`を`StartYm`へコピー（詳細は「スキーマ移行」節）。`AccountsTab.AddWallet`は後方互換のため両フィールドを作成時に立てる。
+  - **口座間振込ピッカーは「財布のATM対象」と「通常の振込先」で対象が分岐**：#164 で `others`（`ParticipatesInAtm`＝Normalのみ）に一本化されていたが、これは財布の「ATM入金→口座」ピッカー（電子マネーを除外すべき）には正しい一方、通常口座の振込ゾーン（電子マネーをチャージ先として含めるべき）には狭すぎる。`MonthlyTab`に`transferTargets`（`Type != Wallet`＝電子マネーを含む）を別途導入し、財布のATM対象は`others`のまま、通常の振込ピッカー（表示・`AddTransfer`とも）は`transferTargets`を使うよう分離した。
+  - **UI**：`AccountsTab`の追加ダイアログ／スマホ新規ドラフトの編集シートに種別ラジオ（通常口座/電子マネー。財布は専用ボタンのまま）を追加。専用アイコン`contactless`・タグ「電子マネー」表示。ボーナス受取口座には指定不可（`CanReceiveSalary`がNormalのみのため通常口座の分岐にのみチェックUIを出す）。D&D並べ替え・削除ガード・命名可否は通常口座と同一の扱いとする（財布のような特別扱いはしない）。`MonthlyTab`では支出ゾーン見出しを「電子マネー利用」、追加ボタンを「利用を追加」、振込ゾーン見出しを「チャージ」、振込ゾーンの追加ボタンを「チャージを追加」とし、財布の「現金支出」と紛れない語彙にした（振込ゾーンの追加ボタンはコードレビューで見出しとの不一致が判明し追加対応）。アイコン/タグの出し分けは`AccountsTab`（PC/スマホ）・`MonthlyTab`の3箇所で重複していたため、`AccountDisplay.Icon(AccountType)`/`Tag(AccountType)`（`Portfolio.Disp.cs`の`AccountLabel(AccountKind)`と同型の`switch`式・未定義値は`_`既定腕でフォールバック）へ集約した（コードレビュー指摘・受入条件どおり）。
+  - **リリース順序が前提**：`#147`+`#154`（`AccountType`導入・複数クライアント間のスキーマ整合性）が本番未リリースの状態で本 issue を進めると、強制更新浸透前の窓で旧クライアントが`Type=EMoney`を静かに`Normal`へ落とす事故が起きうるため、`2.18.1`（ForceUpdate=true）での先行リリースを前提条件とした（実際に着手前確認で「v11は本番未リリース」の誤りを訂正し、`#147`/`#154`/`#164`/`#157`の順で2.18.1・2.18.2として先行リリース済みであることを確認してから着手）。
 - **アプリ内お知らせは repo 同梱 JSON（デプロイ配信）で管理する（#38）** … リリース内容・告知をユーザーに気づかせる手段として、サーバー/DB を追加せず `MoneyBoard/wwwroot/announcements.json`（フィールド: id/date/version/type/title/body）を静的配信する方式を採用（SWA Free 据え置き・追加コスト無し）。リリース作業（`/release`）の一環で1件追記するだけで告知できる。
   - **本文の箇条書きは種別タグを先頭に付ける運用**：`body` の各行（Markdown箇条書き）は `【新機能】`/`【改善】`/`【修正】` のいずれかを先頭に付け、その変更が新規追加・既存機能の改善・不具合修正のどれかを一目で判別できるようにする。1エントリ内に複数種別が混在してもよい（例: 新機能追加のリリースで併せて直したバグ修正がある場合、その行だけ `【修正】` にする）。リリース作業（`/release` §2.5）でエントリを追記する際は必ずこの形式に従う。
   - **表示先はスマホ＝共通ブランドコンポーネント `AppTitle`、PC＝サイドバーの独立ナビ項目（リリース後の実機確認で変更）**：当初は PC/スマホとも `AppTitle`（PCは `.sidenav-brand`、スマホは各ページ頭 `.home-head`/`.pf-head`/`.graph-header`。いずれか一方だけが常に1つレンダリングされる #55 の既存構造）に🔔ベルを集約する実装だったが、PC実機確認で「タイトル文字にベルがくっつく」「バッジ位置が行全体基準でずれる」不具合が見つかったため、PCはサイドバー内に「お知らせ」ラベル付きの独立したナビ項目（`SideNav.razor`。「金額を隠す」の直上）として分離した。`AppTitle` に `ShowBell` パラメータ（既定 true）を追加し、`SideNav` からは `ShowBell="false"` を渡してベル自体を非表示にしている。スマホは従来どおり `AppTitle` 内のベルのまま（ただし `.app-title` が親の flex コンテナ内で内容幅に縮んでベルがタイトル文字にくっつく不具合があったため `width:100%` を追加）。
@@ -1007,7 +1015,7 @@ Functions Isolated では `IConfiguration` ではなく
 - 本文サイズ上限（約1.9MB）＋構造バリデーション（コレクション数の健全性チェック）。
 
 ### スキーマ移行
-- `AppState.SchemaVersion` と `SchemaMigration.Apply()` が将来の段階移行の足場。**現状 CurrentVersion=11**。
+- `AppState.SchemaVersion` と `SchemaMigration.Apply()` が将来の段階移行の足場。**現状 CurrentVersion=12**。
 - Phase 2 のカテゴリ/カード/明細、`Ledger.Incomes`/`AtmDeposit`/`AtmWithdraw`・`Card.IsDeleted`・
   `MonthData.CardBilled` はすべて**加算的追加**（旧データはデフォルト値で読める）。
 - **v3**: 月初残高を「作成時スナップショット」から「前月末からの自動連鎖」へ変更。非起点月の `Confirmed` が
@@ -1067,6 +1075,19 @@ Functions Isolated では `IConfiguration` ではなく
       **#147/#154 を含むリリースでは `MoneyBoard.csproj` の `<ForceUpdate>` を `true` にする**（#142）。
       #147 は v5 以来はじめて実データを書き換える移行で、互換層が守れるのは Wallet だけ＝
       「互換性を壊す変更」に該当する。ただし force update が効くのは #142 以降のクライアントのみ。
+- **v12**（#148）: 電子マネー口座。財布専用だった起点月 `Account.WalletStartYm` を `Account.StartYm`
+  へ一般化し、`LedgerEngine.ShouldCreateLedgerFor` を全種別対応にする（電子マネーも作成月より前へ
+  台帳を遡って作らない）。既存の `WalletStartYm` を `StartYm` へコピーする（`SchemaMigration.MigrateStartYm`。
+  `a.StartYm ??= a.WalletStartYm` で、既に設定済みなら上書きしない）。
+  - Cosmos 上での手動リネームは採らず移行ステップとしてコピーする：`ShouldCreateLedgerFor` は
+    `StartYm == null` を「起点なし＝全月に台帳を作ってよい」と解釈するため、デプロイとリネームの間に
+    誰かが過去月を開くと財布の台帳が過去へ遡って作られる（#77 で潰した挙動の再発）。
+  - `WalletStartYm` は削除せず、`IsWallet` と同じパターンで移行専用の後方互換受け口として型上は残すが、
+    移行後はアプリロジックから参照されない。`AccountsTab.AddWallet` は旧クライアント互換のため
+    `WalletStartYm`/`StartYm` の両方を作成時に立てる。
+  - 本 issue 自身の `ForceUpdate` はデータ安全上の必須要件ではない（#147/#154 の先行リリースで
+    v11 未満のクライアントによる書き戻し窓は既に無害化済み）が、v12 移行を早く行き渡らせるため
+    `true` を推奨とし、2.19.0 で採用した。
 
 ### 月初残高の自動連鎖（OpeningOf）
 - `OpeningOf(ym, acct)` ＝ 前月の同口座台帳があれば `CloseOf(前月)`、無ければ（起点月）`Confirmed`。

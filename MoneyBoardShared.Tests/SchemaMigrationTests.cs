@@ -133,4 +133,43 @@ public class SchemaMigrationTests
         Assert.False(changed);
         Assert.Equal(AccountType.Wallet, state.Accounts[0].Type);
     }
+
+    [Fact]
+    public void Apply_V11ToV12_CopiesWalletStartYm_ToStartYm()
+    {
+        // v12 は起点月の一般化（#148）。旧 WalletStartYm を StartYm へコピーする。
+        var state = new AppState
+        {
+            SchemaVersion = 11,
+            Accounts = { new Account { Id = "w", Type = AccountType.Wallet, WalletStartYm = "202606" } },
+        };
+
+        var changed = SchemaMigration.Apply(state);
+
+        Assert.True(changed);
+        Assert.Equal(SchemaMigration.CurrentVersion, state.SchemaVersion);
+        Assert.Equal("202606", state.Accounts[0].StartYm);
+    }
+
+    [Fact]
+    public void Apply_V11ToV12_DoesNotOverwriteAlreadySetStartYm()
+    {
+        var state = new AppState
+        {
+            SchemaVersion = 11,
+            Accounts = { new Account { Id = "w", Type = AccountType.Wallet, WalletStartYm = "202606", StartYm = "202601" } },
+        };
+
+        SchemaMigration.Apply(state);
+
+        Assert.Equal("202601", state.Accounts[0].StartYm);
+    }
+
+    [Fact]
+    public void MigrateStartYm_LeavesNullWhenNoWalletStartYm()
+    {
+        var accounts = new List<Account> { new() { Id = "a", Type = AccountType.Normal } };
+        SchemaMigration.MigrateStartYm(accounts);
+        Assert.Null(accounts[0].StartYm);
+    }
 }

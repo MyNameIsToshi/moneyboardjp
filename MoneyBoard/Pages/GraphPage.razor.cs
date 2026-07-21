@@ -796,19 +796,20 @@ public partial class GraphPage
     private IEnumerable<CardDetail> CardDetailsByExactUsageYm(string ym) =>
         Svc.State.Months.Values.SelectMany(mo => mo.CardDetails).Where(d => StatsMath.UsageYmOf(d.Date) == ym);
 
-    // 財布の現金支出（#77）を ym・口座つきで列挙する。財布口座（過去に財布だった口座も含め
-    // Svc.State.Accounts から Type==Wallet で判定・ソフト削除済みでも過去月の参照のため対象に含める）の
-    // Debits はすべて手入力の現金支出のみ（固定費・カード由来の Debit は #124 で財布を引き落とし口座
-    // として選べないため財布のledgerには載らない）なので、口座で絞り込めば取りこぼしなく列挙できる。
+    // 財布・電子マネーの手入力支出（#77・#148）を ym・口座つきで列挙する。カテゴリ付き支出口座
+    // （過去に該当種別だった口座も含め Svc.State.Accounts から HasCategorizedSpending で判定・
+    // ソフト削除済みでも過去月の参照のため対象に含める）の Debits はすべて手入力の支出のみ
+    // （固定費・カード由来の Debit は #124/#148 でこれらの口座を引き落とし口座として選べないため
+    // ledgerには載らない）なので、口座で絞り込めば取りこぼしなく列挙できる。
     // 当初は CategoryId が空でない Debit だけに絞っていたが、新規追加した現金支出はカテゴリ未選択のまま
-    // CategoryId=null になる（#118フォローアップで判明・#77起因の不具合）ため、未分類の現金支出も
+    // CategoryId=null になる（#118フォローアップで判明・#77起因の不具合）ため、未分類の支出も
     // 集計対象に含むよう口座ベースの判定に変更した（NormalizeCategoryKey が null/""/参照切れを
     // まとめて「未分類」キーへ正規化するため、ここでは絞り込まず全件渡せばよい）。
     private IEnumerable<(string Ym, string AccountId, Debit Debit)> CashDebitsIn(IEnumerable<string> yms)
     {
-        var walletAccountIds = Svc.State.Accounts.Where(a => a.Type == AccountType.Wallet).Select(a => a.Id).ToHashSet();
+        var categorizedAccountIds = Svc.State.Accounts.Where(a => a.Type.HasCategorizedSpending()).Select(a => a.Id).ToHashSet();
         return yms.SelectMany(ym => Svc.State.Months.GetValueOrDefault(ym)?.Ledgers
-            .Where(kv => walletAccountIds.Contains(kv.Key))
+            .Where(kv => categorizedAccountIds.Contains(kv.Key))
             .SelectMany(kv => kv.Value.Debits.Select(d => (Ym: ym, AccountId: kv.Key, Debit: d)))
             ?? Enumerable.Empty<(string, string, Debit)>());
     }

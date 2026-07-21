@@ -27,7 +27,12 @@ public static class SchemaMigration
     // v11: 口座種別の enum 化（#147）。Account.IsWallet（bool）を廃止し Account.Type（AccountType）へ
     //      一本化。既存の IsWallet==true を Type=Wallet へ変換する（IsWallet は移行専用の後方互換受け口
     //      として型上は残るが、移行後はアプリロジックから参照されない）。
-    public const int CurrentVersion = 11;
+    // v12: 電子マネー口座（#148）。財布専用だった起点月 Account.WalletStartYm を Account.StartYm へ
+    //      一般化し、電子マネーにも適用する。既存の WalletStartYm を StartYm へコピーする（加算的で
+    //      安全だが、値そのものを引き継ぐ必要があるため通常の「加算のみ」より一段階移行処理が要る）。
+    //      WalletStartYm は移行専用の後方互換受け口として型上は残るが、移行後はアプリロジックから
+    //      参照されない（IsWallet と同じパターン）。
+    public const int CurrentVersion = 12;
 
     /// <summary>
     /// Account.Type（口座種別）が導入された版数（#147）。これ未満のクライアントが書いたデータは
@@ -45,6 +50,7 @@ public static class SchemaMigration
 
         if (from < 4) NormalizeCategoryRuleKeys(state);
         if (from < AccountTypeVersion) RestoreWalletTypeFromLegacyFlag(state.Accounts);
+        if (from < 12) MigrateStartYm(state.Accounts);
 
         state.SchemaVersion = CurrentVersion;
         return from < CurrentVersion;
@@ -80,6 +86,18 @@ public static class SchemaMigration
         foreach (var a in accounts)
         {
             if (a.IsWallet && a.Type == AccountType.Normal) a.Type = AccountType.Wallet;
+        }
+    }
+
+    /// <summary>
+    /// 財布専用だった起点月 <c>WalletStartYm</c> を汎用の <c>StartYm</c> へコピーする（#148）。
+    /// 既に <c>StartYm</c> が設定済みの口座は上書きしない（null のときだけ埋める）。
+    /// </summary>
+    public static void MigrateStartYm(List<Account> accounts)
+    {
+        foreach (var a in accounts)
+        {
+            a.StartYm ??= a.WalletStartYm;
         }
     }
 }
