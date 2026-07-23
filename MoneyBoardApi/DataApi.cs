@@ -108,8 +108,8 @@ public partial class DataApi(ILogger<DataApi> logger, CosmosClient cosmos, Fireb
 
             if (env.Settings != null)
             {
-                // 版数フロア（#155）：保存済み設定docの SchemaVersion より低い ClientSchemaVersion での
-                // 上書きを拒否する。読み取りが1回増える（RUトレードオフはADR参照）。
+                // 版数フロア（#155・stage2=#174）：保存済み設定docの SchemaVersion より低い、または
+                // 欠落した ClientSchemaVersion での上書きを拒否する。読み取りが1回増える（RUトレードオフはADR参照）。
                 int? storedSchemaVersion = null;
                 try
                 {
@@ -123,12 +123,6 @@ public partial class DataApi(ILogger<DataApi> logger, CosmosClient cosmos, Fireb
                     logger.LogWarning("SaveData rejected: schema floor violation (clientSchemaVersion={Csv}, stored={Stored})",
                         env.ClientSchemaVersion, storedSchemaVersion);
                     return new StatusCodeResult(StatusCodes.Status409Conflict);
-                }
-                if (env.ClientSchemaVersion is null)
-                {
-                    // ロールアウト第1段：欠落は許可するが、第2段（欠落拒否）へ切り替えてよい時期の
-                    // 判断材料として観測する（#155）。
-                    logger.LogInformation("SaveData: ClientSchemaVersion missing (userId={UserId})", userId);
                 }
             }
 
@@ -245,13 +239,14 @@ public partial class DataApi(ILogger<DataApi> logger, CosmosClient cosmos, Fireb
         foreach (var a in accounts) a.IsWallet = a.Type == AccountType.Wallet;
     }
 
-    // 版数フロアの純粋判定（#155）。ClientSchemaVersion 欠落（null）はロールアウト第1段のため許可する
-    // （旧クライアントを一斉に締め出さないため）。保存済み doc が無い（新規ユーザー）場合もフロアなし。
+    // 版数フロアの純粋判定（#155・stage2=#174）。保存済み doc が無い（新規ユーザー）場合はフロアなし。
+    // 保存済み doc がある場合、ClientSchemaVersion 欠落（null＝旧クライアント）は拒否する
+    // （ロールアウト第2段。第1段では許可していたが、旧クライアント一掃後に切り替え済み）。
     // internal=MoneyBoardApi.Tests から検証。
     internal static bool ViolatesSchemaFloor(int? clientSchemaVersion, int? storedSchemaVersion)
     {
-        if (clientSchemaVersion is not int csv) return false;
         if (storedSchemaVersion is not int stored) return false;
+        if (clientSchemaVersion is not int csv) return true;
         return csv < stored;
     }
 
