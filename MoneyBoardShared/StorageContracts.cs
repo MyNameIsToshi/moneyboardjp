@@ -9,6 +9,11 @@ public class DataEnvelope
     public SettingsPart? Settings { get; set; }
     public Dictionary<string, MonthPart> Months { get; set; } = new();
     public bool IsOwner { get; set; }   // GET レスポンスのみ：現在のユーザーがオーナーか（承認管理UIの出し分け用）
+
+    /// <summary>POST 時のみ：送信元クライアントが理解できるスキーマ版数（<see cref="SchemaMigration.CurrentVersion"/>）。
+    /// サーバーは保存済み設定docの SchemaVersion より低ければ保存を拒否する（版数フロア・#155）。
+    /// null＝ロールアウト第1段の旧クライアント（欠落は許可）。</summary>
+    public int? ClientSchemaVersion { get; set; }
 }
 
 /// <summary>設定ドキュメント（口座・固定費）に対応するパート。</summary>

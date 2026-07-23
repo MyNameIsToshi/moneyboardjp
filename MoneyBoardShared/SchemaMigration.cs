@@ -32,6 +32,10 @@ public static class SchemaMigration
     //      安全だが、値そのものを引き継ぐ必要があるため通常の「加算のみ」より一段階移行処理が要る）。
     //      WalletStartYm は移行専用の後方互換受け口として型上は残るが、移行後はアプリロジックから
     //      参照されない（IsWallet と同じパターン）。
+    // v13以降の運用変更（#155）: SaveData の版数フロア（保存済みdocより低い版数の保存を拒否）だけで
+    //      未知フィールド欠落を防ぐため、v13以降はこれまでと異なり「加算的なフィールド追加でも必ず
+    //      CurrentVersion を上げる」。旧クライアントは版数フロアで保存自体を拒否されるため、
+    //      JSONレベルのフィールドマージを実装せずに済む（詳細はdocs/ARCHITECTURE.md「スキーマ移行」節）。
     public const int CurrentVersion = 12;
 
     /// <summary>

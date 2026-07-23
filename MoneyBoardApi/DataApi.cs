@@ -105,6 +105,33 @@ public partial class DataApi(ILogger<DataApi> logger, CosmosClient cosmos, Fireb
             var (userId, _, authError) = await AuthorizeAsync(container, req);
             if (authError is not null) return authError;
             var pk = new PartitionKey(userId!);
+
+            if (env.Settings != null)
+            {
+                // 版数フロア（#155）：保存済み設定docの SchemaVersion より低い ClientSchemaVersion での
+                // 上書きを拒否する。読み取りが1回増える（RUトレードオフはADR参照）。
+                int? storedSchemaVersion = null;
+                try
+                {
+                    var r = await container.ReadItemAsync<SettingsDoc>(SettingsId, pk);
+                    storedSchemaVersion = r.Resource.SchemaVersion;
+                }
+                catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound) { /* 新規ユーザー：フロアなし */ }
+
+                if (ViolatesSchemaFloor(env.ClientSchemaVersion, storedSchemaVersion))
+                {
+                    logger.LogWarning("SaveData rejected: schema floor violation (clientSchemaVersion={Csv}, stored={Stored})",
+                        env.ClientSchemaVersion, storedSchemaVersion);
+                    return new StatusCodeResult(StatusCodes.Status409Conflict);
+                }
+                if (env.ClientSchemaVersion is null)
+                {
+                    // ロールアウト第1段：欠落は許可するが、第2段（欠落拒否）へ切り替えてよい時期の
+                    // 判断材料として観測する（#155）。
+                    logger.LogInformation("SaveData: ClientSchemaVersion missing (userId={UserId})", userId);
+                }
+            }
+
             var batch = container.CreateTransactionalBatch(pk);
             var ops = new List<(string kind, string ym)>();
 
@@ -216,6 +243,16 @@ public partial class DataApi(ILogger<DataApi> logger, CosmosClient cosmos, Fireb
         // 旧クライアント（Type を知らず IsWallet だけを見る）が同じデータを開いても財布判定を
         // 落とさないよう、後方互換フィールドを Type と矛盾しない値へ揃える。
         foreach (var a in accounts) a.IsWallet = a.Type == AccountType.Wallet;
+    }
+
+    // 版数フロアの純粋判定（#155）。ClientSchemaVersion 欠落（null）はロールアウト第1段のため許可する
+    // （旧クライアントを一斉に締め出さないため）。保存済み doc が無い（新規ユーザー）場合もフロアなし。
+    // internal=MoneyBoardApi.Tests から検証。
+    internal static bool ViolatesSchemaFloor(int? clientSchemaVersion, int? storedSchemaVersion)
+    {
+        if (clientSchemaVersion is not int csv) return false;
+        if (storedSchemaVersion is not int stored) return false;
+        return csv < stored;
     }
 
     // 異常に巨大なコレクションを拒否（DoS / 破損データ対策）。internal=MoneyBoardApi.Tests から検証。

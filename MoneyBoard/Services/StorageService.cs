@@ -4,7 +4,7 @@ using MoneyBoardShared;
 
 namespace MoneyBoard.Services;
 
-public enum SaveResult { Ok, Conflict, Error }
+public enum SaveResult { Ok, Conflict, SchemaOutdated, Error }
 
 /// <summary>サインイン済みだが未承認（オーナーの承認待ち）。サーバーが 403 を返したときに送出。</summary>
 public class AccessPendingException : Exception { }
@@ -115,10 +115,13 @@ public class StorageService(HttpClient http, AuthService auth)
                 changes.Settings.Etag = _settingsEtag;
             foreach (var (ym, m) in changes.Months)
                 m.Etag = _monthEtags.GetValueOrDefault(ym);
+            changes.ClientSchemaVersion = SchemaMigration.CurrentVersion;
 
             using var resp = await http.PostAsJsonAsync(ApiPath, changes);
             if (resp.StatusCode == HttpStatusCode.PreconditionFailed)
                 return SaveResult.Conflict;
+            if (resp.StatusCode == HttpStatusCode.Conflict)
+                return SaveResult.SchemaOutdated;   // 版数フロア違反（#155）：サーバー側がより新しいスキーマで拒否
             if (!resp.IsSuccessStatusCode)
             {
                 Console.WriteLine($"SaveData failed: {(int)resp.StatusCode} {resp.ReasonPhrase}");

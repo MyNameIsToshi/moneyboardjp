@@ -98,6 +98,8 @@ public class AppUpdateService
         // （#132時点ではPWAのバッジ表示にしか使い道が無くIsStandalone限定だったが、その制約は無くなった）。
         _appState.Changed += TryShowPendingDialog;
         _overlay.Changed += TryShowPendingDialog;
+        // 版数フロア違反（#155）でSaveDataが拒否したときは、ポーリング検知を待たず強制更新ダイアログを出す。
+        _appState.SchemaOutdated += OnSchemaOutdated;
         _ = PollForUpdateAsync(currentVersion);
     }
 
@@ -153,6 +155,19 @@ public class AppUpdateService
         ShowUpdateDialog = true;
         IsForceUpdate = _pendingForceUpdate;
         Changed?.Invoke();
+    }
+
+    /// <summary>
+    /// SaveData が版数フロア違反（#155）で保存を拒否したときに呼ばれる。保存済みデータより
+    /// このクライアントの版数が低い＝上書きの危険があるため、ポーリング検知や「あとで」の抑止を
+    /// 待たず強制更新ダイアログを出す（既存の更新ダイアログ導線をそのまま再利用）。
+    /// </summary>
+    private void OnSchemaOutdated()
+    {
+        _pendingForceUpdate = true;
+        _pendingVersion ??= "?";
+        _dismissedOnce = false;
+        TryShowPendingDialog();
     }
 
     /// <summary>「あとで」：ダイアログを閉じ、以降このセッション（再起動＝再読込まで）は再表示しない。</summary>

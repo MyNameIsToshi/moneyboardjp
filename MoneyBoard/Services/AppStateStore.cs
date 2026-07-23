@@ -22,6 +22,10 @@ public class AppStateStore(StorageService storage)
     /// <summary>保存が競合し、最新状態を読み込み直したときに発火（UI 再描画用）。</summary>
     public event Action? StateReloadedExternally;
 
+    /// <summary>サーバーが版数フロア違反で保存を拒否したときに発火（#155）。
+    /// AppUpdateService が購読し、上書きせずアプリ更新ダイアログを出す。</summary>
+    public event Action? SchemaOutdated;
+
     /// <summary>HasPendingChanges が変化したときに発火（#141）。</summary>
     public event Action? Changed;
 
@@ -138,6 +142,13 @@ public class AppStateStore(StorageService storage)
             {
                 if (settingsChanged) _settingsBaseline = settingsJson;
                 foreach (var (ym, json) in changedMonthJson) _monthBaseline[ym] = json;
+            }
+            else if (result == SaveResult.SchemaOutdated)
+            {
+                // サーバーの保存済みデータより版数が低い＝このクライアントは古い。ローカルの変更で
+                // サーバーを上書きせず、アプリ更新を促す。強制更新→リロードで最新データを読み直すため、
+                // この未保存編集は再送されず破棄される（#155「マージせず拒否」設計どおりの割り切り）。
+                SchemaOutdated?.Invoke();
             }
             // Error: ベースラインは据え置き → 次回保存で再送される
         }
