@@ -71,12 +71,24 @@ public static class ConflictDiff
         return 0;
     }
 
+    /// <summary>辞書の値が <see cref="Ledger"/> のように List/Dictionary を内包する複合型かどうか。
+    /// 複合型ならキー単位ではなく明細単位（<see cref="CountCompoundValueDiff"/>）で数える。
+    /// <see cref="MonthData.CardBilled"/> のような値がスカラー（decimal 等）の辞書は対象外
+    /// （従来どおりキー単位のまま。過剰な再帰をしない）。</summary>
+    private static bool IsCompoundType(Type t) =>
+        t.IsClass && t != typeof(string) &&
+        t.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Any(p => typeof(IDictionary).IsAssignableFrom(p.PropertyType) || typeof(IList).IsAssignableFrom(p.PropertyType));
+
     private static int CountDictDiff(IDictionary? before, IDictionary after)
     {
-        var beforeJsonByKey = new Dictionary<string, string>();
+        var valueType = after.GetType().IsGenericType ? after.GetType().GetGenericArguments()[1] : null;
+        var isCompound = valueType != null && IsCompoundType(valueType);
+
+        var beforeByKey = new Dictionary<string, object?>();
         if (before != null)
             foreach (DictionaryEntry entry in before)
-                beforeJsonByKey[entry.Key.ToString()!] = JsonSerializer.Serialize(entry.Value);
+                beforeByKey[entry.Key.ToString()!] = entry.Value;
 
         var count = 0;
         var afterKeys = new HashSet<string>();
@@ -84,11 +96,55 @@ public static class ConflictDiff
         {
             var key = entry.Key.ToString()!;
             afterKeys.Add(key);
-            var afterJson = JsonSerializer.Serialize(entry.Value);
-            if (!beforeJsonByKey.TryGetValue(key, out var beforeJson) || beforeJson != afterJson) count++;
+            var hasBefore = beforeByKey.TryGetValue(key, out var beforeValue);
+
+            if (isCompound)
+            {
+                count += CountCompoundValueDiff(hasBefore ? beforeValue : null, entry.Value!, valueType!);
+            }
+            else
+            {
+                var afterJson = JsonSerializer.Serialize(entry.Value);
+                if (!hasBefore || JsonSerializer.Serialize(beforeValue) != afterJson) count++;
+            }
         }
-        count += beforeJsonByKey.Keys.Count(k => !afterKeys.Contains(k));   // 削除されたキー
+
+        var removedKeys = beforeByKey.Keys.Where(k => !afterKeys.Contains(k)).ToList();
+        if (isCompound)
+            foreach (var key in removedKeys)
+                count += CountCompoundValueDiff(beforeByKey[key], Activator.CreateInstance(valueType!)!, valueType!);
+        else
+            count += removedKeys.Count;   // 削除されたキー
+
         return count;
+    }
+
+    /// <summary><see cref="Ledger"/> のような複合型の辞書値を、内包する List/Dictionary は明細単位で、
+    /// それ以外のスカラープロパティ（<see cref="Ledger.Salary"/> 等）はまとめて「台帳あたり1件」で数える
+    /// （方針は docs/ARCHITECTURE.md「保存の信頼性」参照）。</summary>
+    private static int CountCompoundValueDiff(object? before, object after, Type type)
+    {
+        // 新規キー追加（before==null）は削除（after=既定インスタンス）と対称にするため、
+        // 既定インスタンスで比較する。これをしないとスカラーが全て既定値の新規台帳でも
+        // null≠既定値でスカラー変更と誤判定し、削除より1件多く数えてしまう。
+        before ??= Activator.CreateInstance(type);
+
+        var total = 0;
+        var scalarChanged = false;
+        foreach (var prop in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+        {
+            var beforeValue = prop.GetValue(before);
+            var afterValue = prop.GetValue(after);
+            if (afterValue is IDictionary or IList)
+            {
+                total += CountCollectionDiff(beforeValue, afterValue);
+            }
+            else if (!scalarChanged && JsonSerializer.Serialize(beforeValue) != JsonSerializer.Serialize(afterValue))
+            {
+                scalarChanged = true;
+            }
+        }
+        return total + (scalarChanged ? 1 : 0);
     }
 
     private static int CountListDiff(IList? before, IList after)

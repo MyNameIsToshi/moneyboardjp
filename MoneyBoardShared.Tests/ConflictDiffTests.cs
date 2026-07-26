@@ -79,6 +79,191 @@ public class ConflictDiffTests
     }
 
     [Fact]
+    public void Extract_MonthLedgerDebitsAddedAndModified_CountsByLineItemNotByAccount()
+    {
+        // #177: 口座内の複数明細を編集しても「1件」に丸めず、明細単位で数える
+        var before = new MonthPart
+        {
+            Ledgers = new()
+            {
+                ["a1"] = new Ledger
+                {
+                    Debits = new()
+                    {
+                        new Debit { Id = "d1", Name = "既存1", Amount = 1000 },
+                        new Debit { Id = "d2", Name = "既存2", Amount = 2000 },
+                    },
+                },
+            },
+        };
+        var after = new MonthPart
+        {
+            Ledgers = new()
+            {
+                ["a1"] = new Ledger
+                {
+                    Debits = new()
+                    {
+                        new Debit { Id = "d1", Name = "既存1", Amount = 1500 },   // 変更
+                        // d2 は削除
+                        new Debit { Id = "d3", Name = "新規1", Amount = 300 },    // 追加
+                        new Debit { Id = "d4", Name = "新規2", Amount = 400 },    // 追加
+                    },
+                },
+            },
+        };
+        var baselineMonths = new Dictionary<string, MonthPart> { ["2026-07"] = before };
+        var discardedMonths = new Dictionary<string, MonthPart> { ["2026-07"] = after };
+
+        var result = ConflictDiff.Extract(null, null, baselineMonths, discardedMonths);
+
+        var month = Assert.Single(result.Months);
+        Assert.Equal(4, month.ItemCount);   // d1変更 + d2削除 + d3追加 + d4追加
+    }
+
+    [Fact]
+    public void Extract_MonthLedgerScalarAndDebitBothChanged_CountsLineItemsPlusOneForScalar()
+    {
+        var before = new MonthPart { Ledgers = new() { ["a1"] = new Ledger { Salary = 300000 } } };
+        var after = new MonthPart
+        {
+            Ledgers = new()
+            {
+                ["a1"] = new Ledger
+                {
+                    Salary = 320000,   // スカラー変更
+                    Debits = new() { new Debit { Id = "d1", Name = "支出", Amount = 500 } },   // 明細追加
+                },
+            },
+        };
+        var baselineMonths = new Dictionary<string, MonthPart> { ["2026-07"] = before };
+        var discardedMonths = new Dictionary<string, MonthPart> { ["2026-07"] = after };
+
+        var result = ConflictDiff.Extract(null, null, baselineMonths, discardedMonths);
+
+        var month = Assert.Single(result.Months);
+        Assert.Equal(2, month.ItemCount);   // Debits +1 と スカラー変更で1件（合算2件）
+    }
+
+    [Fact]
+    public void Extract_MonthLedgerScalarOnlyChanged_CountsOnePerLedger()
+    {
+        // 受入条件: スカラーのみ（Salary/Bonus/Confirmed/AtmDeposit/AtmWithdraw）の変更は
+        // 変更フィールド数ではなく「台帳あたり1件」で数える
+        var before = new MonthPart { Ledgers = new() { ["a1"] = new Ledger { Salary = 300000, Bonus = 100000 } } };
+        var after = new MonthPart { Ledgers = new() { ["a1"] = new Ledger { Salary = 320000, Bonus = 150000, AtmWithdraw = 5000 } } };
+        var baselineMonths = new Dictionary<string, MonthPart> { ["2026-07"] = before };
+        var discardedMonths = new Dictionary<string, MonthPart> { ["2026-07"] = after };
+
+        var result = ConflictDiff.Extract(null, null, baselineMonths, discardedMonths);
+
+        var month = Assert.Single(result.Months);
+        Assert.Equal(1, month.ItemCount);   // 3フィールド変わっても台帳あたり1件
+    }
+
+    [Fact]
+    public void Extract_NewLedgerAddedWithDefaultScalars_CountsOnlyLineItems()
+    {
+        // #177: 新規追加された口座台帳は、削除時と対称に明細のみ数える（スカラー既定値で
+        // 誤って +1 しない）。before に無い口座キーを追加し、明細だけを入れたケース。
+        var before = new MonthPart();
+        var after = new MonthPart
+        {
+            Ledgers = new()
+            {
+                ["a1"] = new Ledger
+                {
+                    Debits = new() { new Debit { Id = "d1" }, new Debit { Id = "d2" } },
+                },
+            },
+        };
+        var baselineMonths = new Dictionary<string, MonthPart> { ["2026-07"] = before };
+        var discardedMonths = new Dictionary<string, MonthPart> { ["2026-07"] = after };
+
+        var result = ConflictDiff.Extract(null, null, baselineMonths, discardedMonths);
+
+        var month = Assert.Single(result.Months);
+        Assert.Equal(2, month.ItemCount);   // d1・d2 の追加のみ（新規台帳のスカラー既定値は数えない）
+    }
+
+    [Fact]
+    public void Extract_MonthLedgerIncomesAndWalletDeposits_CountsByLineItem()
+    {
+        // 受入条件: Debits 以外の明細リスト（Incomes/WalletAtmDeposits）も明細単位で数える
+        var before = new MonthPart
+        {
+            Ledgers = new()
+            {
+                ["a1"] = new Ledger
+                {
+                    Incomes = new() { new IncomeItem { Id = "i1", Amount = 1000 } },
+                    WalletAtmDeposits = new() { new WalletAtmDeposit { Id = "w1", Amount = 2000 } },
+                },
+            },
+        };
+        var after = new MonthPart
+        {
+            Ledgers = new()
+            {
+                ["a1"] = new Ledger
+                {
+                    Incomes = new() { new IncomeItem { Id = "i1", Amount = 1500 } },   // 変更
+                    WalletAtmDeposits = new()
+                    {
+                        new WalletAtmDeposit { Id = "w1", Amount = 2000 },              // 不変
+                        new WalletAtmDeposit { Id = "w2", Amount = 3000 },              // 追加
+                    },
+                },
+            },
+        };
+        var baselineMonths = new Dictionary<string, MonthPart> { ["2026-07"] = before };
+        var discardedMonths = new Dictionary<string, MonthPart> { ["2026-07"] = after };
+
+        var result = ConflictDiff.Extract(null, null, baselineMonths, discardedMonths);
+
+        var month = Assert.Single(result.Months);
+        Assert.Equal(2, month.ItemCount);   // i1変更 + w2追加
+    }
+
+    [Fact]
+    public void Extract_MonthLedgerRemoved_CountsRemainingLineItems()
+    {
+        var before = new MonthPart
+        {
+            Ledgers = new()
+            {
+                ["a1"] = new Ledger
+                {
+                    Debits = new() { new Debit { Id = "d1" }, new Debit { Id = "d2" } },
+                },
+            },
+        };
+        var after = new MonthPart();   // 口座台帳ごと削除
+        var baselineMonths = new Dictionary<string, MonthPart> { ["2026-07"] = before };
+        var discardedMonths = new Dictionary<string, MonthPart> { ["2026-07"] = after };
+
+        var result = ConflictDiff.Extract(null, null, baselineMonths, discardedMonths);
+
+        var month = Assert.Single(result.Months);
+        Assert.Equal(2, month.ItemCount);   // d1・d2 の削除をそれぞれ数える
+    }
+
+    [Fact]
+    public void Extract_MonthCardBilledChanged_StaysAccountKeyGranularity()
+    {
+        // CardBilled は値がスカラー（decimal）の辞書なので、複合型の再帰対象にせずキー単位のまま数える
+        var before = new MonthPart { CardBilled = new() { ["card1"] = 10000m } };
+        var after = new MonthPart { CardBilled = new() { ["card1"] = 12000m, ["card2"] = 5000m } };
+        var baselineMonths = new Dictionary<string, MonthPart> { ["2026-07"] = before };
+        var discardedMonths = new Dictionary<string, MonthPart> { ["2026-07"] = after };
+
+        var result = ConflictDiff.Extract(null, null, baselineMonths, discardedMonths);
+
+        var month = Assert.Single(result.Months);
+        Assert.Equal(2, month.ItemCount);   // card1変更 + card2追加（キー単位）
+    }
+
+    [Fact]
     public void Extract_NewMonthNotInBaseline_CountsAllItemsAsDiscarded()
     {
         var after = new MonthPart

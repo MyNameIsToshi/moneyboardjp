@@ -1021,6 +1021,24 @@ Functions Isolated では `IConfiguration` ではなく
   - **件数の数え方**: 要素に `Id` プロパティがあれば Id 単位（追加/削除/内容変更をそれぞれ1件）で
     数え、無い場合（`BonusMonths` 等の `List<int>`）は多重集合の対称差にフォールバックする。
     復元・マージは対象外（提示するのは件数のみ）。
+  - **月次台帳（`MonthPart.Ledgers`）は口座単位ではなく明細単位で数える（#177）**: `Ledgers` は
+    `Dictionary<string, Ledger>`（キー＝口座）だが、`Ledger` 自体が `Debits`/`Incomes`/
+    `WalletAtmDeposits` という明細リストを内包する複合型のため、従来の「辞書はキー単位」のまま
+    数えると、1口座内で明細を何件編集しても「1件」に丸まり、設定側（`List<FixedCost>` 等）との
+    粒度が不一致で**損失を過少表示**してしまっていた。`ConflictDiff.CountDictDiff` は辞書の値の型が
+    List/Dictionary を持つ複合型かどうかを判定し（`IsCompoundType`）、複合型なら
+    `CountCompoundValueDiff` で内部の明細リストへ再帰し明細単位で合算する。`CardBilled`
+    （`Dictionary<string, decimal>` のようにスカラー値の辞書）はこの判定に該当しないため、
+    従来どおりキー単位のまま（過剰な再帰をしない）。
+    - **スカラーのみの変更の数え方**: `Salary`/`Bonus`/`Confirmed`/`AtmDeposit`/`AtmWithdraw` の
+      ようなリスト化されていないフィールドは、変更フィールド数ではなく「台帳あたり1件」で数える
+      （明細の増減と合算）。フィールド単位で数えると意味のない粒度の細かさになり、0件にすると
+      #158 の趣旨（何を失ったか伝える）に反するため。
+    - **新規台帳追加と口座削除の対称性**: `CountCompoundValueDiff` は新規キー追加時
+      （`before` 無し）を、既定インスタンスとの比較として扱う（`before ??= Activator.CreateInstance(type)`）。
+      これをしないと「スカラーが全て既定値の新規台帳」でも `Serialize(null) != Serialize(既定値)`
+      でスカラー変更と誤判定し、同じ内容の台帳でも追加時が削除時より1件多くなる非対称が生じる
+      （コードレビューで検出・修正）。
   - **表示は通知バナーではなくダイアログ**: アプリ更新ダイアログ（`AppUpdateDialog.razor`）と同じ
     `.dialog-overlay`/`.dialog-box` を再利用し、背景クリックでは閉じない（誤操作で見逃さないため。
     他の CUD 系ダイアログと同じ方針）。「閉じる」ボタンのみで、更新ダイアログと異なりリロードは
