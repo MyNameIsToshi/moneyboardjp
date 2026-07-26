@@ -21,9 +21,20 @@
     {
         @if (ShowConflictNotice)
         {
-            <div class="notice">
-                <span>別の場所でデータが更新されたため、最新の内容を再読み込みしました。</span>
-                <button class="x" @onclick="() => ShowConflictNotice = false">✕</button>
+            <div class="dialog-overlay">
+                <div class="dialog-box">
+                    <h4>データが更新されました</h4>
+                    <div class="dialog-message">
+                        別の場所でデータが更新されたため、最新の内容を再読み込みしました。
+                        @if (DiscardedSummaryText is not null)
+                        {
+                            <br /><text>未保存の変更（@DiscardedSummaryText）は失われました。</text>
+                        }
+                    </div>
+                    <div class="dialog-btns">
+                        <button class="btn primary" @onclick="() => ShowConflictNotice = false">閉じる</button>
+                    </div>
+                </div>
             </div>
         }
 
@@ -75,6 +86,7 @@
     private bool Loaded = false;
     private bool LoadFailed = false;
     private bool ShowConflictNotice = false;
+    private string? DiscardedSummaryText;
     private int ReloadKey = 0;
 
     protected override async Task OnInitializedAsync()
@@ -85,11 +97,22 @@
 
     // 保存競合で最新を読み込み直したとき: タブを再マウントして
     // 子コンポーネントがキャッシュした状態（Mo など）を作り直す。
-    private void OnExternalReload()
+    private void OnExternalReload(DiscardedChanges discarded)
     {
         ReloadKey++;
         ShowConflictNotice = true;
+        DiscardedSummaryText = BuildDiscardedSummaryText(discarded);
         InvokeAsync(StateHasChanged);
+    }
+
+    // 破棄された編集の要約文を組み立てる（#158）。「設定 N件」「yyyy年M月 N件」をカンマ区切りで列挙する。
+    private static string? BuildDiscardedSummaryText(DiscardedChanges discarded)
+    {
+        if (discarded.IsEmpty) return null;
+        var parts = new List<string>();
+        if (discarded.SettingsItemCount is int settingsCount) parts.Add($"設定 {settingsCount}件");
+        parts.AddRange(discarded.Months.Select(m => $"{LedgerService.Label(m.Ym)} {m.ItemCount}件"));
+        return string.Join("、", parts);
     }
 
     // クエリ ?tab= が有効値なら採用（未指定はデスクトップのタブ操作に委ねる）。

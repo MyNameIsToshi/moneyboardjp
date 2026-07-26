@@ -1010,6 +1010,39 @@ Functions Isolated では `IConfiguration` ではなく
 - **楽観的並行制御**: 各ドキュメントの ETag を保持し If-Match 送信。競合（412）時は
   ローカルを上書きせず最新を再読込し、`StateReloadedExternally` で UI に通知。
 - **読込失敗時**: State を変更せず保存もしない（空での上書き防止）。UI は再読み込みを促す。
+- **破棄されたローカル編集の可視化（#158）**: 「ローカルの変更で上書きしない」方針自体は正しいが、
+  従来は破棄された内容が UI 上不可視だった（再読込したことしか分からない）。`StateReloadedExternally`
+  に `DiscardedChanges`（対象の月／設定と件数）を持たせ、`Home.razor` の競合通知に「未保存の変更
+  （設定 N件、yyyy年M月 N件…）は失われました」を表示する。
+  - **差分抽出は `MoneyBoardShared.ConflictDiff`（純粋ロジック）**: 直前まで保存済みだった
+    ベースライン（`_settingsBaseline`/`_monthBaseline`。再読込で上書きされる前の値）と、送信予定
+    だったローカル編集（`changes`）を比較する。`SettingsPart`/`MonthPart` の List/Dictionary
+    プロパティを `ObjectSync` と同様に反射で列挙するため、両パートへのフィールド追加時も更新不要。
+  - **件数の数え方**: 要素に `Id` プロパティがあれば Id 単位（追加/削除/内容変更をそれぞれ1件）で
+    数え、無い場合（`BonusMonths` 等の `List<int>`）は多重集合の対称差にフォールバックする。
+    復元・マージは対象外（提示するのは件数のみ）。
+  - **表示は通知バナーではなくダイアログ**: アプリ更新ダイアログ（`AppUpdateDialog.razor`）と同じ
+    `.dialog-overlay`/`.dialog-box` を再利用し、背景クリックでは閉じない（誤操作で見逃さないため。
+    他の CUD 系ダイアログと同じ方針）。「閉じる」ボタンのみで、更新ダイアログと異なりリロードは
+    不要（State は既にメモリ上で最新化済みのため）。旧 `.notice`（黄色バナー）CSS は削除。
+  - **Portfolio（証券ポートフォリオ）にも同様に適用**: `PortfolioStore` は差分送信をしない
+    全体保存のため `SettingsPart`/`MonthPart` のような分割が無いが、`ConflictDiff.CountItemDiff`
+    （`Extract` から使う内部ロジックを型非依存の形で公開）を `PortfolioData` 全体に適用する。
+    競合時の件数算出用に `_baseline`（直近ロード/保存成功時点の JSON スナップショット）を追加。
+    UI 側は月内訳が無いため件数のみのシンプルなダイアログ（`Portfolio.razor` の `_conflictOpen`）。
+  - **件数から自動取得の価格系フィールドを除外（コードレビュー指摘・修正）**: `CurrentPrices`/
+    `PrevPrices`/`Snapshots` は資産タブを開くたび・価格更新ボタンで自動的に書き換わる派生データで
+    あり、ユーザーが手入力した編集ではない。除外せず数えると、価格更新直後に競合しただけで
+    「未保存の変更（保有銘柄数の約2倍+1件）は失われました」と実態と無関係な件数が出てしまう
+    （再読込後は次の価格更新で再取得され実損もない）。`CountItemDiff` に除外プロパティ集合
+    `ignoreProps` を追加し、`PortfolioStore` は `Holdings`/`Buys`/`Sells`/`Dividends` などの
+    実編集のみを数える（`AutoManagedPriceFields` 定数）。
+  - **再読込に失敗したときは「失われた」と通知しない（コードレビュー指摘・修正）**: 競合検知後の
+    再読込（`storage.LoadAsync()`/`svc.LoadAsync()`）自体が例外で失敗した場合、`State`/`Data` は
+    据え置かれローカル編集は保持される（次回保存で再送される）。この場合に `StateReloadedExternally`
+    を発火すると「再読み込みしました」「N件は失われました」という虚偽の通知になるため、両ストアとも
+    再読込が実際に成功したときだけ発火する。`PortfolioStore` の `_baseline` 更新も同様に再読込成功時
+    のみ行う（失敗時に編集中の `Data` で上書きすると、次の競合で件数が過少表示になるため）。
 
 ### API ガード（DataApi.SaveData）
 - 本文サイズ上限（約1.9MB）＋構造バリデーション（コレクション数の健全性チェック）。

@@ -45,7 +45,16 @@ public partial class Portfolio
         if (_scrollLocked) _ = JS.InvokeVoidAsync("moneyboardViewport.setBodyScrollLock", false);
         Overlay.SetOpen(nameof(Portfolio), false);
     }
-    private void OnReload() => InvokeAsync(StateHasChanged);
+
+    private bool _conflictOpen;
+    private int? _conflictItemCount;
+
+    private void OnReload(int? discardedItemCount)
+    {
+        _conflictOpen = true;
+        _conflictItemCount = discardedItemCount;
+        InvokeAsync(StateHasChanged);
+    }
 
     // いずれかのダイアログ表示中は背面スクロールをロック（取引/新規登録/削除確認/破棄確認）。
     private bool AnyDialogOpen => _addOpen || _txHoldingId != null || ShowConfirm || _txCloseWarn;

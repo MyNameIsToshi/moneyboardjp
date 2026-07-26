@@ -19,8 +19,9 @@ public class AppStateStore(StorageService storage)
     /// RequestSave で true、デバウンス保存（成功/競合/失敗いずれも）が完了したら false になる。</summary>
     public bool HasPendingChanges { get; private set; }
 
-    /// <summary>保存が競合し、最新状態を読み込み直したときに発火（UI 再描画用）。</summary>
-    public event Action? StateReloadedExternally;
+    /// <summary>保存が競合し、最新状態を読み込み直したときに発火（UI 再描画用）。
+    /// 破棄されたローカル編集の要約（#158）を引数で渡す。</summary>
+    public event Action<DiscardedChanges>? StateReloadedExternally;
 
     /// <summary>サーバーが版数フロア違反で保存を拒否したときに発火（#155）。
     /// AppUpdateService が購読し、上書きせずアプリ更新ダイアログを出す。</summary>
@@ -125,18 +126,27 @@ public class AppStateStore(StorageService storage)
             var result = await storage.SaveAsync(changes);
             if (result == SaveResult.Conflict)
             {
+                // 上書きで消える側（ローカルの未保存編集）の要約を、ベースラインを再構築する前に
+                // 抽出しておく（#158：何が失われたかをユーザーに提示する）。
+                var discarded = BuildDiscardedSummary(changes, settingsChanged);
+
                 // 別タブ/別端末が先に更新済み。ローカルの変更で上書きせず最新を読み込む。
                 // 読み込んだ内容は LoadAsync と同じくスキーマ移行を通す（#147）。旧スキーマの端末が
                 // 先に保存していた場合、ここで移行を挟まないとそのセッションは未移行の State で
                 // 動き続ける（例: 財布が Type=Normal のまま＝財布として扱われなくなる）。
+                var reloaded = false;
                 try
                 {
                     State = await storage.LoadAsync() ?? State;
                     SeedBaselines();
+                    reloaded = true;
                     if (SchemaMigration.Apply(State)) RequestSave();
                 }
                 catch { /* 再読込失敗時は既存 State を維持 */ }
-                StateReloadedExternally?.Invoke();
+
+                // 実際に再読込できたときだけ「再読み込みした／N 件失われた」と通知する。再読込に失敗した場合は
+                // ローカル編集を維持しており（ベースライン据え置きで次回再送される）、失われたと断定しない。
+                if (reloaded) StateReloadedExternally?.Invoke(discarded);
             }
             else if (result == SaveResult.Ok)
             {
@@ -161,6 +171,23 @@ public class AppStateStore(StorageService storage)
             if (pending is null || pending.IsCancellationRequested) SetPendingChanges(false);
             _saveLock.Release();
         }
+    }
+
+    // 直前まで保存済みだったベースライン（_settingsBaseline/_monthBaseline）と、送信予定だった
+    // ローカル編集（changes）を比較し、破棄される項目数を要約する（#158）。SeedBaselines で
+    // ベースラインが最新化される前に呼び出すこと。
+    private DiscardedChanges BuildDiscardedSummary(DataEnvelope changes, bool settingsChanged)
+    {
+        SettingsPart? baselineSettings = settingsChanged && !string.IsNullOrEmpty(_settingsBaseline)
+            ? JsonSerializer.Deserialize<SettingsPart>(_settingsBaseline)
+            : null;
+
+        var baselineMonths = new Dictionary<string, MonthPart>();
+        foreach (var ym in changes.Months.Keys)
+            if (_monthBaseline.TryGetValue(ym, out var json))
+                baselineMonths[ym] = JsonSerializer.Deserialize<MonthPart>(json) ?? new MonthPart();
+
+        return ConflictDiff.Extract(baselineSettings, changes.Settings, baselineMonths, changes.Months);
     }
 
     private void SeedBaselines()

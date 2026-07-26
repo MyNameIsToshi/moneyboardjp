@@ -341,6 +341,26 @@
     }
 </div>
 
+@* ── 保存競合（412）通知ダイアログ（#158。背景クリックでは閉じない）── *@
+@if (_conflictOpen)
+{
+    <div class="dialog-overlay">
+        <div class="dialog-box">
+            <h4>データが更新されました</h4>
+            <div class="dialog-message">
+                別の場所でデータが更新されたため、最新の内容を再読み込みしました。
+                @if (_conflictItemCount is int n)
+                {
+                    <br /><text>未保存の変更（@n 件）は失われました。</text>
+                }
+            </div>
+            <div class="dialog-btns">
+                <button class="btn primary" @onclick="() => _conflictOpen = false">閉じる</button>
+            </div>
+        </div>
+    </div>
+}
+
 @* ── 新規銘柄登録ダイアログ（誤クリック防止のためダイアログ外クリックでは閉じない）── *@
 @if (_addOpen)
 {

@@ -253,20 +253,6 @@ body {
   color: var(--sub);
 }
 
-/* データ競合での再読み込み通知（黄色バナー） */
-.notice {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  background: #fff3cd;
-  border: 1px solid #ffe69c;
-  color: #664d03;
-  padding: 10px 14px;
-  border-radius: 6px;
-  margin-bottom: 12px;
-}
-
 /* =====================================================
    ログイン画面 (App.razor)
    ===================================================== */
