@@ -167,13 +167,14 @@ public partial class DataApi
             }
             catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound) { }
 
-            // 株・投信・USD/JPY を並行取得。
+            // 株・投信・USD/JPY を並行取得。価格取得対象は保有中（現在数量>0）の銘柄のみ（売却済みへのリクエストは無駄・#178）。
             var active = data.Holdings.Where(h => !h.IsDeleted).ToList();
-            var stockTasks = active
+            var held = active.Where(h => PortfolioMath.IsHeld(PortfolioMath.Summarize(h, data.Buys, data.Sells, data.Dividends).Quantity)).ToList();
+            var stockTasks = held
                 .Where(h => h.Class != AssetClass.Fund && !string.IsNullOrEmpty(h.Symbol))
                 .Select(async h => (h, P: await FetchPriceAsync(PortfolioMath.YahooSymbol(h))))
                 .ToList();
-            var fundTasks = active
+            var fundTasks = held
                 .Where(h => h.Class == AssetClass.Fund && !string.IsNullOrEmpty(h.AssocFundCd))
                 .Select(async h => (h, P: await FetchFundPriceAsync(h.Isin, h.AssocFundCd)))
                 .ToList();
@@ -302,13 +303,16 @@ public partial class DataApi
             if (docs.Count == 0) return new OkObjectResult(new RecordSnapshotsResponse());
 
             // 価格は全ユーザー分をまとめて重複排除して取得（Yahoo/投信協会への呼び出し回数を抑える）。
+            // 保有中（現在数量>0）の銘柄のみ対象とし、売却済みへのリクエストを省く（#178）。
+            bool IsHeldIn(PortfolioReadDoc d, Holding h) =>
+                PortfolioMath.IsHeld(PortfolioMath.Summarize(h, d.Buys, d.Sells, d.Dividends).Quantity);
             var stockSymbols = docs
-                .SelectMany(d => d.Holdings.Where(h => !h.IsDeleted && h.Class != AssetClass.Fund && !string.IsNullOrEmpty(h.Symbol)))
+                .SelectMany(d => d.Holdings.Where(h => !h.IsDeleted && h.Class != AssetClass.Fund && !string.IsNullOrEmpty(h.Symbol) && IsHeldIn(d, h)))
                 .Select(PortfolioMath.YahooSymbol)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
             var fundHoldings = docs
-                .SelectMany(d => d.Holdings.Where(h => !h.IsDeleted && h.Class == AssetClass.Fund && !string.IsNullOrEmpty(h.AssocFundCd)))
+                .SelectMany(d => d.Holdings.Where(h => !h.IsDeleted && h.Class == AssetClass.Fund && !string.IsNullOrEmpty(h.AssocFundCd) && IsHeldIn(d, h)))
                 .GroupBy(h => h.AssocFundCd.Trim(), StringComparer.OrdinalIgnoreCase)
                 .Select(g => g.First())
                 .ToList();
