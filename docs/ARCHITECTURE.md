@@ -1064,6 +1064,38 @@ Functions Isolated では `IConfiguration` ではなく
 
 ### API ガード（DataApi.SaveData）
 - 本文サイズ上限（約1.9MB）＋構造バリデーション（コレクション数の健全性チェック）。
+- **参照整合性検証（#159）**: `FixedCost`/`FixedIncome`/`Card` の `AccountId`、`MonthPart.Ledgers` の
+  キー（＝口座ID）、`Transfer.From`/`To`、`Debit.CardId`、`CardDetail.CardId`、`CardBilled` のキー
+  （＝カードID）、`WalletAtmDeposit.AccountId` が実在する `Account`/`Card` を指しているかを `DataApi.HasValidReferences`
+  （純粋ロジック・internal）で検証し、違反時は保存全体を 400 で拒否する（本文に理由文字列
+  `InvalidReferenceError` を返す。クライアント側での提示は別issue「保存失敗の可視化」で扱う）。
+  - **拒否 vs 正規化**: #154（口座種別）は矛盾データを正規化して救済したが、本件は「拒否」を選んだ。
+    正規化（該当エンティティを黙って削除・null化）はユーザーが作成した `FixedCost`/`Card` 等を
+    無断で消すことになり、#154 のケース（同じ実体の2フィールドの矛盾を収束させるだけ）とは性質が
+    異なるため。拒否なら該当箇所を UI 上で編集・削除して再保存すれば自己回復できる
+    （既存の削除ガード `AccountsTab.RequestDelete` が対象エンティティの編集導線を提供している）。
+  - **「実在」は loose existence（ソフト削除も実在扱い）**: `Account`/`Card` はどちらも `IsDeleted`
+    フラグのみのソフト削除で、削除後も配列に残り続ける（`Card.IsDeleted` のコメントどおり過去明細の
+    名前引きに使うため）。よって削除済みでも「実在」とみなし、`IsDeleted` の状態は検証しない。
+    削除状態まで見て拒否すると、「口座/カードを削除した後に、それを参照する過去月を編集して再保存する」
+    という通常操作（履歴データは削除でも書き換わらない仕様）まで拒否してしまう
+    （`Debit.CardId`/`Ledger` のキー等は削除後も過去データに残り続ける設計のため）。
+  - **`Transfer.From`/`To` の空文字は検証対象外**: #168（クレカ発チャージの対応方式検討）が
+    「片側 Transfer（`From=""`）」案を採りうるため、#168 の結論が出るまで空文字は許容のまま据え置く
+    （#159 のコメントで明記した前提）。#168 が別案（`CardDetail` にチャージ区分を追加する等）に決まり
+    「`Transfer.From`/`To` は常に非空」を不変条件にできるとわかった場合は、本項を空文字も拒否する形へ
+    更新すること。
+  - **検証範囲とRUコスト**: `env.Settings` がある保存はその場にある `Accounts`/`Cards`（＝保存される
+    最新版）で検証するため追加読み取りなし。`env.Settings` が無い（月次のみの）保存は、月次データの
+    `AccountId`/`CardId` を検証するために設定docを追加で点読みする（従来は月次のみの保存で読み取りが
+    一切発生しなかったための純増）。コストは**実測ではなく見積り**で判断した：1KB 程度の点読みは
+    Cosmos の課金単位で 1RU が下限であり、設定docがこの規模に収まる限り純増は 1RU 前後にとどまる。
+    月次のみの保存はユーザー操作のたびに発生し設定変更保存より高頻度だが、点読み1回は軽量で
+    招待ベータ規模のRUコストは無視できる水準のため、#155 の「設定変更時のみ点読み追加」より
+    広い範囲（月次保存にも適用）を許容する。実測が必要になるのは利用規模が桁で増えたときで、
+    その時点で `RequestCharge` を計測して見直す。
+  - **孤児 `CategoryId` は対象外**（`CategorySettings.razor` の仕様どおり「未分類」表示に正規化される
+    ため実害がなく、issue の対象外と明記されている）。
 
 ### スキーマ移行
 - `AppState.SchemaVersion` と `SchemaMigration.Apply()` が将来の段階移行の足場。**現状 CurrentVersion=12**。

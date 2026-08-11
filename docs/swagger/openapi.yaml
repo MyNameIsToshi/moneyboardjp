@@ -74,6 +74,12 @@ paths:
         Cosmos DB の TransactionalBatch で原子的に保存。
         楽観的並行制御: `etag` を含む場合は If-Match で検証し、競合時は 412 を返す。
         リクエスト本文の上限: 1.9 MB。
+
+        サーバー側ガード:
+        - 参照整合性（#159）: `AccountId` / `CardId` が実在する口座・カードを指していない場合は
+          400 で保存全体を拒否し、本文に理由を返す。
+        - スキーマ版数フロア（#155・#174）: `clientSchemaVersion` が保存済みデータの版数を
+          下回る、または欠落している場合は 409 で拒否する。
       tags: [home-account]
       security:
         - firebaseJwt: []
@@ -91,11 +97,19 @@ paths:
               schema:
                 $ref: "#/components/schemas/SaveResponse"
         "400":
-          $ref: "#/components/responses/BadRequest"
+          description: |
+            リクエスト本文が不正、必須項目が欠落、または参照整合性違反（#159）。
+            参照整合性違反の場合のみ、本文に理由を含む JSON を返す。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvalidReferenceError"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "409":
+          description: スキーマ版数フロア違反（#155・#174）。クライアントが保存済みデータより古い
         "412":
           description: 楽観的並行制御の競合（別タブ・別端末で先に保存された場合）
         "413":
@@ -493,6 +507,17 @@ components:
 
   schemas:
     # ── 家計簿 ──────────────────────────────────────────────────────────────────
+
+    InvalidReferenceError:
+      type: object
+      description: |
+        参照整合性違反（#159）で保存を拒否したときの本文。
+        `AccountId` / `CardId` が実在する口座・カードを指していない箇所を示す。
+      properties:
+        reason:
+          type: string
+          description: 違反箇所を示す理由文字列（例 `fixedCost fc1 accountId=ghost`）
+          example: "fixedCost fc1 accountId=ghost"
 
     DataEnvelope:
       type: object

@@ -126,6 +126,41 @@ public partial class DataApi(ILogger<DataApi> logger, CosmosClient cosmos, Fireb
                 }
             }
 
+            // 参照整合性検証（#159）：AccountId/CardId が実在する口座・カードを指しているか検証する。
+            // env.Settings がある場合はそこに含まれる Accounts/Cards（＝これから保存される最新版）を使う。
+            // env.Settings が無い（月次のみの保存）場合は、月次データの参照検証のために設定docを追加で
+            // 点読みする（従来は月次のみの保存で読み取りが一切発生しなかったための純増。ADR参照）。
+            List<Account> refAccounts;
+            List<Card> refCards;
+            if (env.Settings != null)
+            {
+                refAccounts = env.Settings.Accounts;
+                refCards = env.Settings.Cards;
+            }
+            else if (env.Months.Count > 0)
+            {
+                refAccounts = new();
+                refCards = new();
+                try
+                {
+                    var r = await container.ReadItemAsync<SettingsDoc>(SettingsId, pk);
+                    refAccounts = r.Resource.Accounts;
+                    refCards = r.Resource.Cards;
+                }
+                catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound) { /* 新規ユーザー：参照先なし */ }
+            }
+            else
+            {
+                refAccounts = new();
+                refCards = new();
+            }
+
+            if (!HasValidReferences(env, refAccounts, refCards, out var refReason))
+            {
+                logger.LogWarning("SaveData rejected: invalid reference ({Reason})", refReason);
+                return new BadRequestObjectResult(new InvalidReferenceError(refReason));
+            }
+
             var batch = container.CreateTransactionalBatch(pk);
             var ops = new List<(string kind, string ym)>();
 
@@ -284,6 +319,65 @@ public partial class DataApi(ILogger<DataApi> logger, CosmosClient cosmos, Fireb
         reason = "";
         return true;
     }
+
+    // 参照整合性検証（#159）。AccountId/CardId が accounts/cards に実在するかを検証する（ソフト削除済み
+    // でも「実在」とみなす＝loose existence。Account/Card は削除されても IsDeleted で残り続け、過去の
+    // 明細・固定費からの名前引きに使われるため、削除状態まで見ると通常操作でも過去データが弾かれてしまう）。
+    // Transfer.From/To の空文字は #168（クレカ発チャージの片側 Transfer 案）と衝突しうるため検証対象外とする
+    // （#168 未確定のため、空文字は許容のまま据え置く）。internal=MoneyBoardApi.Tests から検証。
+    internal static bool HasValidReferences(DataEnvelope env, List<Account> accounts, List<Card> cards, out string reason)
+    {
+        var accountIds = accounts.Select(a => a.Id).ToHashSet();
+        var cardIds = cards.Select(c => c.Id).ToHashSet();
+
+        if (env.Settings != null)
+        {
+            foreach (var fc in env.Settings.FixedCosts)
+                if (!accountIds.Contains(fc.AccountId)) { reason = $"fixedCost {fc.Id} accountId={fc.AccountId}"; return false; }
+            foreach (var fi in env.Settings.FixedIncomes)
+                if (!accountIds.Contains(fi.AccountId)) { reason = $"fixedIncome {fi.Id} accountId={fi.AccountId}"; return false; }
+            foreach (var c in env.Settings.Cards)
+                if (!accountIds.Contains(c.AccountId)) { reason = $"card {c.Id} accountId={c.AccountId}"; return false; }
+        }
+
+        foreach (var (ym, m) in env.Months)
+        {
+            foreach (var accId in m.Ledgers.Keys)
+                if (!accountIds.Contains(accId)) { reason = $"ledger {ym}/{accId}"; return false; }
+
+            // 月次の各コレクションは既定 new() だが、細工リクエストで null を送られても
+            // ここで未処理例外（500）にせず参照チェックを素通しできるよう null 合体する。
+            foreach (var t in m.Transfers ?? new())
+            {
+                if (t.From != "" && !accountIds.Contains(t.From)) { reason = $"transfer {ym}/{t.Id} from={t.From}"; return false; }
+                if (t.To != "" && !accountIds.Contains(t.To)) { reason = $"transfer {ym}/{t.Id} to={t.To}"; return false; }
+            }
+
+            foreach (var cd in m.CardDetails ?? new())
+                if (!cardIds.Contains(cd.CardId)) { reason = $"cardDetail {ym}/{cd.Id} cardId={cd.CardId}"; return false; }
+
+            // CardBilled はキーが cardId（LedgerEngine.ExpandCards が card.Id で引く）。孤児キーは
+            // 読まれず死蔵するだけで実害は無いが、他の CardId 参照と検証範囲を対称に保つ。
+            foreach (var cardId in (m.CardBilled ?? new()).Keys)
+                if (!cardIds.Contains(cardId)) { reason = $"cardBilled {ym}/{cardId}"; return false; }
+
+            foreach (var (accId, l) in m.Ledgers)
+            {
+                foreach (var d in l.Debits ?? new())
+                    if (!string.IsNullOrEmpty(d.CardId) && !cardIds.Contains(d.CardId))
+                        { reason = $"debit {ym}/{d.Id} cardId={d.CardId}"; return false; }
+
+                foreach (var w in l.WalletAtmDeposits ?? new())
+                    if (!accountIds.Contains(w.AccountId)) { reason = $"walletAtmDeposit {ym}/{w.Id} accountId={w.AccountId}"; return false; }
+            }
+        }
+
+        reason = "";
+        return true;
+    }
+
+    // SaveData が参照整合性違反（#159）で拒否したときのレスポンス本文。クライアントが理由を提示できるようにする。
+    private sealed record InvalidReferenceError(string Reason);
 }
 
 // ── Cosmos ドキュメント（同一パーティション /userId 内で type により分割）──
