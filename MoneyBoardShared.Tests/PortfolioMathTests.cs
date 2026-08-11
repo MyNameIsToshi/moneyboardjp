@@ -490,6 +490,43 @@ public class PortfolioMathTests
     }
 
     [Fact]
+    public void BuildSnapshot_ExcludesNegativeQtyHoldings()
+    {
+        // 売り数量が買付を超える入力ミス（売却済み扱い・IsHeld=false）は古い価格のまま推移スナップショットに残さない（#178）
+        var data = new PortfolioData
+        {
+            Holdings = { new Holding { Id = "h", Class = AssetClass.JpStock, CostCurrency = Currency.Jpy } },
+            Buys = { new BuyLot { HoldingId = "h", Quantity = 10, UnitPrice = 100 } },
+            Sells = { new SellLot { HoldingId = "h", Quantity = 15, UnitPrice = 150 } },   // qty = -5
+            CurrentPrices = { ["h"] = 200m },
+        };
+        Assert.Null(PortfolioMath.BuildSnapshot(data, "2026-01-01 10:00"));
+    }
+
+    [Fact]
+    public void BuildSnapshot_MultipleHoldings_NegativeQtyExcludedButOthersIncluded()
+    {
+        var held = new Holding { Id = "h", Class = AssetClass.JpStock, CostCurrency = Currency.Jpy };
+        var sold = new Holding { Id = "s", Class = AssetClass.JpStock, CostCurrency = Currency.Jpy };
+        var data = new PortfolioData
+        {
+            Holdings = { held, sold },
+            Buys =
+            {
+                new BuyLot { HoldingId = "h", Quantity = 10, UnitPrice = 100 },
+                new BuyLot { HoldingId = "s", Quantity = 10, UnitPrice = 100 },
+            },
+            Sells = { new SellLot { HoldingId = "s", Quantity = 15, UnitPrice = 150 } },   // s の qty = -5（売却済み）
+            CurrentPrices = { ["h"] = 200m, ["s"] = 999m },   // s は古い/無関係な価格が残っていても記録に混入しない
+        };
+        var snap = PortfolioMath.BuildSnapshot(data, "2026-01-01 10:00");
+
+        Assert.NotNull(snap);
+        Assert.Single(snap!.Values);
+        Assert.Equal("h", snap.Values[0].HoldingId);
+    }
+
+    [Fact]
     public void BuildSnapshot_BuildsValues_JpStock()
     {
         var data = new PortfolioData

@@ -174,7 +174,7 @@ public static class PortfolioMath
         foreach (var h in data.Holdings.Where(h => !h.IsDeleted))
         {
             var qty = Summarize(h, data.Buys, data.Sells, data.Dividends).Quantity;
-            if (qty == 0) continue;
+            if (!IsHeld(qty)) continue;   // 売却済み（数量0・負数量）は推移スナップショットにも記録しない（#178・定義をIsHeldへ一本化）
             var nativePrice = data.CurrentPrices.GetValueOrDefault(h.Id);
             var vJpy = ValuationJpy(h, qty, nativePrice, data.UsdJpyRate);
             if (!vJpy.HasValue) continue;

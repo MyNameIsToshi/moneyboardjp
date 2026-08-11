@@ -213,7 +213,7 @@ public partial class DataApi
             foreach (var h in active)
             {
                 var sum = PortfolioMath.Summarize(h, data.Buys, data.Sells, data.Dividends);
-                if (sum.Quantity == 0) continue;
+                if (!PortfolioMath.IsHeld(sum.Quantity)) continue;   // 売却済み（数量0・負数量）は日報レスポンスにも出さない（#178・定義をIsHeldへ一本化）
                 var price = data.CurrentPrices.GetValueOrDefault(h.Id);
                 var vJpy = PortfolioMath.ValuationJpy(h, sum.Quantity, price, data.UsdJpyRate);
                 if (!vJpy.HasValue) continue;
