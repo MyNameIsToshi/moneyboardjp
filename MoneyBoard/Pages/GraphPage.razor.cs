@@ -654,13 +654,10 @@ public partial class GraphPage
         // 現金・電子マネー支出（利用日を持たないため常に所属月バケット）をカテゴリ別月別推移に加算する。
         // ドーナツ・カテゴリ別合計（BuildCategorySpend の CashDebitsIn）には既に反映済みだったが、
         // この推移だけカード明細のみを対象にしていたため出ていなかった（#171）。
-        Dictionary<string, decimal> CashAmountsByCategory(string ym) =>
-            CashDebitsIn(new[] { ym })
-                .GroupBy(x => StatsMath.NormalizeCategoryKey(x.Debit.CategoryId, knownCategoryIds))
-                .ToDictionary(g => g.Key, g => g.Sum(x => x.Debit.Amount));
-
-        // 色・名前はカテゴリ設定色に合わせる（BuildCategorySpend と同じ方針・データ並びと同順）
-        CategoryTrend = BuildTrendSeries(yms, d => StatsMath.NormalizeCategoryKey(d.CategoryId, knownCategoryIds), CashAmountsByCategory)
+        // 同じ集計（CashCategoryAmounts）を棒タップの内訳ドリルダウン（OpenCategoryTrendSummary）でも
+        // 使い、棒の高さと内訳合計を一致させる（#171フォローアップ：コードレビューで発覚した不整合の修正）。
+        CategoryTrend = BuildTrendSeries(yms, d => StatsMath.NormalizeCategoryKey(d.CategoryId, knownCategoryIds),
+                ym => CashCategoryAmounts(ym, knownCategoryIds))
             .Select(x =>
             {
                 var cat = Svc.CategoryById(x.Key);
@@ -669,6 +666,14 @@ public partial class GraphPage
             .ToList();
         CategoryTrendOptions.Colors = CategoryTrend.Select(s => s.Color).ToList();
     }
+
+    // 指定 ym（1ヶ月分）の現金・電子マネー支出を、カテゴリキー別の金額合計にする（#171フォローアップ）。
+    // BuildCategoryTrend（棒の高さ）と OpenCategoryTrendSummary（棒タップの内訳合計）の両方から使い、
+    // 常に同じ集計結果になることで「棒の高さ ≠ 内訳合計」という不整合を構造的に防ぐ。
+    private Dictionary<string, decimal> CashCategoryAmounts(string ym, IReadOnlyCollection<string> knownCategoryIds) =>
+        CashDebitsIn(new[] { ym })
+            .GroupBy(x => StatsMath.NormalizeCategoryKey(x.Debit.CategoryId, knownCategoryIds))
+            .ToDictionary(g => g.Key, g => g.Sum(x => x.Debit.Amount));
 
     private void BuildCardTrend(List<string> yms)
     {
@@ -732,13 +737,19 @@ public partial class GraphPage
         if (_trendYm is not null) OpenTrendDrilldown();
     }
 
-    // 集計別モード（カテゴリ別推移）：項目（カテゴリ）ごとの合計（既存の内訳ダイアログ導線に倣う）
+    // 集計別モード（カテゴリ別推移）：項目（カテゴリ）ごとの合計（既存の内訳ダイアログ導線に倣う）。
+    // カード明細の金額に現金・電子マネー支出（CashCategoryAmounts＝BuildCategoryTrend と同じ集計）を
+    // 合算し、合計値が棒の高さ（CategoryTrend）と一致するようにする（#171フォローアップ）。
     private void OpenCategoryTrendSummary(string ym)
     {
         var knownCategoryIds = Svc.State.Categories.Select(c => c.Id).ToHashSet();
-        var items = CardDetailsAtBucket(ym)
+        var cardAmounts = CardDetailsAtBucket(ym)
             .GroupBy(d => StatsMath.NormalizeCategoryKey(d.CategoryId, knownCategoryIds))
-            .Select(g => new BreakdownDialog.BreakdownItem(Svc.CategoryById(g.Key)?.Name ?? "未分類", g.Sum(d => d.Amount)))
+            .ToDictionary(g => g.Key, g => g.Sum(d => d.Amount));
+        var amounts = StatsMath.MergeAmounts(cardAmounts, CashCategoryAmounts(ym, knownCategoryIds));
+
+        var items = amounts
+            .Select(kv => new BreakdownDialog.BreakdownItem(Svc.CategoryById(kv.Key)?.Name ?? "未分類", kv.Value))
             .Where(x => x.Amount != 0)
             .OrderByDescending(x => x.Amount)
             .ToList();
@@ -760,23 +771,38 @@ public partial class GraphPage
         _breakdown = new($"{label}のカード別内訳", $"{label}（1ヶ月）", items.Sum(x => x.Amount), items);
     }
 
-    // 明細別モード：その月（バケット）のカード明細を1行ずつ表示（既存の DetailDialog を再利用。
+    // 明細別モード：その月（バケット）の明細を1行ずつ表示（既存の DetailDialog を再利用。
     // ドーナツ側の「選択してカテゴリ設定」はスコープ外＝閲覧専用で ShowCategorize=false）。
-    // カテゴリ別/カード別どちらの推移チャートから開いても同一内容（対象カード明細は同じバケット）。
+    // カテゴリ別推移（_trendIsCategoryChart=true）から開いた場合のみ、カード明細に加えて現金・電子マネー
+    // 支出も含める（OpenCategoryTrendSummary の合計＝棒の高さと一致させるため・#171フォローアップ。
+    // 当初「どちらのチャートから開いても同一内容」としていたが、カテゴリ別推移の棒には現金・電子マネー分が
+    // 含まれるため、明細側も揃えないと合計が一致しない不整合になっていた）。
+    // カード別推移（false）から開いた場合は現金・電子マネーを持たない＝従来どおりカード明細のみ。
     private void OpenTrendDetail(string ym)
     {
         var knownCategoryIds = Svc.State.Categories.Select(c => c.Id).ToHashSet();
-        var details = CardDetailsAtBucket(ym);
-        var rows = details
+        var cardRows = CardDetailsAtBucket(ym)
             .Select(d =>
             {
                 var cat = Svc.CategoryById(StatsMath.NormalizeCategoryKey(d.CategoryId, knownCategoryIds));
                 return new DetailDialog.DetailRow(d.Date, d.Name, cat?.Name ?? "未分類", d.Amount, cat?.Color ?? "#bdbdbd");
-            })
-            .OrderByDescending(r => r.Date)
-            .ToList();
+            });
+
+        var rows = _trendIsCategoryChart
+            ? cardRows.Concat(CashDebitsIn(new[] { ym }).Select(x =>
+              {
+                  var cat = Svc.CategoryById(StatsMath.NormalizeCategoryKey(x.Debit.CategoryId, knownCategoryIds));
+                  // 現金・電子マネーは実日付を持たないため、ドーナツ側ドリルダウンと同じく所属月の1日を
+                  // 合成日として使う（StatsMath.MonthStartDate・DateIsSynthesized=true で ⓘ 注記が出る）。
+                  return new DetailDialog.DetailRow(
+                      StatsMath.MonthStartDate(ym), string.IsNullOrWhiteSpace(x.Debit.Name) ? "（名称なし）" : x.Debit.Name,
+                      cat?.Name ?? "未分類", x.Debit.Amount, cat?.Color ?? "#bdbdbd", DateIsSynthesized: true);
+              })).ToList()
+            : cardRows.ToList();
+
+        rows = rows.OrderByDescending(r => r.Date).ToList();
         var label = LedgerService.Label(ym);
-        _detail = new(label, "", details.Count, details.Sum(d => d.Amount), rows, false, $"{label}（1ヶ月）");
+        _detail = new(label, "", rows.Count, rows.Sum(r => r.Amount), rows, false, $"{label}（1ヶ月）");
     }
 
     // 期間中の各月について Label/Value のチャート点を作る共通処理
