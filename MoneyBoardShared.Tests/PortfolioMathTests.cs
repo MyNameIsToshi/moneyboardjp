@@ -11,6 +11,9 @@ public class PortfolioMathTests
     private static BuyLot Buy(decimal qty, decimal price, bool espp = false, decimal amount = 0) =>
         new() { HoldingId = "h", Quantity = qty, UnitPrice = price, IsEspp = espp, Amount = amount };
 
+    private static SellLot Sell(decimal qty, decimal price, string date = "") =>
+        new() { HoldingId = "h", Quantity = qty, UnitPrice = price, Date = date };
+
     [Theory]
     [InlineData(AssetClass.Fund, 10000)]
     [InlineData(AssetClass.JpStock, 1)]
@@ -134,6 +137,106 @@ public class PortfolioMathTests
     {
         var h = H(AssetClass.Fund);
         Assert.Equal(12_000m, PortfolioMath.ValuationJpy(h, qty: 10000, nativePrice: 12000, usdJpyRate: 150));
+    }
+
+    // ── IsHeld（保有中／売却済みの判定。フィールドを持たせず現在数量からの派生状態で判定・#178）──
+    [Fact]
+    public void IsHeld_FullySold_ReturnsFalse()
+    {
+        var h = H();
+        var buys = new[] { Buy(10, 100) };
+        var sells = new[] { Sell(10, 150) };
+        var s = PortfolioMath.Summarize(h, buys, sells, Array.Empty<Dividend>());
+        Assert.Equal(0m, s.Quantity);
+        Assert.False(PortfolioMath.IsHeld(s.Quantity));
+    }
+
+    [Fact]
+    public void IsHeld_PartiallySold_ReturnsTrue()
+    {
+        var h = H();
+        var buys = new[] { Buy(10, 100) };
+        var sells = new[] { Sell(4, 150) };
+        var s = PortfolioMath.Summarize(h, buys, sells, Array.Empty<Dividend>());
+        Assert.Equal(6m, s.Quantity);
+        Assert.True(PortfolioMath.IsHeld(s.Quantity));
+    }
+
+    [Fact]
+    public void IsHeld_ReboughtAfterFullSale_ReturnsTrue()
+    {
+        var h = H();
+        // 全売却後、同じ銘柄へ買い戻し（買付を追加しただけ）→ 現在数量から自動的に保有中へ戻る
+        var buys = new[] { Buy(10, 100), Buy(5, 120) };
+        var sells = new[] { Sell(10, 150) };
+        var s = PortfolioMath.Summarize(h, buys, sells, Array.Empty<Dividend>());
+        Assert.Equal(5m, s.Quantity);
+        Assert.True(PortfolioMath.IsHeld(s.Quantity));
+    }
+
+    [Fact]
+    public void IsHeld_ReinvestedDividendOnly_ReturnsTrue()
+    {
+        var h = H();
+        var dividends = new[] { new Dividend { HoldingId = "h", Quantity = 5 } };
+        var s = PortfolioMath.Summarize(h, Array.Empty<BuyLot>(), Array.Empty<SellLot>(), dividends);
+        Assert.Equal(5m, s.Quantity);
+        Assert.True(PortfolioMath.IsHeld(s.Quantity));
+    }
+
+    [Fact]
+    public void IsHeld_NegativeQuantity_OverSoldInputMistake_ReturnsFalse()
+    {
+        var h = H();
+        var buys = new[] { Buy(10, 100) };
+        var sells = new[] { Sell(15, 150) };   // 売り数量が買付数量を超える入力ミス
+        var s = PortfolioMath.Summarize(h, buys, sells, Array.Empty<Dividend>());
+        Assert.Equal(-5m, s.Quantity);
+        Assert.False(PortfolioMath.IsHeld(s.Quantity));
+    }
+
+    // ── LastSellDate ──
+    [Fact]
+    public void LastSellDate_NoSells_ReturnsNull() =>
+        Assert.Null(PortfolioMath.LastSellDate(Array.Empty<SellLot>(), "h"));
+
+    [Fact]
+    public void LastSellDate_ReturnsMostRecentDate_RegardlessOfInputOrder()
+    {
+        var sells = new[]
+        {
+            Sell(1, 100, "2026-03-10"),
+            Sell(1, 100, "2026-05-01"),
+            Sell(1, 100, "2026-01-20"),
+        };
+        Assert.Equal("2026-05-01", PortfolioMath.LastSellDate(sells, "h"));
+    }
+
+    [Fact]
+    public void LastSellDate_IgnoresOtherHoldings()
+    {
+        var sells = new[]
+        {
+            new SellLot { HoldingId = "other", Date = "2026-05-01", Quantity = 1 },
+            Sell(1, 100, "2026-01-20"),
+        };
+        Assert.Equal("2026-01-20", PortfolioMath.LastSellDate(sells, "h"));
+    }
+
+    // ── 売却済みの並び順（最終売却日の新しい順。UI 側は LastSellDate で OrderByDescending する）──
+    [Fact]
+    public void SoldHoldings_OrderByLastSellDateDescending()
+    {
+        var sells = new[]
+        {
+            new SellLot { HoldingId = "a", Date = "2026-02-01", Quantity = 1 },
+            new SellLot { HoldingId = "b", Date = "2026-05-01", Quantity = 1 },
+            new SellLot { HoldingId = "c", Date = "2026-03-15", Quantity = 1 },
+        };
+        var ordered = new[] { "a", "b", "c" }
+            .OrderByDescending(id => PortfolioMath.LastSellDate(sells, id), StringComparer.Ordinal)
+            .ToArray();
+        Assert.Equal(new[] { "b", "c", "a" }, ordered);
     }
 
     // ── YahooSymbol ──

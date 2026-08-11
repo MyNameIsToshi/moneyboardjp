@@ -59,6 +59,22 @@ public static class PortfolioMath
         return new HoldingSummary(qty, avg, costBasis, realized, divSum);
     }
 
+    /// <summary>現在保有中か（現在数量 &gt; 0）。0 以下（全売却・売り数量が買付を超える入力ミス）は売却済み扱い。
+    /// フラグを持たせず現在数量からの派生状態として判定する（買い戻せば自動的に保有中へ戻る・#178）。</summary>
+    public static bool IsHeld(decimal qty) => qty > 0;
+
+    /// <summary>指定銘柄の最終売却日（"yyyy-MM-dd"）。売却記録が無ければ null。売却済みセクションの並び順に使う（#178）。</summary>
+    public static string? LastSellDate(IEnumerable<SellLot> sells, string holdingId)
+    {
+        string? last = null;
+        foreach (var s in sells)
+        {
+            if (s.HoldingId != holdingId || string.IsNullOrEmpty(s.Date)) continue;
+            if (last == null || string.CompareOrdinal(s.Date, last) > 0) last = s.Date;
+        }
+        return last;
+    }
+
     /// <summary>評価額の共通計算。数量0は0、価格未取得(&lt;=0)は null。convertToJpy なら USD/JPY で円換算
     /// （為替不足は null）、それ以外は raw（建て通貨）をそのまま返す。Valuation/ValuationJpy の差は円換算条件のみ。</summary>
     private static decimal? RawValuation(Holding h, decimal qty, decimal nativePrice, decimal usdJpyRate, bool convertToJpy)
