@@ -249,4 +249,86 @@ public class StatsMathTests
 
         Assert.Empty(r);
     }
+
+    // MonthStartDate（#171）：現金・電子マネー支出（実日付を持たない）の明細ドリルダウン表示・
+    // 日付順ソート用に、所属月 ym から「その月の1日」を合成する。
+    [Fact]
+    public void MonthStartDate_ValidYm_ReturnsFirstOfMonth()
+    {
+        var r = StatsMath.MonthStartDate("202607");
+        Assert.Equal("2026-07-01", r);
+    }
+
+    [Fact]
+    public void MonthStartDate_SingleDigitMonth_IsZeroPadded()
+    {
+        var r = StatsMath.MonthStartDate("202603");
+        Assert.Equal("2026-03-01", r);
+    }
+
+    [Fact]
+    public void MonthStartDate_MalformedYm_ReturnsInputUnchanged()
+    {
+        // 6桁数字でない・月が不正（13等）な入力は合成できないため、呼び出し側の従来動作を保つ
+        Assert.Equal("2026-07", StatsMath.MonthStartDate("2026-07"));
+        Assert.Equal("", StatsMath.MonthStartDate(""));
+        Assert.Equal("202613", StatsMath.MonthStartDate("202613"));
+    }
+
+    // MergeAmounts（#171）：月別推移の1バケット分のキー別金額に、追加分（現金・電子マネー支出）を
+    // キーごとに合算する。カテゴリ別推移へ現金支出を加算する際の共通処理。
+    [Fact]
+    public void MergeAmounts_OverlappingKey_SumsAmounts()
+    {
+        var baseAmounts = new Dictionary<string, decimal> { ["food"] = 1000m };
+        var extra = new Dictionary<string, decimal> { ["food"] = 500m };
+
+        var r = StatsMath.MergeAmounts(baseAmounts, extra);
+
+        Assert.Equal(1500m, r["food"]);
+    }
+
+    [Fact]
+    public void MergeAmounts_NewKeyInExtra_IsAddedAsIs()
+    {
+        var baseAmounts = new Dictionary<string, decimal> { ["food"] = 1000m };
+        var extra = new Dictionary<string, decimal> { ["transport"] = 300m };
+
+        var r = StatsMath.MergeAmounts(baseAmounts, extra);
+
+        Assert.Equal(1000m, r["food"]);
+        Assert.Equal(300m, r["transport"]);
+    }
+
+    [Fact]
+    public void MergeAmounts_EmptyExtra_ReturnsBaseUnchanged()
+    {
+        var baseAmounts = new Dictionary<string, decimal> { ["food"] = 1000m };
+
+        var r = StatsMath.MergeAmounts(baseAmounts, new Dictionary<string, decimal>());
+
+        Assert.Equal(baseAmounts, r);
+    }
+
+    [Fact]
+    public void MergeAmounts_EmptyBase_ReturnsExtraAsIs()
+    {
+        var extra = new Dictionary<string, decimal> { ["food"] = 500m };
+
+        var r = StatsMath.MergeAmounts(new Dictionary<string, decimal>(), extra);
+
+        Assert.Equal(500m, r["food"]);
+    }
+
+    [Fact]
+    public void MergeAmounts_DoesNotMutateInputDictionaries()
+    {
+        var baseAmounts = new Dictionary<string, decimal> { ["food"] = 1000m };
+        var extra = new Dictionary<string, decimal> { ["food"] = 500m };
+
+        StatsMath.MergeAmounts(baseAmounts, extra);
+
+        Assert.Equal(1000m, baseAmounts["food"]);
+        Assert.Equal(500m, extra["food"]);
+    }
 }
