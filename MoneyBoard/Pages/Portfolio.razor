@@ -228,7 +228,7 @@
             <button class="pf-add-btn" @onclick="OpenAdd"><span class="msym">add</span>追加</button>
         </div>
 
-        @if (!Ordered.Any())
+        @if (!Store.Data.Holdings.Any(h => !h.IsDeleted))
         {
             <div class="none">銘柄が登録されていません。「＋ 追加」から取引を登録してください。</div>
         }
@@ -331,6 +331,75 @@
                     }
                 </div>
             }
+        }
+
+        @* ── 売却済み銘柄（現在数量<=0・折りたたみ。現在価格・評価額・前日比は出さない。買い戻すと保有中へ自動的に戻る #178） ── *@
+        @if (SoldHoldings.Count > 0)
+        {
+            <div class="pf-sold-section">
+                <button type="button" class="pf-sold-toggle" @onclick="() => _soldOpen = !_soldOpen">
+                    <span class="msym">@(_soldOpen ? "expand_less" : "expand_more")</span>
+                    <span>売却済み（@SoldHoldings.Count 件）</span>
+                </button>
+
+                @if (_soldOpen)
+                {
+                    <div class="pf-sold-body">
+                        @if (IsMobile)
+                        {
+                            @foreach (var h in SoldHoldings)
+                            {
+                                var s = Summary(h);
+                                <div class="list-card pf-mcard pf-mcard-sold" @key="h.Id">
+                                    <div class="pf-mc-r1">
+                                        <span class="pf-mc-name">@DisplayName(h)</span>
+                                        <span class="pf-hbadge">@AccountLabel(h.Account)</span>
+                                    </div>
+                                    <div class="pf-mc-r2">
+                                        <span class="pf-mc-metrics">最終売却 @(LastSellDate(h) ?? "—")</span>
+                                        <span class="pf-mc-metrics @(s.Quantity < 0 ? "pf-neg" : "")">数量 @Qty(s.Quantity)@UnitSuffix(h)@(s.Quantity < 0 ? " ⚠" : "")</span>
+                                    </div>
+                                    <div class="pf-mc-r3">
+                                        <span class="pf-mc-pl @PnlClass(s.RealizedPnl)">実現損益 @MaskedMoneySigned(h, s.RealizedPnl)</span>
+                                        <span class="pf-mc-metrics">配当 @MaskedMoney(h, s.Dividends)</span>
+                                    </div>
+                                    <div class="pf-sold-actions">
+                                        <button class="pf-tx-btn" @onclick="() => OpenTx(h.Id)"><span class="msym">tune</span>取引</button>
+                                        <button class="pf-del-btn" @onclick="() => AskDelete(h)" aria-label="削除"><span class="msym">close</span></button>
+                                    </div>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="pf-grid pf-sold-grid pf-grid-head">
+                                <span>銘柄名</span>
+                                <span class="pf-num">最終売却日</span><span class="pf-num">数量</span>
+                                <span class="pf-num">実現損益</span><span class="pf-num">配当合計</span>
+                                <span></span><span></span>
+                            </div>
+                            @foreach (var h in SoldHoldings)
+                            {
+                                var s = Summary(h);
+                                <div class="pf-grid pf-sold-grid pf-row" @key="h.Id">
+                                    <span class="pf-hname-cell">
+                                        <span class="pf-hname-body">
+                                            <span class="pf-hname-name" title="@DisplayName(h)">@DisplayName(h)</span>
+                                            <span class="pf-hbadge">@AccountLabel(h.Account)</span>
+                                        </span>
+                                    </span>
+                                    <span class="pf-num">@(LastSellDate(h) ?? "—")</span>
+                                    <span class="pf-num @(s.Quantity < 0 ? "pf-neg" : "")">@Qty(s.Quantity)@(s.Quantity < 0 ? " ⚠" : "")</span>
+                                    <span class="pf-num @PnlClass(s.RealizedPnl)">@MaskedMoneySigned(h, s.RealizedPnl)</span>
+                                    <span class="pf-num">@MaskedMoney(h, s.Dividends)</span>
+                                    <button class="pf-tx-btn" @onclick="() => OpenTx(h.Id)"><span class="msym">tune</span>取引</button>
+                                    <button class="pf-del-btn" @onclick="() => AskDelete(h)" aria-label="削除"><span class="msym">close</span></button>
+                                </div>
+                            }
+                        }
+                    </div>
+                }
+            </div>
         }
 
         <div class="foot pf-foot">

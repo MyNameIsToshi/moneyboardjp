@@ -78,6 +78,9 @@ public partial class Portfolio
     };
     private Holding? HoldingById(string id) => Store.Data.Holdings.FirstOrDefault(h => h.Id == id);
 
+    // 売却済み銘柄の最終売却日（"yyyy-MM-dd"）。売却記録が無ければ null（#178）。
+    private string? LastSellDate(Holding h) => PortfolioMath.LastSellDate(Store.Data.Sells, h.Id);
+
     // ── 現在価格・評価額 ──
     private decimal CurPrice(string holdingId) => Store.Data.CurrentPrices.GetValueOrDefault(holdingId);
     private decimal PrevPrice(string holdingId) => Store.Data.PrevPrices.GetValueOrDefault(holdingId);

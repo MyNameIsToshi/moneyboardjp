@@ -26,8 +26,18 @@ public partial class Portfolio
         (AssetClass.Fund, "投資信託"),
     };
 
+    // 保有中（現在数量 > 0）の銘柄のみ。一覧描画・並べ替え・価格取得の対象はすべてこちら（#178）。
+    // 売却済み（現在数量 <= 0）はフィールドを持たせず現在数量からの派生状態として除外する（PortfolioMath.IsHeld）。
     private IEnumerable<Holding> Ordered =>
-        Store.Data.Holdings.Where(h => !h.IsDeleted).OrderBy(h => h.SortOrder);
+        Store.Data.Holdings.Where(h => !h.IsDeleted && PortfolioMath.IsHeld(Summary(h).Quantity)).OrderBy(h => h.SortOrder);
+
+    // 売却済み（現在数量 <= 0）の銘柄。最終売却日の新しい順（未設定は末尾）。折りたたみセクション表示用（#178）。
+    private List<Holding> SoldHoldings =>
+        Store.Data.Holdings.Where(h => !h.IsDeleted && !PortfolioMath.IsHeld(Summary(h).Quantity))
+            .OrderByDescending(h => LastSellDate(h) ?? "", StringComparer.Ordinal)
+            .ToList();
+
+    private bool _soldOpen;
 
     private HoldingSummary Summary(Holding h) =>
         PortfolioMath.Summarize(h, Store.Data.Buys, Store.Data.Sells, Store.Data.Dividends);

@@ -492,6 +492,45 @@
   margin-top: 22px;
 }
 
+/* ── 売却済み銘柄（折りたたみ。現在数量<=0＝現在価格・評価額・前日比は出さない #178）── */
+.pf-sold-section {
+  margin-top: 18px;
+}
+.pf-sold-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  padding: 8px 2px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+  cursor: pointer;
+}
+.pf-sold-toggle .msym {
+  font-size: 20px;
+  color: #8f8b84;
+}
+.pf-sold-body {
+  margin-top: 4px;
+}
+/* PC：保有銘柄と同じグリッド流儀だが列構成が異なる（現在価格・評価額・前日比なし＝銘柄名/最終売却日/数量/実現損益/配当合計/取引/削除） */
+.pf-sold-grid {
+  grid-template-columns: 1.7fr 1fr 0.7fr 1fr 0.9fr auto 34px;
+}
+/* スマホ：売却済みカードは並べ替え対象外のため list-card-wrap（▲▼）を使わず、下部に[取引][削除]を横並び */
+.pf-mcard-sold {
+  cursor: default;
+}
+.pf-sold-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 2px;
+}
+
 /* 損益の色規律（益=緑／損=赤）。前日比・指数・小計も共通 */
 .pf-pos { color: var(--ok); }
 .pf-neg { color: var(--bad); }
