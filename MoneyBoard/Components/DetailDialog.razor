@@ -70,7 +70,17 @@
                     {
                         <input type="checkbox" class="dd-check" checked="@_selected.Contains(r.Id)" @onchange="() => ToggleRow(r.Id)" />
                     }
-                    <span class="dd-date">@FmtDate(r.Date)</span>
+                    @if (r.DateIsSynthesized)
+                    {
+                        <span class="dd-date dd-date-tip" tabindex="0">
+                            @FmtDate(r.Date)
+                            <span class="dd-date-note">利用日を記録しないため、月初（1日）で表示しています。</span>
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="dd-date">@FmtDate(r.Date)</span>
+                    }
                     <span class="dd-name" title="@r.Store">@r.Store</span>
                     <span class="dd-amt">@MaskedYen(IsMasked, r.Amount)</span>
                     <div class="dd-row2">
@@ -133,7 +143,9 @@
     // SubColor は Sub に対応する色（カード別ドーナツ／カテゴリ設定色）。バッジ・金額バーに使う。
     // Id は「選択してカテゴリ設定」（#118）で選択行を実体（CardDetail/Debit）へ引き当てるためのキー。
     // ShowCategorize=false の呼び出し元（カード別ドリルダウン等）は未設定のままでよい。
-    public record DetailRow(string Date, string Store, string Sub, decimal Amount, string SubColor = "", string Id = "");
+    // DateIsSynthesized（#171）：現金・電子マネー支出は実日付を持たず、Date は所属月の1日を合成した値
+    // （StatsMath.MonthStartDate）。true の行の日付にのみ「月初で表示している」旨の ⓘ ツールチップを出す。
+    public record DetailRow(string Date, string Store, string Sub, decimal Amount, string SubColor = "", string Id = "", bool DateIsSynthesized = false);
 
     // ── 選択してカテゴリ設定（#118）：行を複数選択→カテゴリを選んで一括反映 ──
     private bool _selecting;

@@ -582,6 +582,42 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* 現金・電子マネー行の合成日（#171）：CycleInfo（.cycle-info/.cycle-tip）と同型の
+   ⓘ ツールチップ。PC はホバー、スマホはタップ（tabindex + :focus-within）で同じ位置に出す。 */
+.dd-date-tip {
+  position: relative;
+  cursor: help;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
+.dd-date-note {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 40;
+  width: 200px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.6;
+  text-align: left;
+  padding: 9px 11px;
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .18);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .15s;
+  white-space: normal;
+}
+
+.dd-date-tip:hover .dd-date-note,
+.dd-date-tip:focus-within .dd-date-note {
+  opacity: 1;
+  visibility: visible;
+}
+
 .dd-name {
   font-size: 13.5px;
   white-space: nowrap;
