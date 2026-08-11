@@ -502,7 +502,8 @@ public partial class GraphPage
             .ToList();
 
         // ドリルダウン用：カテゴリごとの明細（日付降順）。補足列＝カード名/口座名・色はカードドーナツと共有
-        // （現金支出は利用日を持たないため ym を代用し、月単位で日付降順に近い並びにする）。
+        // （現金支出は利用日を持たないため所属月の1日を合成日として使う＝StatsMath.MonthStartDate。
+        //  カード明細と同じ実日付として扱えるため、日付降順ソートも破綻しない・#171）。
         // 併せて DetailRow.Id → 実体への setter を記録する（「選択してカテゴリ設定」#118 用）。
         _categorizeTargets = new();
         CategoryDetails = allKeys.ToDictionary(
@@ -521,9 +522,11 @@ public partial class GraphPage
                     .Select(x =>
                     {
                         _categorizeTargets[x.Debit.Id] = catId => x.Debit.CategoryId = catId;
+                        // 現金・電子マネー支出は実日付を持たないため、所属月の1日を合成してカード明細と
+                        // 同じ M/d 書式・日付順ソートに乗せる（DateIsSynthesized=true で ⓘ 注記を出す・#171）。
                         return new DetailDialog.DetailRow(
-                            x.Ym, string.IsNullOrWhiteSpace(x.Debit.Name) ? "（名称なし）" : x.Debit.Name,
-                            Svc.AccountName(x.AccountId) ?? "現金", x.Debit.Amount, "#bdbdbd", x.Debit.Id);
+                            StatsMath.MonthStartDate(x.Ym), string.IsNullOrWhiteSpace(x.Debit.Name) ? "（名称なし）" : x.Debit.Name,
+                            Svc.AccountName(x.AccountId) ?? "現金", x.Debit.Amount, "#bdbdbd", x.Debit.Id, DateIsSynthesized: true);
                     });
                 return cardRows.Concat(cashRows).OrderByDescending(r => r.Date).ToList();
             });
@@ -620,12 +623,20 @@ public partial class GraphPage
 
     // 月別推移の共通骨組み：各 ym バケット（CardDetailsAtBucket）を keyOf でグルーピングし、
     // キー別・月別の金額系列を「合計降順」で返す。名前・色の解決だけをカテゴリ別/カード別で差し替える。
-    private List<(string Key, List<ChartPoint> Data)> BuildTrendSeries(List<string> yms, Func<CardDetail, string> keyOf)
+    // extraByYm を渡すと、その ym バケットのキー別金額をカード明細分に合算する（StatsMath.MergeAmounts・
+    // #171・カテゴリ別推移の現金/電子マネー支出加算用。カード別推移は extraByYm を渡さないため
+    // 今までどおりカードのみ）。
+    private List<(string Key, List<ChartPoint> Data)> BuildTrendSeries(
+        List<string> yms, Func<CardDetail, string> keyOf, Func<string, Dictionary<string, decimal>>? extraByYm = null)
     {
         // ym → キー → 金額合計
         var amountsByYm = yms.ToDictionary(
             ym => ym,
-            ym => CardDetailsAtBucket(ym).GroupBy(keyOf).ToDictionary(g => g.Key, g => g.Sum(d => d.Amount)));
+            ym =>
+            {
+                var amounts = CardDetailsAtBucket(ym).GroupBy(keyOf).ToDictionary(g => g.Key, g => g.Sum(d => d.Amount));
+                return extraByYm != null ? StatsMath.MergeAmounts(amounts, extraByYm(ym)) : amounts;
+            });
 
         return amountsByYm.Values.SelectMany(d => d.Keys).Distinct()
             .Select(key => (Key: key, Data: yms.Select(ym => new ChartPoint
@@ -640,8 +651,16 @@ public partial class GraphPage
     private void BuildCategoryTrend(List<string> yms)
     {
         var knownCategoryIds = Svc.State.Categories.Select(c => c.Id).ToHashSet();
+        // 現金・電子マネー支出（利用日を持たないため常に所属月バケット）をカテゴリ別月別推移に加算する。
+        // ドーナツ・カテゴリ別合計（BuildCategorySpend の CashDebitsIn）には既に反映済みだったが、
+        // この推移だけカード明細のみを対象にしていたため出ていなかった（#171）。
+        Dictionary<string, decimal> CashAmountsByCategory(string ym) =>
+            CashDebitsIn(new[] { ym })
+                .GroupBy(x => StatsMath.NormalizeCategoryKey(x.Debit.CategoryId, knownCategoryIds))
+                .ToDictionary(g => g.Key, g => g.Sum(x => x.Debit.Amount));
+
         // 色・名前はカテゴリ設定色に合わせる（BuildCategorySpend と同じ方針・データ並びと同順）
-        CategoryTrend = BuildTrendSeries(yms, d => StatsMath.NormalizeCategoryKey(d.CategoryId, knownCategoryIds))
+        CategoryTrend = BuildTrendSeries(yms, d => StatsMath.NormalizeCategoryKey(d.CategoryId, knownCategoryIds), CashAmountsByCategory)
             .Select(x =>
             {
                 var cat = Svc.CategoryById(x.Key);
